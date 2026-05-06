@@ -81,3 +81,28 @@ function cyclonedds-configure {
   cyclonedds_uri+='</Interfaces></General></Domain></CycloneDDS>'
   export CYCLONEDDS_URI="$cyclonedds_uri"
 }
+
+# Activate the dua-venv (default DUA / ROS2 environment).
+dua-env() {
+    # If we were in dagr-env, deactivate it first
+    if [[ "${VIRTUAL_ENV:-}" == "/opt/dagr-venv" ]]; then
+        deactivate 2>/dev/null || true
+        if [[ -n "${_DAGR_PYTHONPATH_BACKUP:-}" ]]; then
+            export PYTHONPATH="${_DAGR_PYTHONPATH_BACKUP}"
+            unset _DAGR_PYTHONPATH_BACKUP
+        fi
+    fi
+    source /opt/dua-venv/bin/activate
+}
+
+# Activate the dagr-venv
+dagr-env() {
+    # If we were in dua-venv, deactivate it first
+    if [[ "${VIRTUAL_ENV:-}" == "/opt/dua-venv" ]]; then
+        deactivate 2>/dev/null || true
+    fi
+    # Save current PYTHONPATH and clear it
+    export _DAGR_PYTHONPATH_BACKUP="${PYTHONPATH:-}"
+    unset PYTHONPATH
+    source /opt/dagr-venv/bin/activate
+}

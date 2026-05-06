@@ -26,6 +26,60 @@ ARG USER_UID=1000
 ENV DEBIAN_FRONTEND=noninteractive
 
 # IMAGE SETUP START #
+# Install DAGr and dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    cmake \
+    ninja-build \
+    ffmpeg \
+    libgl1 \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN unset PYTHONPATH && \
+    /usr/bin/python3.12 -m venv /opt/dagr-venv && \
+    . /opt/dagr-venv/bin/activate && \
+    unset PYTHONPATH && \
+    pip install --upgrade pip setuptools wheel && \
+    pip install "numpy<2" && \
+    pip install \
+        torch==2.7.0 torchvision==0.22.0 torchaudio==2.7.0 \
+        --index-url https://download.pytorch.org/whl/cu128 && \
+    pip install --no-cache-dir \
+        torch-scatter torch-cluster torch-spline-conv torch-sparse \
+        -f https://data.pyg.org/whl/torch-2.7.0+cu128.html && \
+    pip install torch-geometric h5py hdf5plugin && \
+    pip install \
+        wandb numba plotly matplotlib pycocotools opencv-python \
+        scikit-video pandas ruamel.yaml seaborn
+ENV HDF5_PLUGIN_PATH=/opt/dagr-venv/lib/python3.12/site-packages/hdf5plugin/plugins
+
+ENV DAGR_DIR=/opt/dagr
+RUN git clone --branch acretu/fix/install --single-branch \
+        https://github.com/ErLex20/dagr.git ${DAGR_DIR} && \
+    mkdir -p ${DAGR_DIR}/libs && \
+    cd ${DAGR_DIR}/libs && \
+    git clone https://github.com/facebookresearch/detectron2.git && \
+    cd detectron2 && git checkout 70f454304e1a38378200459dd2dbca0f0f4a5ab4 && cd .. && \
+    git clone https://github.com/Megvii-BaseDetection/YOLOX.git && \
+    cd YOLOX && \
+    git checkout 618fd8c08b2bc5fac9ffbb19a3b7e039ea0d5b9a && \
+    sed -i 's/onnx-simplifier==0.4.10/onnx-simplifier>=0.4.13/' requirements.txt && \
+    cd .. && \
+    git clone https://github.com/uzh-rpg/dsec-det.git && \
+    cd dsec-det && git checkout 81e381dc0fc1b1a540a604a970a37de038abb83b && \
+    cd ../.. && \
+    chgrp -R internal /opt/dagr && \
+    chmod -R g+rwX /opt/dagr
+
+ENV CUDA_HOME=/usr/local/cuda
+ENV TORCH_CUDA_ARCH_LIST="12.0"
+ENV FORCE_CUDA=1
+RUN . /opt/dagr-venv/bin/activate && \
+    unset PYTHONPATH && \
+    pip install --no-build-isolation -e ${DAGR_DIR}/libs/dsec-det && \
+    pip install --no-build-isolation -e ${DAGR_DIR}/libs/detectron2 && \
+    pip install --no-build-isolation -e ${DAGR_DIR}/libs/YOLOX && \
+    pip install --no-build-isolation -e ${DAGR_DIR}
 # IMAGE SETUP END #
 
 # Copy user configuration files to /etc/skel
