@@ -80,6 +80,15 @@ RUN . /opt/dagr-venv/bin/activate && \
     pip install --no-build-isolation -e ${DAGR_DIR}/libs/detectron2 && \
     pip install --no-build-isolation -e ${DAGR_DIR}/libs/YOLOX && \
     pip install --no-build-isolation -e ${DAGR_DIR}
+# prophesee_evk4_driver START #
+# Install metavision_driver and related packages
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ros-jazzy-metavision-driver \
+      ros-jazzy-event-camera-py \
+      ros-jazzy-ament-cmake-clang-format  && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*/apt/lists/*
+ENV LD_LIBRARY_PATH=/opt/ros/jazzy/opt/openeb_vendor/lib:$LD_LIBRARY_PATH
+# prophesee_evk4_driver END #
 # IMAGE SETUP END #
 
 # Copy user configuration files to /etc/skel

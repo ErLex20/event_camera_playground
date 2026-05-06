@@ -1,0 +1,6 @@
+[submodule "src/prophesee_evk4_driver"]
+	path = src/prophesee_evk4_driver
+	url = git@github.com:dotX-Automation/prophesee_evk4_driver.git
+[submodule "src/v4l2_camera_driver"]
+	path = src/v4l2_camera_driver
+	url = git@github.com:dotX-Automation/v4l2_camera_driver.git
