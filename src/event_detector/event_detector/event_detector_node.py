@@ -24,7 +24,11 @@ from threading import Thread
 from event_detector.event_detector_utils import AtomicBool
 
 from dua_node_py.dua_node import NodeBase
-import dua_qos_py.dua_qos_reliable as dua_qos_reliable
+import dua_qos_py.dua_qos_besteffort as dua_qos_besteffort
+
+from event_camera_msgs.msg import EventPacket
+from event_camera_py import Decoder
+
 
 class EventDetectorNode(NodeBase):
     """
@@ -41,6 +45,10 @@ class EventDetectorNode(NodeBase):
         super().__init__(node_name, verbose)
 
         self.init_atomics()
+        self.init_detector()
+
+        if self._autostart:
+            self.activate()
 
         self.get_logger().info('Node initialized')
 
@@ -54,10 +62,65 @@ class EventDetectorNode(NodeBase):
         """
         Cleanup.
         """
-        pass
+        self.deactivate()
 
     def init_atomics(self) -> None:
         """
         Init atomics.
         """
         self._running = AtomicBool(initial=False)
+
+    def init_detector(self) -> None:
+        """
+        Init the event detector.
+        """
+        self._decoder = Decoder()
+
+    def init_subscribers(self) -> None:
+        """
+        Init subscribers.
+        """
+        self._event_packet_subscriber = self.dua_create_subscription(
+            EventPacket,
+            '/event_packet',
+            self.event_packet_callback,
+            dua_qos_besteffort.get_datum_qos())
+
+    def activate(self) -> None:
+        """
+        Function to activate the Event Detector node.
+        """
+        self._running.store(True)
+        self._worker = Thread(target=self.worker_thread_routine)
+        self._worker.start()
+
+        self.get_logger().warn('Event Detector ACTIVATED')
+
+    def deactivate(self) -> None:
+        """
+        Function to deactivate the Event Detector node.
+        """
+        self._running.store(False)
+        self._worker.join()
+
+        self.get_logger().warn('Event Detector DEACTIVATED')
+
+    def event_packet_callback(self, msg: EventPacket) -> None:
+        """
+        Callback for the EventPacket subscriber.
+
+        :param msg: The received EventPacket message.
+        """
+        self.get_logger().info(f'Received EventPacket message with timestamp: {msg.header.stamp.sec}')
+        self._decoder.decode(msg)
+        events = self._decoder.get_cd_events()
+        self.get_logger().info(f'Decoded {len(events)} events')
+
+    def worker_thread_routine(self) -> None:
+        """
+        Worker thread routine.
+        """
+        self.get_logger().info('Worker thread started')
+
+        while self._running.load():
+            pass

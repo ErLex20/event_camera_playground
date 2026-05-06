@@ -9,8 +9,13 @@
 
   <depend>dua_node_py</depend>
   <depend>dua_qos_py</depend>
+  <depend>event_camera_msgs</depend>
+  <depend>event_camera_py</depend>
   <depend>params_manager_py</depend>
   <depend>rclpy</depend>
+  <depend>std_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>vision_msgs</depend>
 
   <export>
     <build_type>ament_python</build_type>

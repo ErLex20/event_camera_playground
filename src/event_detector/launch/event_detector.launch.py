@@ -62,7 +62,10 @@ def generate_launch_description():
         shell=False,
         output='both',
         log_cmd=True,
-        parameters=[cf]
+        parameters=[cf],
+        remappings=[
+            ('/event_packet', '/event_camera/events'),
+        ],
     )
 
     ld.add_action(node)
