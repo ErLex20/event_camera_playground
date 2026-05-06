@@ -1,0 +1,63 @@
+"""
+Event Detector node implementation.
+
+dotX Automation s.r.l. <info@dotxautomation.com>
+
+May 6, 2026
+"""
+
+# Copyright 2025 dotX Automation s.r.l.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from threading import Thread
+from event_detector.event_detector_utils import AtomicBool
+
+from dua_node_py.dua_node import NodeBase
+import dua_qos_py.dua_qos_reliable as dua_qos_reliable
+
+class EventDetectorNode(NodeBase):
+    """
+    Event Detector node implementation.
+    """
+
+    def __init__(self, node_name: str, verbose: bool = False) -> None:
+        """
+        Constructor.
+
+        :param node_name: Name of the node.
+        :param verbose: Verbosity flag.
+        """
+        super().__init__(node_name, verbose)
+
+        self.init_atomics()
+
+        self.get_logger().info('Node initialized')
+
+    def __del__(self) -> None:
+        """
+        Destructor.
+        """
+        self.cleanup()
+
+    def cleanup(self) -> None:
+        """
+        Cleanup.
+        """
+        pass
+
+    def init_atomics(self) -> None:
+        """
+        Init atomics.
+        """
+        self._running = AtomicBool(initial=False)
