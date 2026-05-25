@@ -15,7 +15,7 @@ setup(
         (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.py')),
         (os.path.join('share', package_name, 'config'), glob('config/*.yaml')),
     ],
-    install_requires=['setuptools', 'pika'],
+    install_requires=['setuptools'],
     zip_safe=True,
     maintainer='dotX Automation',
     maintainer_email='info@dotxautomation.com',

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/opt/dua-venv/bin/python
 """
 Event Detector app implementation.
 
