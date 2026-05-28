@@ -56,6 +56,26 @@ constexpr std::size_t kMaxEventsPerPatch = 2000;
 constexpr int kGlobalIweScale = 4;
 constexpr std::size_t kGlobalMaxEvents = 20000;
 
+// Mean gradient magnitude (L1) of the IWE: the contrast objective of
+// Shiba-Gallego (Sec. III-B1). Unlike the variance it is sensitive to the
+// spatial arrangement of warped events. Higher = sharper.
+inline float iwe_grad_l1(const cv::Mat & iwe)
+{
+  double g = 0.0;
+  const int H = iwe.rows;
+  const int W = iwe.cols;
+  for (int y = 0; y < H - 1; ++y) {
+    const float * r0 = iwe.ptr<float>(y);
+    const float * r1 = iwe.ptr<float>(y + 1);
+    for (int x = 0; x < W - 1; ++x) {
+      const float gx = r0[x + 1] - r0[x];
+      const float gy = r1[x]     - r0[x];
+      g += std::sqrt(gx * gx + gy * gy);
+    }
+  }
+  return static_cast<float>(g / static_cast<double>((H - 1) * (W - 1)));
+}
+
 /**
  * Per-patch contrast-maximization objective for a 2D image-plane velocity.
  *
@@ -75,53 +95,79 @@ public:
     std::vector<float> ly,
     std::vector<float> tau,
     int side,
-    int margin)
+    int margin,
+    float half_window_s)
   : OptimizationFunctor<float>(2, 2),
     lx_(std::move(lx)),
     ly_(std::move(ly)),
     tau_(std::move(tau)),
     extent_(side + 2 * margin),
-    margin_(static_cast<float>(margin))
+    margin_(static_cast<float>(margin)),
+    half_window_s_(half_window_s),
+    iwe_lo_(cv::Mat::zeros(extent_, extent_, CV_32F)),
+    iwe_mid_(cv::Mat::zeros(extent_, extent_, CV_32F)),
+    iwe_hi_(cv::Mat::zeros(extent_, extent_, CV_32F))
   {
   }
 
   int operator()(const Eigen::VectorXf & v, Eigen::VectorXf & cost) const override
   {
-    cv::Mat iwe = cv::Mat::zeros(extent_, extent_, CV_32F);
+    iwe_lo_.setTo(0.0f);
+    iwe_mid_.setTo(0.0f);
+    iwe_hi_.setTo(0.0f);
     const float vx = v(0);
     const float vy = v(1);
 
+    // Warp the same events to three reference times: t_mid, t1 and t_Ne. tau_ is
+    // measured from t_mid, so the per-reference offsets are tau, tau+half, tau-half.
     for (std::size_t i = 0; i < lx_.size(); ++i) {
-      const float wx = lx_[i] - vx * tau_[i] + margin_;
-      const float wy = ly_[i] - vy * tau_[i] + margin_;
-      const int x0 = static_cast<int>(std::floor(wx));
-      const int y0 = static_cast<int>(std::floor(wy));
-      if (x0 < 0 || y0 < 0 || x0 + 1 >= extent_ || y0 + 1 >= extent_) {
-        continue;
-      }
-      const float fx = wx - static_cast<float>(x0);
-      const float fy = wy - static_cast<float>(y0);
-      float * r0 = iwe.ptr<float>(y0);
-      float * r1 = iwe.ptr<float>(y0 + 1);
-      r0[x0]     += (1.0f - fx) * (1.0f - fy);
-      r0[x0 + 1] += fx * (1.0f - fy);
-      r1[x0]     += (1.0f - fx) * fy;
-      r1[x0 + 1] += fx * fy;
+      splat(iwe_mid_, lx_[i] - vx * tau_[i],
+                      ly_[i] - vy * tau_[i]);
+      splat(iwe_lo_,  lx_[i] - vx * (tau_[i] + half_window_s_),
+                      ly_[i] - vy * (tau_[i] + half_window_s_));
+      splat(iwe_hi_,  lx_[i] - vx * (tau_[i] - half_window_s_),
+                      ly_[i] - vy * (tau_[i] - half_window_s_));
     }
 
-    cv::Scalar mean, stddev;
-    cv::meanStdDev(iwe, mean, stddev);
-    cost(0) = 1.0f / (static_cast<float>(stddev[0]) + 1e-6f);
+    // Multi-reference focus loss: average the contrasts with 1:2:1 weights
+    // (Sec. III-B). Invert once at the end so LM (which minimizes) maximizes it.
+    const float f = (iwe_grad_l1(iwe_lo_) +
+                     2.0f * iwe_grad_l1(iwe_mid_) +
+                     iwe_grad_l1(iwe_hi_)) * 0.25f;
+    cost(0) = 1.0f / (f + 1e-6f);
     cost(1) = 0.0f;
     return 0;
   }
 
 private:
+  void splat(cv::Mat & iwe, float lwx, float lwy) const
+  {
+    const float wx = lwx + margin_;
+    const float wy = lwy + margin_;
+    const int x0 = static_cast<int>(std::floor(wx));
+    const int y0 = static_cast<int>(std::floor(wy));
+    if (x0 < 0 || y0 < 0 || x0 + 1 >= extent_ || y0 + 1 >= extent_) {
+      return;
+    }
+    const float fx = wx - static_cast<float>(x0);
+    const float fy = wy - static_cast<float>(y0);
+    float * r0 = iwe.ptr<float>(y0);
+    float * r1 = iwe.ptr<float>(y0 + 1);
+    r0[x0]     += (1.0f - fx) * (1.0f - fy);
+    r0[x0 + 1] += fx * (1.0f - fy);
+    r1[x0]     += (1.0f - fx) * fy;
+    r1[x0 + 1] += fx * fy;
+  }
+
   std::vector<float> lx_;
   std::vector<float> ly_;
   std::vector<float> tau_;
   int extent_;
   float margin_;
+  float half_window_s_;
+  mutable cv::Mat iwe_lo_;
+  mutable cv::Mat iwe_mid_;
+  mutable cv::Mat iwe_hi_;
 };
 
 /**
@@ -177,9 +223,7 @@ public:
       r1[x0 + 1] += fx * fy;
     }
 
-    cv::Scalar mean, stddev;
-    cv::meanStdDev(iwe, mean, stddev);
-    cost(0) = 1.0f / (static_cast<float>(stddev[0]) + 1e-6f);
+    cost(0) = 1.0f / (iwe_grad_l1(iwe) + 1e-6f);
     cost(1) = 0.0f;
     return 0;
   }
@@ -217,110 +261,149 @@ cv::Mat EventDetector::compute_optical_flow(
   const int64_t t_hi  = window.getHighestTime();
   const int64_t t_ref = t_lo + (t_hi - t_lo) / 2;
   const float half_window_s = static_cast<float>(t_hi - t_lo) * 0.5e-6f;
-  int margin = static_cast<int>(std::ceil(max_spd * half_window_s));
-  margin = std::clamp(margin, 4, 4 * patch);
 
-  // Bin events into patches as local coordinates and midpoint-relative times.
-  const int num_patches = gw * gh;
-  std::vector<std::vector<float>> px(num_patches), py(num_patches), pt(num_patches);
-  for (const auto & ev : window) {
-    const int ex = ev.x();
-    const int ey = ev.y();
-    if (ex < 0 || ey < 0 || ex >= w || ey >= h) {
-      continue;
+  // Multi-reference warps reach t1 and t_Ne, spanning the full window, so size
+  // the margin for a full-window max-speed warp (twice the half-window distance).
+  // Estimate a flow grid at a given patch size, optionally seeded by a coarser
+  // grid (bilinearly upsampled to this scale) and by the previous-window field.
+  auto estimate_scale =
+    [&](int patch_px, const cv::Mat & seed_field) -> cv::Mat
+  {
+    const int g_w = (w + patch_px - 1) / patch_px;
+    const int g_h = (h + patch_px - 1) / patch_px;
+
+    int mrg = static_cast<int>(std::ceil(max_spd * 2.0f * half_window_s));
+    mrg = std::clamp(mrg, 4, 4 * patch_px);
+
+    const int n_patches = g_w * g_h;
+    std::vector<std::vector<float>> bx(n_patches), by(n_patches), bt(n_patches);
+    for (const auto & ev : window) {
+      const int ex = ev.x();
+      const int ey = ev.y();
+      if (ex < 0 || ey < 0 || ex >= w || ey >= h) {
+        continue;
+      }
+      const int gx = ex / patch_px;
+      const int gy = ey / patch_px;
+      const int bi = gy * g_w + gx;
+      bx[bi].push_back(static_cast<float>(ex - gx * patch_px));
+      by[bi].push_back(static_cast<float>(ey - gy * patch_px));
+      bt[bi].push_back(static_cast<float>(ev.timestamp() - t_ref) * 1e-6f);
     }
-    const int gx = ex / patch;
-    const int gy = ey / patch;
-    const int idx = gy * gw + gx;
-    px[idx].push_back(static_cast<float>(ex - gx * patch));
-    py[idx].push_back(static_cast<float>(ey - gy * patch));
-    pt[idx].push_back(static_cast<float>(ev.timestamp() - t_ref) * 1e-6f);
+
+    cv::Mat up_seed;
+    if (!seed_field.empty()) {
+      cv::resize(seed_field, up_seed, cv::Size(g_w, g_h), 0.0, 0.0, cv::INTER_LINEAR);
+    }
+    const bool have_prev = (prev_flow_.rows == g_h && prev_flow_.cols == g_w);
+    const int min_ev = static_cast<int>(flow_min_events_);
+
+    cv::Mat field(g_h, g_w, CV_32FC2, cv::Scalar(0.0f, 0.0f));
+
+    #pragma omp parallel for schedule(dynamic)
+    for (int bi = 0; bi < n_patches; ++bi) {
+      if (static_cast<int>(bx[bi].size()) < min_ev) {
+        continue;
+      }
+      const int gx = bi % g_w;
+      const int gy = bi / g_w;
+
+      std::vector<float> lx, ly, tau;
+      const std::size_t count = bx[bi].size();
+      const std::size_t stride = (count + kMaxEventsPerPatch - 1) / kMaxEventsPerPatch;
+      lx.reserve(count / stride + 1);
+      ly.reserve(count / stride + 1);
+      tau.reserve(count / stride + 1);
+      for (std::size_t i = 0; i < count; i += stride) {
+        lx.push_back(bx[bi][i]);
+        ly.push_back(by[bi][i]);
+        tau.push_back(bt[bi][i]);
+      }
+
+      auto functor = std::make_unique<Flow2DLossFunctor>(
+        std::move(lx), std::move(ly), std::move(tau), patch_px, mrg, half_window_s);
+
+      Eigen::VectorXf cand(2), cost(2), best(2);
+      best << 0.0f, 0.0f;
+      (*functor)(best, cost);
+      float best_cost = cost(0);
+
+      auto try_cand = [&](float cx, float cy) {
+        cand << cx, cy;
+        (*functor)(cand, cost);
+        if (cost(0) < best_cost) {
+          best_cost = cost(0);
+          best = cand;
+        }
+      };
+
+      // Seeds: upsampled coarser-scale estimate, previous-window field, global seed.
+      if (!up_seed.empty()) {
+        const cv::Vec2f sv = up_seed.at<cv::Vec2f>(gy, gx);
+        try_cand(sv[0], sv[1]);
+      }
+      if (have_prev) {
+        const cv::Vec2f pv = prev_flow_.at<cv::Vec2f>(gy, gx);
+        try_cand(pv[0], pv[1]);
+      }
+      try_cand(seed[0], seed[1]);
+      // Coarse velocity grid only at the coarsest scale, where there is nothing
+      // better to start from; finer scales are seeded from the coarser result.
+      if (seed_field.empty()) {
+        const float speeds[] = {0.34f, 0.67f, 1.0f};
+        for (float frac : speeds) {
+          const float s = frac * max_spd;
+          for (int d = 0; d < 8; ++d) {
+            const float ang = static_cast<float>(d) * kTwoPi / 8.0f;
+            try_cand(s * std::cos(ang), s * std::sin(ang));
+          }
+        }
+      }
+
+      dv::optimization::ContrastMaximizationWrapper<Flow2DLossFunctor> cmax(
+        std::move(functor),
+        static_cast<float>(flow_cmax_learning_rate_),
+        0.0f, 0.000345267f, 0.0f, 0.000345267f,
+        static_cast<int>(flow_cmax_max_iter_));
+
+      Eigen::VectorXf v = cmax.optimize(best).optimizedVariable;
+      float vx = v(0);
+      float vy = v(1);
+      const float mag = std::hypot(vx, vy);
+      if (!std::isfinite(mag)) {
+        vx = best(0);
+        vy = best(1);
+      } else if (mag > max_spd) {
+        const float sc = max_spd / mag;
+        vx *= sc;
+        vy *= sc;
+      }
+      field.at<cv::Vec2f>(gy, gx) = cv::Vec2f(vx, vy);
+    }
+    return field;
+  };
+
+  // Coarse-to-fine: start a few scales above the target patch and refine down.
+  std::vector<int> patch_scales;
+  for (int p = patch * 4; p > patch; p /= 2) {
+    patch_scales.push_back(p);
+  }
+  patch_scales.push_back(patch);
+
+  cv::Mat flow_field;
+  for (int p : patch_scales) {
+    flow_field = estimate_scale(p, flow_field);
   }
 
-  cv::Mat flow_field(gh, gw, CV_32FC2, cv::Scalar(0.0f, 0.0f));
-  const bool have_prev = (prev_flow_.rows == gh && prev_flow_.cols == gw);
-  const int min_events = static_cast<int>(flow_min_events_);
-
-  #pragma omp parallel for schedule(dynamic)
-  for (int idx = 0; idx < num_patches; ++idx) {
-    if (static_cast<int>(px[idx].size()) < min_events) {
-      continue;
-    }
-    const int gx = idx % gw;
-    const int gy = idx / gw;
-
-    // Stride down very busy patches to bound cost.
-    std::vector<float> lx, ly, tau;
-    const std::size_t count = px[idx].size();
-    const std::size_t stride = (count + kMaxEventsPerPatch - 1) / kMaxEventsPerPatch;
-    lx.reserve(count / stride + 1);
-    ly.reserve(count / stride + 1);
-    tau.reserve(count / stride + 1);
-    for (std::size_t i = 0; i < count; i += stride) {
-      lx.push_back(px[idx][i]);
-      ly.push_back(py[idx][i]);
-      tau.push_back(pt[idx][i]);
-    }
-
-    auto functor = std::make_unique<Flow2DLossFunctor>(
-      std::move(lx), std::move(ly), std::move(tau), patch, margin);
-
-    // Coarse seed search: the numerical-diff step is proportional to |v|, so it
-    // vanishes at exactly zero velocity and the solver cannot escape. Seed it
-    // with the previous estimate and a small velocity grid, keeping the most
-    // contrastful candidate as the LM starting point.
-    Eigen::VectorXf cand(2), cost(2), best(2);
-    best << 0.0f, 0.0f;
-    (*functor)(best, cost);
-    float best_cost = cost(0);
-
-    auto try_cand = [&](float cx, float cy) {
-      cand << cx, cy;
-      (*functor)(cand, cost);
-      if (cost(0) < best_cost) {
-        best_cost = cost(0);
-        best = cand;
-      }
-    };
-
-    if (have_prev) {
-      const cv::Vec2f pv = prev_flow_.at<cv::Vec2f>(gy, gx);
-      try_cand(pv[0], pv[1]);
-    }
-    try_cand(seed[0], seed[1]);
-    const float speeds[] = {0.34f, 0.67f, 1.0f};
-    for (float frac : speeds) {
-      const float s = frac * max_spd;
-      for (int d = 0; d < 8; ++d) {
-        const float ang = static_cast<float>(d) * kTwoPi / 8.0f;
-        try_cand(s * std::cos(ang), s * std::sin(ang));
-      }
-    }
-
-    dv::optimization::ContrastMaximizationWrapper<Flow2DLossFunctor> cmax(
-      std::move(functor),
-      static_cast<float>(flow_cmax_learning_rate_),
-      0.0f,
-      0.000345267f,
-      0.0f,
-      0.000345267f,
-      static_cast<int>(flow_cmax_max_iter_));
-
-    Eigen::VectorXf v = cmax.optimize(best).optimizedVariable;
-
-    // Reject runaway solutions; clamp magnitude to the configured ceiling.
-    float vx = v(0);
-    float vy = v(1);
-    const float mag = std::hypot(vx, vy);
-    if (!std::isfinite(mag)) {
-      vx = best(0);
-      vy = best(1);
-    } else if (mag > max_spd) {
-      const float scale = max_spd / mag;
-      vx *= scale;
-      vy *= scale;
-    }
-    flow_field.at<cv::Vec2f>(gy, gx) = cv::Vec2f(vx, vy);
+  // Light surrogate for the TV regularizer (Sec. III-E): a 3x3 median per
+  // channel suppresses isolated outlier patches. cv::medianBlur supports CV_32F
+  // only for aperture 3/5 and not for 2-channel mats, hence the split/merge.
+  {
+    cv::Mat ch[2];
+    cv::split(flow_field, ch);
+    cv::medianBlur(ch[0], ch[0], 3);
+    cv::medianBlur(ch[1], ch[1], 3);
+    cv::merge(ch, 2, flow_field);
   }
 
   // Render the dense field as an HSV image: hue = direction, value = speed.

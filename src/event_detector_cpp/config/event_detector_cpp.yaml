@@ -14,7 +14,7 @@
     flow_enabled: true
     flow_window_ms: 10.0
     flow_patch_size: 8
-    flow_min_events: 5
-    flow_max_speed_px_s: 400.0
-    flow_cmax_max_iter: 100
+    flow_min_events: 1
+    flow_max_speed_px_s: 3000.0
+    flow_cmax_max_iter: 30
     flow_cmax_learning_rate: 0.1
