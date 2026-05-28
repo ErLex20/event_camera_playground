@@ -7,6 +7,12 @@
         wait_servers: false
     autostart: true
     time_window_ms: 10.0
-    eros_k: 10
     ba_filter_enabled: true
     ba_filter_dt_ms: 1.0
+    flow_enabled: true
+    flow_window_ms: 10.0
+    flow_patch_size: 32
+    flow_min_events: 50
+    flow_max_speed_px_s: 4000.0
+    flow_cmax_max_iter: 100
+    flow_cmax_learning_rate: 0.1

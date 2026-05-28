@@ -24,8 +24,10 @@
 
 #pragma once
 
-
+#include <algorithm>
 #include <atomic>
+#include <limits>
+#include <optional>
 
 #include <dua_node_cpp/dua_node.hpp>
 #include <dua_qos_cpp/dua_qos.hpp>
@@ -33,14 +35,16 @@
 
 #include <dua_common_interfaces/msg/command_result_stamped.hpp>
 
+#include <opencv2/core/mat.hpp>
+#include <opencv2/core/types.hpp>
+
+#include <dv-processing/core/core.hpp>
+#include <dv-processing/noise/background_activity_noise_filter.hpp>
+
 #include <event_camera_codecs/decoder_factory.h>
 #include <event_camera_msgs/msg/event_packet.hpp>
 #include <sensor_msgs/msg/image.hpp>
-
-#include <structs/background_activity_filter.hpp>
-#include <structs/combined_processor.hpp>
-#include <structs/surface_active_events.hpp>
-#include <structs/surface_eros.hpp>
+#include <std_msgs/msg/header.hpp>
 
 using namespace event_camera_msgs::msg;
 
@@ -80,28 +84,89 @@ private:
   /* Subscription callbacks. */
   void callback_event_packet(EventPacket::ConstSharedPtr msg);
 
+  /* Estimates a dense per-patch optical-flow field over a window of events via
+   * contrast maximization and publishes it as an HSV-coded image. */
+  void estimate_and_publish_flow(const dv::EventStore & window, const std_msgs::msg::Header & header);
+
+  /* Builds a dv::EventStore from event_camera_codecs decoded events (ns → µs).
+   * Accumulates into a dv::EventPacket to avoid the strict ordering requirement
+   * of dv::EventStore::push_back(), then sorts before constructing the store. */
+  class EventStoreBuilder : public event_camera_codecs::EventProcessor
+  {
+  public:
+    EventStoreBuilder()
+    : packet_(std::make_shared<dv::EventPacket>()) {}
+
+    void eventCD(uint64_t sensor_time, uint16_t ex, uint16_t ey, uint8_t polarity) override
+    {
+      packet_->elements.emplace_back(
+        static_cast<int64_t>(sensor_time / 1000),
+        static_cast<int16_t>(ex),
+        static_cast<int16_t>(ey),
+        polarity != 0);
+    }
+
+    void eventExtTrigger(uint64_t, uint8_t, uint8_t) override {}
+    void finished() override {}
+    void rawData(const char *, size_t) override {}
+
+    dv::EventStore takeStore()
+    {
+      std::stable_sort(
+        packet_->elements.begin(), packet_->elements.end(),
+        [](const dv::Event & a, const dv::Event & b) {
+          return a.timestamp() < b.timestamp();
+        });
+      return dv::EventStore(
+        std::const_pointer_cast<const dv::EventPacket>(packet_));
+    }
+
+  private:
+    std::shared_ptr<dv::EventPacket> packet_;
+  };
+
   /* Callback Groups. */
   rclcpp::CallbackGroup::SharedPtr cgroup_event_packet_;
 
   /* Publishers. */
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr pub_sae_;
-  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr pub_eros_;
+  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr pub_flow_;
 
   /* Subscribers. */
   rclcpp::Subscription<EventPacket>::SharedPtr sub_event_packet_;
 
+  /* Decoder. */
+  event_camera_codecs::DecoderFactory<EventPacket, EventStoreBuilder> decoder_factory_;
+
   /* Surface state. */
-  SurfaceActiveEvents sae_;
-  SurfaceEros eros_;
-  BackgroundActivityFilter ba_filter_;
-  event_camera_codecs::DecoderFactory<EventPacket, CombinedProcessor> decoder_factory_;
+  std::optional<dv::noise::BackgroundActivityNoiseFilter<>> ba_filter_;
+  std::optional<dv::TimeSurface> ts_on_;
+  std::optional<dv::TimeSurface> ts_off_;
+  int64_t ts_t_max_{0};
+  cv::Size res_;
+  /* Mirrors the BA filter's private highest-processed time so we can keep the
+   * packet stream monotonic before accept() (which throws on out-of-order input). */
+  int64_t filter_high_us_{std::numeric_limits<int64_t>::lowest()};
+
+  /* Optical-flow state. */
+  dv::EventStore flow_accum_;
+  int64_t flow_window_start_us_{std::numeric_limits<int64_t>::lowest()};
+  /* Previous window's per-patch velocity field (CV_32FC2, grid-sized), used to
+   * warm-start the solver. Empty until the first field has been estimated. */
+  cv::Mat prev_flow_;
 
   /* Node parameters. */
   bool    autostart_;
   double  time_window_ms_;
-  int64_t eros_k_;
   bool    ba_filter_enabled_;
   double  ba_filter_dt_ms_;
+  bool    flow_enabled_;
+  double  flow_window_ms_;
+  int64_t flow_patch_size_;
+  int64_t flow_min_events_;
+  double  flow_max_speed_px_s_;
+  int64_t flow_cmax_max_iter_;
+  double  flow_cmax_learning_rate_;
 
   /* Synchronization primitives. */
   std::atomic<bool> running_{false};

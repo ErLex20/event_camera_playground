@@ -67,8 +67,8 @@ void EventDetector::init_publishers()
     "~/sae_image",
     dua_qos::BestEffort::get_image_qos(1));
 
-  pub_eros_ = dua_create_publisher<sensor_msgs::msg::Image>(
-    "~/eros_image",
+  pub_flow_ = dua_create_publisher<sensor_msgs::msg::Image>(
+    "~/flow_image",
     dua_qos::BestEffort::get_image_qos(1));
 }
 

@@ -75,6 +75,9 @@ target_include_directories(event_detector_cpp PUBLIC
   ${EIGEN3_INCLUDE_DIR}
   ${OpenCV_INCLUDE_DIRS}
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/event_detector_cpp>)
+# dv-processing headers contain two-phase name lookup issues; treat as system to suppress errors.
+get_target_property(_DV_INCLUDES dv::processing INTERFACE_INCLUDE_DIRECTORIES)
+target_include_directories(event_detector_cpp SYSTEM PUBLIC ${_DV_INCLUDES})
 target_compile_features(event_detector_cpp PUBLIC c_std_99 cxx_std_17) # Require C99 and C++17
 target_link_libraries(event_detector_cpp
   Eigen3::Eigen
