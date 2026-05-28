@@ -1,0 +1,39 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>event_detector_cpp</name>
+  <version>0.1.0</version>
+  <description>ROS2 node for Event Detector.</description>
+  <maintainer email="info@dotxautomation.com">dotX Automation</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <build_depend>dua_app_management</build_depend>
+  <build_depend>dua_common_interfaces</build_depend>
+  <build_depend>dua_cv_bridge</build_depend>
+  <build_depend>dua_geometry_interfaces</build_depend>
+  <build_depend>dua_hardware_interfaces</build_depend>
+  <build_depend>dua_node_cpp</build_depend>
+  <build_depend>dua_qos_cpp</build_depend>
+  <build_depend>dv-processing</build_depend>
+  <build_depend>eigen</build_depend>
+  <build_depend>eigen3_cmake_module</build_depend>
+  <build_depend>event_camera_codecs</build_depend>
+  <build_depend>event_camera_msgs</build_depend>
+  <build_depend>opencv2</build_depend>
+  <build_depend>params_manager_cpp</build_depend>
+  <build_depend>rclcpp</build_depend>
+  <build_depend>rclcpp_components</build_depend>
+  <build_depend>sensor_msgs</build_depend>
+  <build_depend>simple_serviceclient_cpp</build_depend>
+  <build_depend>std_msgs</build_depend>
+  <build_depend>std_srvs</build_depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

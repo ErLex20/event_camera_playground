@@ -1,0 +1,12 @@
+/event_detector_cpp:
+  ros__parameters:
+    dua:
+      tf_server:
+        get_transform: true
+        transform_pose: false
+        wait_servers: false
+    autostart: true
+    time_window_ms: 10.0
+    eros_k: 10
+    ba_filter_enabled: true
+    ba_filter_dt_ms: 1.0
