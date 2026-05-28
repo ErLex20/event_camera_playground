@@ -70,6 +70,10 @@ void EventDetector::init_publishers()
   pub_flow_ = dua_create_publisher<sensor_msgs::msg::Image>(
     "~/flow_image",
     dua_qos::BestEffort::get_image_qos(1));
+
+  pub_iwe_ = dua_create_publisher<sensor_msgs::msg::Image>(
+    "~/iwe_image",
+    dua_qos::BestEffort::get_image_qos(1));
 }
 
 } // namespace event_detector_cpp

@@ -40,10 +40,56 @@ void EventDetector::activate()
 
 void EventDetector::deactivate()
 {
-  // Set running flag
+  // Clear running flag and wake the worker so it can drain and exit.
   running_.store(false, std::memory_order_release);
+  queue_cv_.notify_all();
+  if (thread_worker_.joinable()) {
+    thread_worker_.join();
+  }
 
   RCLCPP_WARN(this->get_logger(), "Event Detector DEACTIVATED");
+}
+
+void EventDetector::lazy_init(int width, int height)
+{
+  res_ = cv::Size(width, height);
+  ts_on_.emplace(res_);
+  ts_off_.emplace(res_);
+  if (ba_filter_enabled_) {
+    ba_filter_.emplace(res_, dv::Duration(static_cast<int64_t>(ba_filter_dt_ms_ * 1000.0)));
+  }
+}
+
+void EventDetector::reset_state()
+{
+  if (ba_filter_enabled_) {
+    ba_filter_.emplace(res_, dv::Duration(static_cast<int64_t>(ba_filter_dt_ms_ * 1000.0)));
+  }
+  if (ts_on_.has_value()) {
+    ts_on_->reset();
+  }
+  if (ts_off_.has_value()) {
+    ts_off_->reset();
+  }
+  filter_high_us_ = std::numeric_limits<int64_t>::lowest();
+  flow_accum_ = dv::EventStore();
+  flow_window_start_us_ = std::numeric_limits<int64_t>::lowest();
+  prev_flow_.release();
+  prev_global_v_ = cv::Vec2f(0.0f, 0.0f);
+}
+
+void EventDetector::publish_image(
+  const rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr & pub,
+  const cv::Mat & img,
+  const std::string & encoding,
+  const std_msgs::msg::Header & header)
+{
+  if (img.empty()) {
+    return;
+  }
+  auto msg = dua_cv_bridge::frame_to_msg(img, encoding);
+  msg->header = header;
+  pub->publish(*msg);
 }
 
 } // namespace event_detector_cpp

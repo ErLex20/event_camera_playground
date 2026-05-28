@@ -37,6 +37,20 @@ params:
     constraints: "Cannot be changed at runtime."
     read_only: true
     var_name: ba_filter_dt_ms_
+  sae_enabled:
+    type: bool
+    default_value: true
+    description: "Enable Surface of Active Events rendering and publishing."
+    constraints: "Cannot be changed at runtime."
+    read_only: true
+    var_name: sae_enabled_
+  iwe_enabled:
+    type: bool
+    default_value: true
+    description: "Enable global Image of Warped Events rendering and publishing."
+    constraints: "Cannot be changed at runtime."
+    read_only: true
+    var_name: iwe_enabled_
   flow_enabled:
     type: bool
     default_value: true

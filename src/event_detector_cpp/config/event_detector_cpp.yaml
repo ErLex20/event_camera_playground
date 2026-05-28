@@ -9,6 +9,8 @@
     time_window_ms: 10.0
     ba_filter_enabled: true
     ba_filter_dt_ms: 1.0
+    sae_enabled: true
+    iwe_enabled: true
     flow_enabled: true
     flow_window_ms: 10.0
     flow_patch_size: 8

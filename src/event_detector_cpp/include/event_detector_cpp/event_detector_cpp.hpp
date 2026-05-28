@@ -26,14 +26,21 @@
 
 #include <algorithm>
 #include <atomic>
+#include <condition_variable>
+#include <deque>
 #include <limits>
+#include <mutex>
 #include <optional>
+#include <thread>
 
 #include <dua_node_cpp/dua_node.hpp>
 #include <dua_qos_cpp/dua_qos.hpp>
 #include <rclcpp/rclcpp.hpp>
 
 #include <dua_common_interfaces/msg/command_result_stamped.hpp>
+
+#include <dua_cv_bridge/dua_cv_bridge.hpp>
+#include <sensor_msgs/image_encodings.hpp>
 
 #include <opencv2/core/mat.hpp>
 #include <opencv2/core/types.hpp>
@@ -81,20 +88,102 @@ private:
    */
   void deactivate();
 
-  /* Subscription callbacks. */
+  /**
+   * @brief Event-packet subscription callback (executor thread).
+   *
+   * Decodes the packet into a dv::EventStore and hands it to the worker thread
+   * via the bounded queue; performs no feature processing itself.
+   *
+   * @param msg The incoming event packet.
+   */
   void callback_event_packet(EventPacket::ConstSharedPtr msg);
 
-  /* Worker thread routine. */
+  /**
+   * @brief Worker thread main loop.
+   *
+   * Drains the event queue and runs the enabled features (BA, SAE, IWE, optical
+   * flow) on each chunk, publishing their results. Owns all stateful processors,
+   * so they need no locking. Exits when the node is deactivated and the queue
+   * has been drained.
+   */
   void worker_thread_routine();
 
   /**
-   * @brief Estimates the optical flow from a window of events.
+   * @brief Applies the background-activity noise filter to a chunk of events.
+   *
+   * Enforces the monotonic ordering dv's filter requires and resets all
+   * stateful processors on a stream discontinuity. Runs on the worker thread.
+   *
+   * @param raw Decoded events for one packet.
+   * @return The filtered events (possibly empty).
+   */
+  dv::EventStore compute_ba(const dv::EventStore & raw);
+
+  /**
+   * @brief Renders the Surface of Active Events for a chunk of events.
+   *
+   * Updates the per-polarity time surfaces and renders them, normalised over
+   * time_window_ms. Runs on the worker thread.
+   *
+   * @param events The events to fold into the time surfaces.
+   * @return A BGR8 SAE image.
+   */
+  cv::Mat compute_sae(const dv::EventStore & events);
+
+  /**
+   * @brief Estimates a single global velocity from a window of events via
+   * contrast maximization and renders the events warped by it.
+   *
+   * Runs on the worker thread.
+   *
+   * @param window The window of events to warp.
+   * @param v_global_out Set to the estimated global velocity [px/s].
+   * @return A single-channel (MONO8) image of the globally warped events.
+   */
+  cv::Mat compute_iwe(
+    const dv::EventStore & window,
+    cv::Vec2f & v_global_out);
+
+  /**
+   * @brief Estimates dense optical flow from a window of events.
+   *
+   * Runs per-patch contrast maximization and renders the velocity field as an
+   * HSV image. Runs on the worker thread.
    *
    * @param window The window of events to estimate the flow from.
-   * @return An OpenCV Mat containing the estimated flow, encoded as HSV.
+   * @param seed Global velocity [px/s] used to warm-start each patch's solver.
+   * @return A BGR8 image of the dense flow field (hue = direction, value = speed).
    */
-  cv::Mat estimate_flow(
-    const dv::EventStore & window);
+  cv::Mat compute_optical_flow(
+    const dv::EventStore & window,
+    const cv::Vec2f & seed);
+
+  /**
+   * @brief Allocates the resolution-dependent processors on the first packet.
+   *
+   * @param width Sensor width [px].
+   * @param height Sensor height [px].
+   */
+  void lazy_init(int width, int height);
+
+  /**
+   * @brief Rebuilds every stateful processor after a stream discontinuity.
+   */
+  void reset_state();
+
+  /**
+   * @brief Publishes an image if it is non-empty, stamping it with a header.
+   *
+   * @param pub Target image publisher.
+   * @param img Image to publish; ignored if empty.
+   * @param encoding sensor_msgs image encoding (e.g. BGR8, MONO8).
+   * @param header Header to stamp onto the message.
+   */
+  void publish_image(
+    const rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr & pub,
+    const cv::Mat & img,
+    const std::string & encoding,
+    const std_msgs::msg::Header & header);
 
   /* Builds a dv::EventStore from event_camera_codecs decoded events (ns → µs).
    * Accumulates into a dv::EventPacket to avoid the strict ordering requirement
@@ -133,12 +222,24 @@ private:
     std::shared_ptr<dv::EventPacket> packet_;
   };
 
+  /* One unit of work transferred from the subscription callback to the worker
+   * thread: the decoded events plus the metadata needed to process and stamp
+   * the outputs. */
+  struct EventChunk
+  {
+    dv::EventStore events;
+    std_msgs::msg::Header header;
+    int width;
+    int height;
+  };
+
   /* Callback Groups. */
   rclcpp::CallbackGroup::SharedPtr cgroup_event_packet_;
 
   /* Publishers. */
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr pub_sae_;
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr pub_flow_;
+  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr pub_iwe_;
 
   /* Subscribers. */
   rclcpp::Subscription<EventPacket>::SharedPtr sub_event_packet_;
@@ -162,12 +263,17 @@ private:
   /* Previous window's per-patch velocity field (CV_32FC2, grid-sized), used to
    * warm-start the solver. Empty until the first field has been estimated. */
   cv::Mat prev_flow_;
+  /* Previous window's global velocity [px/s], used to warm-start the global
+   * contrast-maximization that drives the IWE and seeds the per-patch flow. */
+  cv::Vec2f prev_global_v_{0.0f, 0.0f};
 
   /* Node parameters. */
   bool    autostart_;
   double  time_window_ms_;
   bool    ba_filter_enabled_;
   double  ba_filter_dt_ms_;
+  bool    sae_enabled_;
+  bool    iwe_enabled_;
   bool    flow_enabled_;
   double  flow_window_ms_;
   int64_t flow_patch_size_;
@@ -178,6 +284,11 @@ private:
 
   /* Threads. */
   std::thread thread_worker_;
+
+  /* Event transfer queue (producer: callback, consumer: worker). */
+  std::mutex queue_mutex_;
+  std::condition_variable queue_cv_;
+  std::deque<EventChunk> queue_;
 
   /* Synchronization primitives. */
   std::atomic<bool> running_{false};
