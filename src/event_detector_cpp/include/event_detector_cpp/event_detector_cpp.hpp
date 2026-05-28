@@ -84,9 +84,17 @@ private:
   /* Subscription callbacks. */
   void callback_event_packet(EventPacket::ConstSharedPtr msg);
 
-  /* Estimates a dense per-patch optical-flow field over a window of events via
-   * contrast maximization and publishes it as an HSV-coded image. */
-  void estimate_and_publish_flow(const dv::EventStore & window, const std_msgs::msg::Header & header);
+  /* Worker thread routine. */
+  void worker_thread_routine();
+
+  /**
+   * @brief Estimates the optical flow from a window of events.
+   *
+   * @param window The window of events to estimate the flow from.
+   * @return An OpenCV Mat containing the estimated flow, encoded as HSV.
+   */
+  cv::Mat estimate_flow(
+    const dv::EventStore & window);
 
   /* Builds a dv::EventStore from event_camera_codecs decoded events (ns → µs).
    * Accumulates into a dv::EventPacket to avoid the strict ordering requirement
@@ -167,6 +175,9 @@ private:
   double  flow_max_speed_px_s_;
   int64_t flow_cmax_max_iter_;
   double  flow_cmax_learning_rate_;
+
+  /* Threads. */
+  std::thread thread_worker_;
 
   /* Synchronization primitives. */
   std::atomic<bool> running_{false};

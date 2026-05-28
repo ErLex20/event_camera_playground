@@ -121,12 +121,11 @@ private:
 
 }  // namespace
 
-void EventDetector::estimate_and_publish_flow(
-  const dv::EventStore & window,
-  const std_msgs::msg::Header & header)
+cv::Mat EventDetector::estimate_flow(
+  const dv::EventStore & window)
 {
   if (window.isEmpty() || res_.width <= 0 || res_.height <= 0) {
-    return;
+    return cv::Mat();
   }
 
   const int patch     = static_cast<int>(flow_patch_size_);
@@ -248,36 +247,29 @@ void EventDetector::estimate_and_publish_flow(
   }
 
   // Render the dense field as an HSV image: hue = direction, value = speed.
-  cv::Mat hsv(gh, gw, CV_8UC3, cv::Scalar(0, 0, 0));
-  for (int gy = 0; gy < gh; ++gy) {
-    for (int gx = 0; gx < gw; ++gx) {
-      const cv::Vec2f vel = flow_field.at<cv::Vec2f>(gy, gx);
-      const float mag = std::hypot(vel[0], vel[1]);
-      if (mag < 1e-3f) {
-        continue;
-      }
-      float ang = std::atan2(vel[1], vel[0]);
-      if (ang < 0.0f) {
-        ang += kTwoPi;
-      }
-      cv::Vec3b & px_hsv = hsv.at<cv::Vec3b>(gy, gx);
-      px_hsv[0] = static_cast<uint8_t>(ang / kTwoPi * 180.0f);
-      px_hsv[1] = 255;
-      px_hsv[2] = static_cast<uint8_t>(std::min(mag / max_spd, 1.0f) * 255.0f);
-    }
-  }
+  cv::Mat flow_parts[2];
+  cv::split(flow_field, flow_parts);
+  cv::Mat magnitude, angle;
+  cv::cartToPolar(flow_parts[0], flow_parts[1], magnitude, angle, true);
+  cv::Mat hsv_parts[3];
+  angle *= 0.5;
+  angle.convertTo(hsv_parts[0], CV_8U);
+  hsv_parts[1] = cv::Mat(gh, gw, CV_8U, cv::Scalar(255));
+  magnitude *= (255.0f / max_spd);
+  cv::threshold(magnitude, magnitude, 255.0, 255.0, cv::THRESH_TRUNC);
+  magnitude.convertTo(hsv_parts[2], CV_8U);
+  cv::Mat hsv;
+  cv::merge(hsv_parts, 3, hsv);
 
   cv::Mat bgr_grid;
   cv::cvtColor(hsv, bgr_grid, cv::COLOR_HSV2BGR);
   cv::Mat flow_img;
   cv::resize(bgr_grid, flow_img, cv::Size(w, h), 0.0, 0.0, cv::INTER_NEAREST);
 
-  auto flow_msg = dua_cv_bridge::frame_to_msg(flow_img, sensor_msgs::image_encodings::BGR8);
-  flow_msg->header = header;
-  pub_flow_->publish(*flow_msg);
-
   // Persist this field to warm-start the next window.
   prev_flow_ = std::move(flow_field);
+
+  return flow_img;
 }
 
 }  // namespace event_detector_cpp

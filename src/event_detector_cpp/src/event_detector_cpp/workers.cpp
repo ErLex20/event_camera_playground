@@ -1,5 +1,5 @@
 /**
- * Event Detector utils implementation.
+ * Event Detector workers implementation.
  *
  * dotX Automation s.r.l. <info@dotxautomation.com>
  *
@@ -27,23 +27,15 @@
 namespace event_detector_cpp
 {
 
-void EventDetector::activate()
+void EventDetector::worker_thread_routine()
 {
-  // Set running flag
-  running_.store(true, std::memory_order_release);
-  thread_worker_ = std::thread(
-    &EventDetector::worker_thread_routine,
-    this);
+  RCLCPP_WARN(this->get_logger(), "Worker START");
 
-  RCLCPP_WARN(this->get_logger(), "Event Detector ACTIVATED");
-}
+  while (running_.load(std::memory_order_acquire)) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  }
 
-void EventDetector::deactivate()
-{
-  // Set running flag
-  running_.store(false, std::memory_order_release);
-
-  RCLCPP_WARN(this->get_logger(), "Event Detector DEACTIVATED");
+  RCLCPP_WARN(this->get_logger(), "Worker STOP");
 }
 
 } // namespace event_detector_cpp

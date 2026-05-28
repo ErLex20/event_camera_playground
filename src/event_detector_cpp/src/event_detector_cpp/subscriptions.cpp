@@ -113,9 +113,13 @@ void EventDetector::callback_event_packet(EventPacket::ConstSharedPtr msg)
     if (events.getHighestTime() - flow_window_start_us_ >=
       static_cast<int64_t>(flow_window_ms_ * 1000.0))
     {
-      estimate_and_publish_flow(flow_accum_, msg->header);
+      auto flow_img = estimate_flow(flow_accum_);
       flow_accum_ = dv::EventStore();
       flow_window_start_us_ = events.getHighestTime();
+
+      auto flow_msg = dua_cv_bridge::frame_to_msg(flow_img, sensor_msgs::image_encodings::BGR8);
+      flow_msg->header = msg->header;
+      pub_flow_->publish(*flow_msg);
     }
   }
 
