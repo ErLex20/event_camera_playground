@@ -70,7 +70,7 @@ inline float iwe_grad_l1(const cv::Mat & iwe)
     for (int x = 0; x < W - 1; ++x) {
       const float gx = r0[x + 1] - r0[x];
       const float gy = r1[x]     - r0[x];
-      g += std::sqrt(gx * gx + gy * gy);
+      g += std::abs(gx) + std::abs(gy);
     }
   }
   return static_cast<float>(g / static_cast<double>((H - 1) * (W - 1)));
