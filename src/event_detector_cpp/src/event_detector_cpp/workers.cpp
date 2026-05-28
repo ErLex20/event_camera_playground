@@ -59,15 +59,24 @@ void EventDetector::worker_thread_routine()
     }
 
     // Background-activity filtering (per packet).
+    // Evaluate time to calculate everything
+    auto t_ba = std::chrono::high_resolution_clock::now();
     dv::EventStore events = ba_filter_enabled_ ? compute_ba(chunk.events) : chunk.events;
     if (events.isEmpty()) {
       continue;
     }
+    auto dt1 = std::chrono::duration_cast<std::chrono::milliseconds>(
+      std::chrono::high_resolution_clock::now() - t_ba).count();
+    RCLCPP_INFO_THROTTLE(this->get_logger(), *get_clock(), 1000, "BA filter: %ld ms", dt1);
 
     // Surface of Active Events (per packet).
     if (sae_enabled_) {
+      auto t_sae = std::chrono::high_resolution_clock::now();
       publish_image(
         pub_sae_, compute_sae(events), sensor_msgs::image_encodings::BGR8, chunk.header);
+      auto dt2 = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::high_resolution_clock::now() - t_sae).count();
+      RCLCPP_INFO_THROTTLE(this->get_logger(), *get_clock(), 1000, "SAE: %ld ms", dt2);
     }
 
     // IWE and optical flow run once per flow window.
@@ -87,14 +96,22 @@ void EventDetector::worker_thread_routine()
         // otherwise the flow falls back to a zero seed and its own search.
         cv::Vec2f v_global(0.0f, 0.0f);
         if (iwe_enabled_) {
+          auto t_iwe = std::chrono::high_resolution_clock::now();
           publish_image(
             pub_iwe_, compute_iwe(window, v_global),
             sensor_msgs::image_encodings::MONO8, chunk.header);
+          auto dt3 = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::high_resolution_clock::now() - t_iwe).count();
+          RCLCPP_INFO_THROTTLE(this->get_logger(), *get_clock(), 1000, "IWE: %ld ms", dt3);
         }
         if (flow_enabled_) {
+          auto t_flow = std::chrono::high_resolution_clock::now();
           publish_image(
             pub_flow_, compute_optical_flow(window, v_global),
             sensor_msgs::image_encodings::BGR8, chunk.header);
+          auto dt4 = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::high_resolution_clock::now() - t_flow).count();
+          RCLCPP_INFO_THROTTLE(this->get_logger(), *get_clock(), 1000, "Flow: %ld ms", dt4);
         }
       }
     }
