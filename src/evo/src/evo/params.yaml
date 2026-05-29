@@ -1,0 +1,12 @@
+header_include_path: evo/evo.hpp
+namespace: evo
+node_class_name: EVO
+
+params:
+  autostart:
+    type: bool
+    default_value: false
+    description: "Start detection right after node initialization."
+    constraints: "Cannot be changed."
+    read_only: true
+    var_name: autostart_

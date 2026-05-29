@@ -1,0 +1,8 @@
+/evo:
+  ros__parameters:
+    dua:
+      tf_server:
+        get_transform: true
+        transform_pose: false
+        wait_servers: false
+    autostart: true
