@@ -1,9 +1,0 @@
-/event_detector:
-  ros__parameters:
-    dua:
-      params_file_path: '/home/neo/workspace/src/event_detector/event_detector/params.yaml'
-      tf_server:
-        get_transform: false
-        transform_pose: false
-        wait_servers: false
-    autostart: true

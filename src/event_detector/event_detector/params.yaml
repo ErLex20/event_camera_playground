@@ -1,9 +1,0 @@
-params:
-
-  autostart:
-    type: bool
-    default_value: false
-    description: "Autostart the AMQP bridge when the node is launched."
-    constraints: ""
-    read_only: true
-    var_name: _autostart
