@@ -2,7 +2,9 @@
 
 #include <atomic>
 #include <deque>
+#include <functional>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -76,6 +78,17 @@ class DepthFromDefocusNode {
 
     /// Switch the queried frame between bootstrap and regular (copilotCallback).
     void setCopilot(bool regular);
+
+    /**
+     * Register a callback invoked whenever a new local map is produced
+     * (replaces the original dvs_mapping/pointcloud topic that fed the tracker
+     * and the reconstruction node). Called with the freshly accumulated cloud
+     * and its timestamp.
+     */
+    void setMapCallback(
+        std::function<void(const PointCloud::Ptr &, const evo::EventTime &)> cb) {
+        map_callback_ = std::move(cb);
+    }
 
     /**
      * Performs a map update (the heavy DSI computation). Called by the
@@ -210,6 +223,15 @@ class DepthFromDefocusNode {
     int adaptive_threshold_c_;
 
     bool auto_trigger_;
+
+    /// Serializes the mapper's public entry points. The original mapper ran
+    /// single-threaded under ros::spin; in the merged node addEvents(),
+    /// onTrackedPose() and onRemoteKey() are invoked from different threads.
+    std::mutex data_mutex_;
+
+    /// Invoked with the local map whenever one is produced (see setMapCallback).
+    std::function<void(const PointCloud::Ptr &, const evo::EventTime &)>
+        map_callback_;
 };
 
 }  // namespace depth_from_defocus

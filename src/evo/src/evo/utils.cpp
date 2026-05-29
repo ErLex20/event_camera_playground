@@ -29,18 +29,39 @@ namespace evo
 
 void EVO::activate()
 {
-  // Set running flag
-  running_.store(true, std::memory_order_release);
+  if (running_.exchange(true)) {
+    // Already running, nothing to do.
+    return;
+  }
 
-  RCLCPP_WARN(this->get_logger(), "EVO ACTIVATED");
+  RCLCPP_INFO(this->get_logger(), "EVO ACTIVATED – spawning stage threads");
+
+  // Spawn stage threads. Each stage will poll the shared running_ flag.
+  thread_integrate_ = std::thread(
+      [this]() { bootstrapper_->integratingThread(running_); });
+  thread_bootstrap_ = std::thread(
+      [this]() { bootstrapper_->bootstrappingThread(running_); });
+  thread_tracking_ =
+      std::thread([this]() { tracker_->trackingThread(running_); });
+  thread_overlap_ =
+      std::thread([this]() { tracker_->publishMapOverlapThread(running_); });
 }
 
 void EVO::deactivate()
 {
-  // Clear running flag
-  running_.store(false, std::memory_order_release);
+  if (!running_.exchange(false)) {
+    // Already stopped, nothing to do.
+    return;
+  }
 
-  RCLCPP_WARN(this->get_logger(), "EVO DEACTIVATED");
+  RCLCPP_INFO(this->get_logger(), "EVO DEACTIVATED – joining stage threads");
+
+  if (thread_integrate_.joinable()) thread_integrate_.join();
+  if (thread_bootstrap_.joinable()) thread_bootstrap_.join();
+  if (thread_tracking_.joinable()) thread_tracking_.join();
+  if (thread_overlap_.joinable()) thread_overlap_.join();
+
+  RCLCPP_INFO(this->get_logger(), "EVO DEACTIVATED – all threads joined");
 }
 
 } // namespace evo

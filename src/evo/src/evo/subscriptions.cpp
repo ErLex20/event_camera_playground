@@ -55,15 +55,29 @@ void EVO::event_packet_callback(const EventPacket::ConstSharedPtr msg)
 
 void EVO::dispatch_events(const std::vector<Event> & events)
 {
-  // TODO(evo-port): push the decoded events into each stage's buffer,
-  // preserving each buffer's windowing/decimation semantics:
-  //   - bootstrapper.eventQueue_
-  //   - mapper.event_queue_
-  //   - tracker.events_
-  //   - reconstruction.events_
-  // The stages are internalized in Phase 3; until then this is a no-op other
-  // than reporting throughput for bring-up.
-  (void)events;
+  // Each stage owns its own buffer and windowing logic.
+  bootstrapper_->addEvents(events);
+  mapper_->addEvents(events);
+  tracker_->addEvents(events);
+  reconstruction_->addEvents(events);
+}
+
+void EVO::on_remote_key(const std_msgs::msg::String::ConstSharedPtr msg)
+{
+  const std::string cmd = msg->data;
+
+  // Dispatch the command to every stage that understands it.
+  bootstrapper_->onRemoteKey(cmd);
+  tracker_->onRemoteKey(cmd);
+  mapper_->onRemoteKey(cmd);
+}
+
+void EVO::on_tracked_pose(const geometry_msgs::msg::PoseStamped::ConstSharedPtr msg)
+{
+  // Forward the tracked pose timestamp to the mapper so it can advance its
+  // event cursor and auto-trigger DSI map updates.
+  rclcpp::Time stamp(msg->header.stamp);
+  mapper_->onTrackedPose(stamp);
 }
 
 }  // namespace evo

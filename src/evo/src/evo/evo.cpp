@@ -24,8 +24,25 @@
 
 #include "evo/evo.hpp"
 
+#include <pcl/common/io.h>
+
 namespace evo
 {
+
+void EVO::feed_map(const pcl::PointCloud<pcl::PointXYZI>::Ptr & map,
+                   const rclcpp::Time & stamp)
+{
+  // The tracker and the reconstruction operate on PointXYZ; the mapper and the
+  // bootstrapper produce PointXYZI. copyPointCloud transfers the common x/y/z
+  // fields (PointXYZI and PointXYZ have different memory layouts, so a raw cast
+  // is invalid).
+  auto map_xyz = std::make_shared<pcl::PointCloud<pcl::PointXYZ>>();
+  pcl::copyPointCloud(*map, *map_xyz);
+  map_xyz->header = map->header;
+
+  tracker_->setMap(map_xyz);
+  reconstruction_->setMap(map_xyz, evo::EventTime(stamp.nanoseconds()));
+}
 
 EVO::EVO(const rclcpp::NodeOptions & node_options)
 : NodeBase("evo", node_options, true)
@@ -44,7 +61,7 @@ EVO::EVO(const rclcpp::NodeOptions & node_options)
   bootstrap_frame_id_ =
     rpg_common_ros::param<std::string>(sp, "dvs_bootstrap_frame_id", "camera_0");
   camera_name_ = rpg_common_ros::param<std::string>(sp, "camera_name", "DAVIS-ijrr");
-  calib_file_ = rpg_common_ros::param<std::string>(sp, "calib_file", "");
+  calib_file_ = "/home/neo/workspace/src/evo/config/evo_calibration.yaml";
   min_depth_ = rpg_common_ros::param<double>(sp, "min_depth", 0.4);
   max_depth_ = rpg_common_ros::param<double>(sp, "max_depth", 5.0);
   num_depth_cells_ = rpg_common_ros::param<int>(sp, "num_depth_cells", 100);
@@ -54,6 +71,66 @@ EVO::EVO(const rclcpp::NodeOptions & node_options)
   virtual_height_ = rpg_common_ros::param<int>(sp, "virtual_height", 180);
 
   RCLCPP_INFO(this->get_logger(), "Node initialized");
+
+  // ── Pipeline stage creation ──────────────────────────────────────────────
+  bootstrapper_ =
+      std::make_unique<dvs_bootstrapping::FrontoPlanarBootstrapper>();
+  tracker_ = std::make_unique<evo::Tracker>();
+  mapper_ = std::make_unique<depth_from_defocus::DepthFromDefocusNode>();
+  reconstruction_ = std::make_unique<evo::Reconstruction>();
+
+  // Bootstrap map callback: feed the produced map into tracker, reconstruction
+  // and switch the mapper into MAPPING mode.
+  bootstrap_map_callback_ = [this](
+      const pcl::PointCloud<pcl::PointXYZI>::Ptr &map,
+      const rclcpp::Time &stamp) {
+    RCLCPP_INFO(this->get_logger(), "Bootstrapper produced a map (%zu pts)",
+                map->size());
+
+    // Switch the mapper into MAPPING mode (replaces the "bootstrap" remote key
+    // the mapper received on the original /evo/remote_key topic).
+    mapper_->onRemoteKey("bootstrap");
+
+    // Feed the bootstrap map to the tracker and the reconstruction stage.
+    feed_map(map, stamp);
+  };
+
+  // Mapper map callback: every time the mapper produces a new local map, feed
+  // it to the tracker and the reconstruction (replaces the original
+  // dvs_mapping/pointcloud topic that both subscribed to).
+  mapper_->setMapCallback(
+      [this](const pcl::PointCloud<pcl::PointXYZI>::Ptr &map,
+             const evo::EventTime &stamp) {
+        feed_map(map, rclcpp::Time(stamp.toNSec()));
+      });
+
+  // Wire the callback into the bootstrapper so it can invoke it.
+  {
+    std::lock_guard<std::mutex> lock(bootstrap_mutex_);
+    bootstrapper_->setup(this, tf_buffer_, bootstrap_map_callback_);
+  }
+
+  // Tracker: receives events from dispatch_events(), map from bootstrapper.
+  tracker_->setup(this, tf_buffer_);
+
+  // Mapper: receives events and TF poses (via tf_buffer_).
+  mapper_->setup(this, tf_buffer_, bootstrapper_->getCamModel());
+
+  // Reconstruction: optional Poisson mosaic.
+  reconstruction_->setup(this, tf_buffer_, bootstrapper_->getCamModel());
+
+  // ── Remote key subscription (replaces the original ROS1 /evo/remote_key) ─
+  rclcpp::SubscriptionOptions remote_opts;
+  remote_opts.callback_group = cgroup_event_packet_;
+  sub_remote_key_ = this->create_subscription<std_msgs::msg::String>(
+      "~/remote_key", 10,
+      std::bind(&EVO::on_remote_key, this, std::placeholders::_1),
+      remote_opts);
+
+  // ── Pose relay subscription (mapper needs tracked pose timestamps) ──────
+  sub_pose_relay_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
+      "~/pose", 10,
+      std::bind(&EVO::on_tracked_pose, this, std::placeholders::_1));
 
   if (autostart_) {
     activate();
@@ -67,10 +144,13 @@ EVO::~EVO()
 
 void EVO::init_cgroups()
 {
-  // The event-packet subscription runs at high rate; allow it to be processed
-  // concurrently (reentrant), as the original event topic was handled in its
-  // own spinning node.
-  cgroup_event_packet_ = dua_create_reentrant_cgroup();
+  // Event-packet decoding mutates shared state (the reused decoded_events_
+  // buffer and the stateful event_camera_codecs decoder), so the callback must
+  // NOT run concurrently with itself. A mutually-exclusive group serializes
+  // event decoding, mirroring the original pipeline where each node consumed
+  // the event stream from its own single-threaded callback queue. The heavy
+  // per-stage computation runs on dedicated worker threads, not here.
+  cgroup_event_packet_ = dua_create_exclusive_cgroup();
 }
 
 void EVO::init_publishers()

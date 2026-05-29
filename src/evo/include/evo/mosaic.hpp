@@ -3,6 +3,7 @@
 
 #include <deque>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -138,6 +139,10 @@ class Reconstruction {
     Mosaic mosaic_;
     image_geometry::PinholeCameraModel c_;
     size_t cur_ev_ = 0;
+
+    /// Serializes addEvents() (event thread) and setMap() (mapper/bootstrap
+    /// threads); the original reconstruction node ran single-threaded.
+    std::mutex data_mutex_;
 };
 
 }  // namespace evo

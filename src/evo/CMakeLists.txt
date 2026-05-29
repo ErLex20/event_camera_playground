@@ -59,6 +59,7 @@ find_package(PCL REQUIRED COMPONENTS common io filters)
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GLOG REQUIRED libglog)
+pkg_check_modules(FFTW3 REQUIRED fftw3)
 
 # Configure include directories from external libraries
 include_directories(
@@ -92,6 +93,8 @@ target_link_libraries(evo
   ${OpenCV_LIBS}
   ${PCL_LIBRARIES}
   ${GLOG_LIBRARIES}
+  ${FFTW3_LIBRARIES}
+  fftw3_threads
   OpenMP::OpenMP_CXX
   Threads::Threads
 )

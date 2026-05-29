@@ -39,7 +39,7 @@ void Bootstrapper::setupBase(rclcpp::Node *node,
     const std::string camera_name =
         rpg_common_ros::param<std::string>(nh_, "camera_name", "");
     const std::string calib_file =
-        rpg_common_ros::param<std::string>(nh_, "calib_file", "");
+        "/home/neo/workspace/src/evo/config/evo_calibration.yaml";
     cam_ = evo_utils::camera::loadPinholeCamera(camera_name, calib_file);
 
     world_frame_id_ =

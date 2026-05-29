@@ -5,4 +5,78 @@
         get_transform: true
         transform_pose: false
         wait_servers: false
+
+    # Activate the pipeline right after initialization.
     autostart: true
+
+    # ── Camera & frames ───────────────────────────────────────────────────
+    camera_name: "DAVIS-ijrr"
+    world_frame_id: "world"
+    dvs_frame_id: "dvs_evo"
+    dvs_bootstrap_frame_id: "camera_0"
+
+    # ── DSI / virtual camera (shared) ─────────────────────────────────────
+    min_depth: 0.4              # min scene depth of the voxel grid [m]
+    max_depth: 5.0              # max scene depth of the voxel grid [m]
+    num_depth_cells: 100        # depth planes along the optical ray (<=256)
+    fov_virtual_camera_deg: 80.0
+    virtual_width: 240
+    virtual_height: 180
+
+    # ── Bootstrapping (fronto-planar) ─────────────────────────────────────
+    boot:
+      auto_trigger: true        # start on first data
+      rate_hz: 30
+      frame_size: 10000         # events per events frame
+      local_frame_size: 5000    # events per warp-estimation sub-batch
+      min_step_size: 5000
+      events_scale_factor: 4.0  # intensity = sat(#events / this)
+      activation_threshold_min: 10.0
+      adaptive_thresholding: true
+      median_filtering: false
+      plane_distance: 1.0       # plane the first map is projected onto [m]
+      radius_search: 0.1        # outlier-removal radius [m]
+      min_num_neighbors: 50
+      one_shot: true            # publish a single bootstrap map then idle
+
+    # ── Mapping (depth-from-defocus / DSI) ────────────────────────────────
+    map:
+      frame_size: 4096          # events aggregated per pose into the DSI
+      adaptive_threshold_kernel_size: 5
+      adaptive_threshold_c: 7
+      type_focus_measure: 0     # 0=Linf, 1=contrast, 2=gradient magnitude
+      half_patchsize: 1         # only for focus measures 1 and 2
+      median_filter_size: 15
+      events_to_recreate_kf: 1000000
+      skip_batches: 0
+      min_batch_size: 20000     # min new events for a map update
+      max_event_rate: 10000000
+      radius_search: 0.2        # local-map outlier-removal radius [m]
+      min_num_neighbors: 2
+      voxel_filter_leaf_size: 0.005   # global-map voxel filter [m] (0=off)
+
+    # ── Tracking (LK-SE3) ─────────────────────────────────────────────────
+    track:
+      auto_trigger: true        # initialize when a map is received
+      discard_events_when_idle: true
+      batch_size: 500
+      max_iterations: 150
+      pyramid_levels: 2
+      map_blur: 3
+      noise_rate: 10000         # skip frames below this event rate
+      frame_size: 5000          # window of events considered
+      step_size: 15000          # min new events between pose updates
+      max_event_rate: 4000000
+      pose_mean_filter_size: 5
+      events_per_kf: 100000
+      event_map_overlap_rate: 15
+      min_map_size: 0
+      min_n_keypoints: 0
+
+    # ── Reconstruction (EKF + Poisson, optional visualization) ────────────
+    reco:
+      window_size: 5000         # events between EKF updates
+      sigma_m: 10.0
+      init_cov: 10.0
+      map_blur: 15
+      events_for_reconstruction: 100000

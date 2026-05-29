@@ -2,11 +2,512 @@ header_include_path: evo/evo.hpp
 namespace: evo
 node_class_name: EVO
 
+# NOTE on architecture: every pipeline stage reads its parameters through the
+# rpg_common_ros::param<T>() shim (a verbatim-port shim that replaces
+# ros::NodeHandle::param). The shim declares a parameter lazily on first read if
+# it is not already declared. Declaring the same parameters here (via the DUA
+# params_manager) makes them part of the node's published schema (descriptions,
+# ranges, `ros2 param` visibility) and lets config/evo.yaml override them; the
+# shim then simply reads the already-declared value. Stage parameters are
+# namespaced by stage prefix: boot. (bootstrapping), map. (mapping),
+# track. (tracking), reco. (reconstruction). Parameters without var_name are
+# declare-only (not bound to a node member); only `autostart` binds to a member.
+
 params:
   autostart:
     type: bool
     default_value: false
-    description: "Start detection right after node initialization."
-    constraints: "Cannot be changed."
+    description: "Activate the pipeline right after node initialization."
+    constraints: "Cannot be changed at runtime."
     read_only: true
     var_name: autostart_
+
+  # ── Shared (read by several stages; no stage prefix) ──────────────────────
+  world_frame_id:
+    type: string
+    default_value: "world"
+    description: "Root TF frame of the internal pose buffer."
+    constraints: "Set at startup."
+    read_only: true
+  dvs_frame_id:
+    type: string
+    default_value: "dvs_evo"
+    description: "Camera frame estimated by the tracker (world -> dvs_evo)."
+    constraints: "Set at startup."
+    read_only: true
+  dvs_bootstrap_frame_id:
+    type: string
+    default_value: "camera_0"
+    description: "Frame of the initial bootstrap pose used to start tracking."
+    constraints: "Set at startup."
+    read_only: true
+  camera_name:
+    type: string
+    default_value: "DAVIS-ijrr"
+    description: "Camera/calibration name."
+    constraints: "Set at startup."
+    read_only: true
+  min_depth:
+    type: double
+    default_value: 0.4
+    min_value: 0.01
+    max_value: 100.0
+    step: 0.0
+    description: "Minimum scene depth of the DSI voxel grid [m]."
+    constraints: "min_depth < max_depth."
+    read_only: false
+  max_depth:
+    type: double
+    default_value: 5.0
+    min_value: 0.02
+    max_value: 1000.0
+    step: 0.0
+    description: "Maximum scene depth of the DSI voxel grid [m]."
+    constraints: "max_depth > min_depth."
+    read_only: false
+  num_depth_cells:
+    type: integer
+    default_value: 100
+    min_value: 1
+    max_value: 256
+    step: 0
+    description: "Number of depth planes (cells) along the DSI optical ray."
+    constraints: "<= 256. Structural."
+    read_only: true
+  fov_virtual_camera_deg:
+    type: double
+    default_value: 80.0
+    min_value: 0.0
+    max_value: 180.0
+    step: 0.0
+    description: "Field of view of the virtual (DSI) camera [deg]."
+    constraints: "0 keeps the real camera focal length."
+    read_only: false
+  virtual_width:
+    type: integer
+    default_value: 240
+    min_value: 1
+    max_value: 10000
+    step: 0
+    description: "Horizontal resolution of the DSI / virtual camera [px]."
+    constraints: "Structural."
+    read_only: true
+  virtual_height:
+    type: integer
+    default_value: 180
+    min_value: 1
+    max_value: 10000
+    step: 0
+    description: "Vertical resolution of the DSI / virtual camera [px]."
+    constraints: "Structural."
+    read_only: true
+
+  # ── Bootstrapping (fronto-planar) ─────────────────────────────────────────
+  boot.auto_trigger:
+    type: bool
+    default_value: true
+    description: "Start bootstrapping on first data (else wait for 'bootstrap')."
+    constraints: ""
+    read_only: false
+  boot.rate_hz:
+    type: integer
+    default_value: 30
+    min_value: 1
+    max_value: 1000
+    step: 0
+    description: "Rate at which events frames are integrated [Hz]."
+    constraints: ""
+    read_only: false
+  boot.frame_size:
+    type: integer
+    default_value: 10000
+    min_value: 1
+    max_value: 10000000
+    step: 0
+    description: "Number of events aggregated into one bootstrap events frame."
+    constraints: ">= local_frame_size."
+    read_only: false
+  boot.local_frame_size:
+    type: integer
+    default_value: 5000
+    min_value: 1
+    max_value: 10000000
+    step: 0
+    description: "Events per sub-batch used to estimate the warp/optical flow."
+    constraints: "<= frame_size."
+    read_only: false
+  boot.min_step_size:
+    type: integer
+    default_value: 5000
+    min_value: 1
+    max_value: 10000000
+    step: 0
+    description: "Minimum new events before integrating the next frame."
+    constraints: ""
+    read_only: false
+  boot.events_scale_factor:
+    type: double
+    default_value: 4.0
+    min_value: 0.01
+    max_value: 1000.0
+    step: 0.0
+    description: "Pixel intensity = sat(#events / events_scale_factor)."
+    constraints: ""
+    read_only: false
+  boot.activation_threshold_min:
+    type: double
+    default_value: 10.0
+    min_value: 0.0
+    max_value: 255.0
+    step: 0.0
+    description: "Minimum pixel intensity kept by the activation threshold."
+    constraints: ""
+    read_only: false
+  boot.adaptive_thresholding:
+    type: bool
+    default_value: true
+    description: "Apply adaptive thresholding to the events frame."
+    constraints: ""
+    read_only: false
+  boot.median_filtering:
+    type: bool
+    default_value: false
+    description: "Median-filter the events frame before thresholding."
+    constraints: ""
+    read_only: false
+  boot.plane_distance:
+    type: double
+    default_value: 1.0
+    min_value: 0.01
+    max_value: 1000.0
+    step: 0.0
+    description: "Distance of the fronto-planar plane the map is projected onto [m]."
+    constraints: ""
+    read_only: false
+  boot.radius_search:
+    type: double
+    default_value: 0.1
+    min_value: 0.0
+    max_value: 100.0
+    step: 0.0
+    description: "Radius-outlier-removal search radius for the bootstrap map [m]."
+    constraints: ""
+    read_only: false
+  boot.min_num_neighbors:
+    type: integer
+    default_value: 50
+    min_value: 0
+    max_value: 10000
+    step: 0
+    description: "Minimum neighbors for radius outlier removal (bootstrap map)."
+    constraints: ""
+    read_only: false
+  boot.one_shot:
+    type: bool
+    default_value: true
+    description: "Publish a single bootstrap map then go idle (fronto-planar)."
+    constraints: ""
+    read_only: false
+
+  # ── Mapping (depth-from-defocus / DSI) ────────────────────────────────────
+  map.auto_trigger:
+    type: bool
+    default_value: false
+    description: "Start MAPPING immediately (normally switched on by bootstrap)."
+    constraints: ""
+    read_only: false
+  map.frame_size:
+    type: integer
+    default_value: 4096
+    min_value: 1
+    max_value: 10000000
+    step: 0
+    description: "Events aggregated per pose when filling the DSI."
+    constraints: ""
+    read_only: false
+  map.adaptive_threshold_kernel_size:
+    type: integer
+    default_value: 5
+    min_value: 1
+    max_value: 99
+    step: 0
+    description: "Adaptive-threshold kernel size on the confidence map."
+    constraints: "Must be odd and > 0."
+    read_only: false
+  map.adaptive_threshold_c:
+    type: integer
+    default_value: 7
+    min_value: -255
+    max_value: 255
+    step: 0
+    description: "Adaptive-threshold constant offset."
+    constraints: ""
+    read_only: false
+  map.type_focus_measure:
+    type: integer
+    default_value: 0
+    min_value: 0
+    max_value: 2
+    step: 0
+    description: "Focus measure: 0=Linf (max votes), 1=contrast, 2=grad. mag."
+    constraints: ""
+    read_only: false
+  map.half_patchsize:
+    type: integer
+    default_value: 1
+    min_value: 0
+    max_value: 50
+    step: 0
+    description: "Half patch size for focus measures 1 and 2."
+    constraints: ""
+    read_only: false
+  map.median_filter_size:
+    type: integer
+    default_value: 15
+    min_value: 1
+    max_value: 99
+    step: 0
+    description: "Median filter size applied to the depth map."
+    constraints: ""
+    read_only: false
+  map.events_to_recreate_kf:
+    type: integer
+    default_value: 1000000
+    min_value: 1
+    max_value: 100000000
+    step: 0
+    description: "Events considered when re-centering the DSI keyframe pose."
+    constraints: ""
+    read_only: false
+  map.skip_batches:
+    type: integer
+    default_value: 0
+    min_value: 0
+    max_value: 1000
+    step: 0
+    description: "Number of event batches to skip between processed batches."
+    constraints: ""
+    read_only: false
+  map.min_batch_size:
+    type: integer
+    default_value: 20000
+    min_value: 1
+    max_value: 10000000
+    step: 0
+    description: "Minimum new events required to perform a map update."
+    constraints: ""
+    read_only: false
+  map.max_event_rate:
+    type: integer
+    default_value: 10000000
+    min_value: 1
+    max_value: 1000000000
+    step: 0
+    description: "Above this event rate, batches are skipped (rate limiting)."
+    constraints: ""
+    read_only: false
+  map.radius_search:
+    type: double
+    default_value: 0.2
+    min_value: 0.0
+    max_value: 100.0
+    step: 0.0
+    description: "Radius-outlier-removal search radius for the local map [m]."
+    constraints: ""
+    read_only: false
+  map.min_num_neighbors:
+    type: integer
+    default_value: 2
+    min_value: 0
+    max_value: 10000
+    step: 0
+    description: "Minimum neighbors for radius outlier removal (local map)."
+    constraints: ""
+    read_only: false
+  map.voxel_filter_leaf_size:
+    type: double
+    default_value: 0.005
+    min_value: 0.0
+    max_value: 10.0
+    step: 0.0
+    description: "Voxel-grid leaf size for the accumulated global map [m] (0=off)."
+    constraints: ""
+    read_only: false
+
+  # ── Tracking (LK-SE3) ─────────────────────────────────────────────────────
+  track.auto_trigger:
+    type: bool
+    default_value: true
+    description: "Initialize tracking automatically once a map is received."
+    constraints: ""
+    read_only: false
+  track.discard_events_when_idle:
+    type: bool
+    default_value: true
+    description: "Drop incoming events while the tracker is idle."
+    constraints: ""
+    read_only: false
+  track.batch_size:
+    type: integer
+    default_value: 500
+    min_value: 1
+    max_value: 100000
+    step: 0
+    description: "Batch-gradient-descent batch size (keypoints per batch)."
+    constraints: ""
+    read_only: false
+  track.max_iterations:
+    type: integer
+    default_value: 150
+    min_value: 1
+    max_value: 10000
+    step: 0
+    description: "Maximum optimization iterations per tracked frame."
+    constraints: ""
+    read_only: false
+  track.pyramid_levels:
+    type: integer
+    default_value: 2
+    min_value: 0
+    max_value: 8
+    step: 0
+    description: "Number of image-pyramid levels used in the KLT process."
+    constraints: ""
+    read_only: false
+  track.map_blur:
+    type: integer
+    default_value: 3
+    min_value: 1
+    max_value: 99
+    step: 0
+    description: "Gaussian-blur sigma applied to the reprojected map."
+    constraints: ""
+    read_only: false
+  track.noise_rate:
+    type: integer
+    default_value: 10000
+    min_value: 0
+    max_value: 100000000
+    step: 0
+    description: "Below this event rate a frame is skipped as noise."
+    constraints: ""
+    read_only: false
+  track.frame_size:
+    type: integer
+    default_value: 5000
+    min_value: 1
+    max_value: 10000000
+    step: 0
+    description: "Window of events considered per tracked frame."
+    constraints: ""
+    read_only: false
+  track.step_size:
+    type: integer
+    default_value: 15000
+    min_value: 1
+    max_value: 10000000
+    step: 0
+    description: "Minimum new events between pose updates."
+    constraints: ""
+    read_only: false
+  track.max_event_rate:
+    type: integer
+    default_value: 4000000
+    min_value: 1
+    max_value: 1000000000
+    step: 0
+    description: "Above this event rate a frame is skipped (rate limiting)."
+    constraints: ""
+    read_only: false
+  track.pose_mean_filter_size:
+    type: integer
+    default_value: 5
+    min_value: 0
+    max_value: 1000
+    step: 0
+    description: "Window size of the pose mean filter (< 2 disables it)."
+    constraints: ""
+    read_only: false
+  track.events_per_kf:
+    type: integer
+    default_value: 100000
+    min_value: 1
+    max_value: 100000000
+    step: 0
+    description: "Events required before creating a new tracking keyframe."
+    constraints: ""
+    read_only: false
+  track.event_map_overlap_rate:
+    type: integer
+    default_value: 15
+    min_value: 1
+    max_value: 1000
+    step: 0
+    description: "Publishing rate of the debug map-overlap visualization [Hz]."
+    constraints: ""
+    read_only: false
+  track.min_map_size:
+    type: integer
+    default_value: 0
+    min_value: 0
+    max_value: 10000000
+    step: 0
+    description: "Minimum map points required to proceed with an update."
+    constraints: ""
+    read_only: false
+  track.min_n_keypoints:
+    type: integer
+    default_value: 0
+    min_value: 0
+    max_value: 10000000
+    step: 0
+    description: "Minimum extracted keypoints required for reliable tracking."
+    constraints: ""
+    read_only: false
+
+  # ── Reconstruction (EKF + Poisson, optional viz) ──────────────────────────
+  reco.window_size:
+    type: integer
+    default_value: 5000
+    min_value: 1
+    max_value: 10000000
+    step: 0
+    description: "Events between EKF updates of the gradient field."
+    constraints: ""
+    read_only: false
+  reco.sigma_m:
+    type: double
+    default_value: 10.0
+    min_value: 0.001
+    max_value: 10000.0
+    step: 0.0
+    description: "Measurement noise sigma for the reconstruction EKF."
+    constraints: ""
+    read_only: false
+  reco.init_cov:
+    type: double
+    default_value: 10.0
+    min_value: 0.001
+    max_value: 10000.0
+    step: 0.0
+    description: "Initial covariance for the reconstruction EKF."
+    constraints: ""
+    read_only: false
+  reco.map_blur:
+    type: integer
+    default_value: 15
+    min_value: 1
+    max_value: 99
+    step: 0
+    description: "Gaussian-blur kernel size for the reprojected depth map."
+    constraints: ""
+    read_only: false
+  reco.events_for_reconstruction:
+    type: integer
+    default_value: 100000
+    min_value: 1
+    max_value: 100000000
+    step: 0
+    description: "Maximum events used per reconstruction."
+    constraints: ""
+    read_only: false

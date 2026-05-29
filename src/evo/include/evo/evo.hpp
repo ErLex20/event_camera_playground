@@ -25,6 +25,7 @@
 #pragma once
 
 #include <atomic>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -37,18 +38,27 @@
 
 #include <dua_common_interfaces/msg/command_result_stamped.hpp>
 
-#include <std_msgs/msg/header.hpp>
+#include <std_msgs/msg/string.hpp>
 
 #include <event_camera_msgs/msg/event_packet.hpp>
 #include <event_camera_codecs/decoder.h>
 #include <event_camera_codecs/decoder_factory.h>
 
+#include <geometry_msgs/msg/pose_stamped.hpp>
+#include <geometry_msgs/msg/transform_stamped.hpp>
 #include <tf2/buffer_core.h>
 
 #include <rpg_common_ros/params_helper.hpp>
 
+#include <pcl/point_cloud.h>
+#include <pcl/point_types.h>
+
+#include "evo/bootstrapper.hpp"
+#include "evo/depth_defocus_node.hpp"
 #include "evo/event_decoder.hpp"
 #include "evo/event_types.hpp"
+#include "evo/mosaic.hpp"
+#include "evo/tracker.hpp"
 
 namespace evo
 {
@@ -106,6 +116,26 @@ private:
    */
   void dispatch_events(const std::vector<Event> & events);
 
+  /**
+   * @brief Handles remote-key commands for all stages.
+   */
+  void on_remote_key(const std_msgs::msg::String::ConstSharedPtr msg);
+
+  /**
+   * @brief Relays tracked poses to the mapper so it can advance its event
+   *        cursor and auto-trigger map updates.
+   */
+  void on_tracked_pose(const geometry_msgs::msg::PoseStamped::ConstSharedPtr msg);
+
+  /**
+   * @brief Converts a mapper/bootstrap map (PointXYZI) to PointXYZ and feeds it
+   *        to the tracker and the reconstruction stage. This replaces the
+   *        original dvs_mapping/pointcloud topic that the tracker and the
+   *        reconstruction node subscribed to.
+   */
+  void feed_map(const pcl::PointCloud<pcl::PointXYZI>::Ptr & map,
+                const rclcpp::Time & stamp);
+
   /* Callback Groups. */
   rclcpp::CallbackGroup::SharedPtr cgroup_event_packet_;
 
@@ -113,6 +143,8 @@ private:
 
   /* Subscribers. */
   rclcpp::Subscription<EventPacket>::SharedPtr sub_event_packet_;
+  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr sub_remote_key_;
+  rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr sub_pose_relay_;
 
   /* Event decoding. */
   event_camera_codecs::DecoderFactory<EventPacket, EventCollector> decoder_factory_;
@@ -121,6 +153,32 @@ private:
   /* Internal pose buffer (replaces cross-node TF). The tracking stage inserts
    * stamped transforms here; the mapper queries it by timestamp. */
   std::shared_ptr<tf2::BufferCore> tf_buffer_;
+
+  /* Pipeline stages. */
+  std::unique_ptr<dvs_bootstrapping::FrontoPlanarBootstrapper> bootstrapper_;
+  std::unique_ptr<evo::Tracker> tracker_;
+  std::unique_ptr<depth_from_defocus::DepthFromDefocusNode> mapper_;
+  std::unique_ptr<evo::Reconstruction> reconstruction_;
+
+  /* Stage thread handles. */
+  std::thread thread_integrate_;   ///< bootstrapper integrating thread
+  std::thread thread_bootstrap_;   ///< fronto-planar bootstrapping thread
+  std::thread thread_tracking_;    ///< 100 Hz tracking thread
+  std::thread thread_overlap_;     ///< debug map-overlay thread
+
+  /* Callbacks and synchronization. */
+  std::mutex stage_mutex_;         ///< protects pose_msg_ relay to mapper
+  std::mutex bootstrap_mutex_;     ///< protects bootstrap callback setup
+  std::shared_ptr<rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr> pose_pub_;
+  std::atomic<bool> pose_available_{false};
+
+  /* Callbacks for inter-stage communication. */
+  /// Bootstrap map → tracker + mapper
+  std::function<void(const pcl::PointCloud<pcl::PointXYZI>::Ptr &, const rclcpp::Time &)>
+      bootstrap_map_callback_;
+  /// Tracked pose → mapper (relay)
+  std::mutex pose_mutex_;
+  std::shared_ptr<geometry_msgs::msg::PoseStamped> pose_msg_;
 
   /* Shared parameters (read by several stages). */
   std::string world_frame_id_;

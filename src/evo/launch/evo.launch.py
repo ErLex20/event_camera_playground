@@ -119,7 +119,7 @@ def generate_launch_description():
                 name='evo',
                 parameters=[config],
                 remappings=[
-                    ('/event_packet', '/event_camera/events')
+                    ('~/events', 'event_camera/events'),
                 ],
                 extra_arguments=[{'use_intra_process_comms': True}],
             ),

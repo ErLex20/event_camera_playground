@@ -51,6 +51,9 @@ class Bootstrapper {
 
     void pauseBootstrapper();
 
+    /// Accessor for the loaded pinhole camera model.
+    const image_geometry::PinholeCameraModel &getCamModel() const { return cam_; }
+
    protected:
     virtual void postCameraLoaded() {}
     virtual void postBootstrapCalled() {}

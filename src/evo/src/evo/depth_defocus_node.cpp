@@ -132,6 +132,8 @@ void DepthFromDefocusNode::setCopilot(bool regular) {
 }
 
 void DepthFromDefocusNode::onTrackedPose(const rclcpp::Time& stamp) {
+    std::lock_guard<std::mutex> lock(data_mutex_);
+
     if (state_ == IDLE) {
         return;
     }
@@ -173,6 +175,8 @@ void DepthFromDefocusNode::resetMapper() {
 }
 
 void DepthFromDefocusNode::onRemoteKey(const std::string& cmd) {
+    std::lock_guard<std::mutex> lock(data_mutex_);
+
     std::string command_str = cmd;
     LOG(INFO) << "Received command: " << command_str;
 
@@ -395,6 +399,8 @@ void DepthFromDefocusNode::setupVoxelGrid() {
 }
 
 void DepthFromDefocusNode::addEvents(const std::vector<evo::Event>& events) {
+    std::lock_guard<std::mutex> lock(data_mutex_);
+
     if (state_ == IDLE) {
         return;
     }
@@ -688,6 +694,12 @@ void DepthFromDefocusNode::accumulatePointcloud(
         pc_to_publish.header.frame_id = world_frame_id_;
         pc_to_publish.header.stamp = rclcpp::Time(timestamp.toNSec());
         pub_pc_->publish(pc_to_publish);
+
+        // Feed the freshly produced map to the tracker and the reconstruction
+        // (replaces the original dvs_mapping/pointcloud topic subscriptions).
+        if (map_callback_) {
+            map_callback_(pc_, timestamp);
+        }
     }
 }
 
