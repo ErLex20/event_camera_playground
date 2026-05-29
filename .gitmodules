@@ -4,3 +4,6 @@
 [submodule "src/v4l2_camera_driver"]
 	path = src/v4l2_camera_driver
 	url = git@github.com:dotX-Automation/v4l2_camera_driver.git
+[submodule "tools/rpg_dvs_evo_open"]
+	path = tools/rpg_dvs_evo_open
+	url = git@github.com:ErLex20/rpg_dvs_evo_open.git
