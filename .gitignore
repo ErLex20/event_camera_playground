@@ -10,3 +10,5 @@ __pycache__/
 # Uncomment the following to avoid pushing personal configurations
 # .vscode/
 
+CLAUDE.md
+.claude/
