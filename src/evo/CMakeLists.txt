@@ -74,7 +74,6 @@ target_link_libraries(evo
   ${OpenCV_LIBS}
   OpenMP::OpenMP_CXX
   Threads::Threads
-  dv::processing
 )
 ament_target_dependencies(evo
   dua_common_interfaces
