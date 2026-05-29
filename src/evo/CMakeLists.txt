@@ -43,6 +43,22 @@ find_package(simple_serviceclient_cpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(Threads REQUIRED)
+find_package(event_camera_msgs REQUIRED)
+find_package(event_camera_codecs REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_ros REQUIRED)
+find_package(evo_utils REQUIRED)
+find_package(sophus_vendor REQUIRED)
+find_package(minkindr REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(cv_bridge REQUIRED)
+find_package(pcl_conversions REQUIRED)
+find_package(dvs_slam_msgs REQUIRED)
+find_package(PCL REQUIRED COMPONENTS common io filters)
+
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(GLOG REQUIRED libglog)
 
 # Configure include directories from external libraries
 include_directories(
@@ -67,11 +83,15 @@ target_include_directories(evo PUBLIC
   $<INSTALL_INTERFACE:include>
   ${EIGEN3_INCLUDE_DIR}
   ${OpenCV_INCLUDE_DIRS}
+  ${PCL_INCLUDE_DIRS}
+  ${GLOG_INCLUDE_DIRS}
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/evo>)
 target_compile_features(evo PUBLIC c_std_99 cxx_std_17) # Require C99 and C++17
 target_link_libraries(evo
   Eigen3::Eigen
   ${OpenCV_LIBS}
+  ${PCL_LIBRARIES}
+  ${GLOG_LIBRARIES}
   OpenMP::OpenMP_CXX
   Threads::Threads
 )
@@ -85,6 +105,18 @@ ament_target_dependencies(evo
   simple_serviceclient_cpp
   std_msgs
   std_srvs
+  event_camera_msgs
+  event_camera_codecs
+  tf2
+  tf2_ros
+  evo_utils
+  sophus_vendor
+  minkindr
+  geometry_msgs
+  sensor_msgs
+  cv_bridge
+  pcl_conversions
+  dvs_slam_msgs
 )
 
 rclcpp_components_register_nodes(evo "evo::EVO")

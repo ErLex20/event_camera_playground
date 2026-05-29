@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>evo_utils</name>
+  <version>1.0.0</version>
+  <description>
+    Support library for the EVO event-based SLAM port: pinhole camera helpers,
+    geometry/median filters, interpolation and the ROS2 parameter shim.
+  </description>
+  <maintainer email="info@dotxautomation.com">dotX Automation</maintainer>
+  <license>GPLv3</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>sensor_msgs</depend>
+  <depend>image_geometry</depend>
+  <depend>camera_calibration_parsers</depend>
+  <depend>minkindr</depend>
+  <depend>eigen3_cmake_module</depend>
+  <depend>eigen</depend>
+  <depend>libopencv-dev</depend>
+  <depend>libgoogle-glog-dev</depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
