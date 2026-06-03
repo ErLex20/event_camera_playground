@@ -1,0 +1,11 @@
+/dsec_publisher:
+  ros__parameters:
+    events_h5: "logs/dsec/thun_00_a_events_left/events.h5"
+    topic: "event_camera/events"
+    width: 640
+    height: 480
+    window_ms: 10.0
+    realtime_factor: 1.0
+    loop: false
+    start_offset_s: 0.0
+    frame_id: "camera_0"
