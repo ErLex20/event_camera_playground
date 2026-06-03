@@ -45,6 +45,10 @@ void EVO::activate()
       std::thread([this]() { tracker_->trackingThread(running_); });
   thread_overlap_ =
       std::thread([this]() { tracker_->publishMapOverlapThread(running_); });
+  if (me_enabled_) {
+    thread_map_expansion_ =
+        std::thread([this]() { map_expansion_thread(running_); });
+  }
 }
 
 void EVO::deactivate()
@@ -60,6 +64,7 @@ void EVO::deactivate()
   if (thread_bootstrap_.joinable()) thread_bootstrap_.join();
   if (thread_tracking_.joinable()) thread_tracking_.join();
   if (thread_overlap_.joinable()) thread_overlap_.join();
+  if (thread_map_expansion_.joinable()) thread_map_expansion_.join();
 
   RCLCPP_INFO(this->get_logger(), "EVO DEACTIVATED – all threads joined");
 }

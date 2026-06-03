@@ -11,30 +11,54 @@
 
     # ── Camera & frames ───────────────────────────────────────────────────
     camera_name: "DAVIS-ijrr"
-    world_frame_id: "world"
+    # Camera calibration file. Empty "" => the calibration installed in the
+    # package share dir (config/evo_calibration.yaml). Set an absolute path to
+    # use a different calibration, e.g.:
+    #   calib_file: "/home/neo/workspace/src/evo/config/evo_calibration_evk4.yaml"
+    calib_file: ""
+    world_frame_id: "map"
     dvs_frame_id: "dvs_evo"
     dvs_bootstrap_frame_id: "camera_0"
 
     # ── DSI / virtual camera (shared) ─────────────────────────────────────
-    min_depth: 0.4              # min scene depth of the voxel grid [m]
-    max_depth: 5.0              # max scene depth of the voxel grid [m]
+    min_depth: 2.0              # min scene depth of the voxel grid [m]
+    max_depth: 100.0              # max scene depth of the voxel grid [m]
     num_depth_cells: 100        # depth planes along the optical ray (<=256)
-    fov_virtual_camera_deg: 80.0
-    virtual_width: 240
-    virtual_height: 180
+    # The virtual (DSI/reference) camera must have ~the same focal length as the
+    # REAL camera: the LK-SE3 tracker builds its Jacobian from the virtual
+    # reference-image gradients (scaled by virtual fx) but evaluates the warp in
+    # the real event image (real fx), so a virtual/real fx mismatch miscales the
+    # Gauss-Newton step. The original 240x180 / 80deg was tuned for the DAVIS
+    # (240x180, fx~168 -> virtual f~143, ratio ~1.2). DSEC is 640x480, fx~555;
+    # 640x480 @ 70deg -> virtual f~457, restoring the ~1.2 ratio. Leaving the
+    # DAVIS values gives a ~3.9x fx mismatch -> the tracker overshoots, the pose
+    # diverges in a few frames and then freezes (map projects out of frame).
+    fov_virtual_camera_deg: 70.0
+    virtual_width: 640
+    virtual_height: 480
 
     # ── Bootstrapping (fronto-planar) ─────────────────────────────────────
     boot:
       auto_trigger: true        # start on first data
       rate_hz: 30
-      frame_size: 10000         # events per events frame
-      local_frame_size: 5000    # events per warp-estimation sub-batch
-      min_step_size: 5000
+      # Event-frame sizes are event COUNTS drawn into the full-res image, so they
+      # scale with sensor pixel count (DAVIS 240x180 -> DSEC 640x480 is 7.1x).
+      # Too few events => sparse bootstrap frame => bad motion-correction warp =>
+      # poor initial map.
+      frame_size: 70000         # events per events frame (was 10000 on DAVIS)
+      local_frame_size: 35000   # events per warp-estimation sub-batch (was 5000)
+      min_step_size: 35000
       events_scale_factor: 4.0  # intensity = sat(#events / this)
       activation_threshold_min: 10.0
       adaptive_thresholding: true
       median_filtering: false
-      plane_distance: 1.0       # plane the first map is projected onto [m]
+      plane_distance: 10.0      # plane the first map is projected onto [m].
+                                # This sets the monocular scale, so it MUST sit
+                                # inside the mapper's [min_depth, max_depth]
+                                # search range — otherwise the DSI cannot
+                                # represent the bootstrap-anchored scene and
+                                # depths collapse to the min_depth floor. For a
+                                # DSEC driving scene ~10 m is representative.
       radius_search: 0.1        # outlier-removal radius [m]
       min_num_neighbors: 50
       one_shot: true            # publish a single bootstrap map then idle
@@ -47,6 +71,9 @@
       type_focus_measure: 0     # 0=Linf, 1=contrast, 2=gradient magnitude
       half_patchsize: 1         # only for focus measures 1 and 2
       median_filter_size: 15
+      # Events filling one DSI keyframe. A larger window (tried 3M) integrates
+      # too much forward-driving motion and the DSI defocuses -> maps collapse;
+      # 1M keeps the per-keyframe scene change small enough to stay sharp.
       events_to_recreate_kf: 1000000
       skip_batches: 0
       min_batch_size: 20000     # min new events for a map update
@@ -64,14 +91,45 @@
       pyramid_levels: 2
       map_blur: 3
       noise_rate: 10000         # skip frames below this event rate
-      frame_size: 5000          # window of events considered
-      step_size: 15000          # min new events between pose updates
+      frame_size: 30000         # window of events drawn per tracking frame.
+                                # This is an event COUNT, so it must scale with
+                                # sensor pixel count: 5000 on DAVIS (240x180,
+                                # ~12% occupancy) -> ~30000 on DSEC (640x480,
+                                # 7.1x more pixels) for a comparably dense event
+                                # image. Too few events => sparse image => no
+                                # gradient for the LK tracker => drift.
+      step_size: 15000          # min new events between pose updates (frames now
+                                # overlap, which helps tracking continuity)
       max_event_rate: 30000000  # DSEC (640x480): median 12.6, p99 20, peak 22 M/s; was 4 M (DAVIS240)
       pose_mean_filter_size: 5
       events_per_kf: 100000
       event_map_overlap_rate: 15
-      min_map_size: 0
-      min_n_keypoints: 0
+      # Reject degenerate maps: if the mapper hiccups and produces a tiny map
+      # (a few dozen points), updateMap() refuses it and the tracker keeps its
+      # last good keyframe instead of collapsing its keypoints (which froze the
+      # pose). Was 0 (accept anything) on DAVIS.
+      min_map_size: 500
+      min_n_keypoints: 100
+
+    # ── Map expansion (ports trigger_map_expansion.py) ────────────────────
+    # Monitors the current keyframe map against the live tracked pose and asks
+    # the mapper for a fresh keyframe (onRemoteKey "update") when the map's
+    # image coverage / point visibility drops or the camera has translated far
+    # relative to scene depth. Essential for a moving camera (e.g. DSEC driving):
+    # without it the camera leaves the single bootstrap map and tracking diverges.
+    # NOTE: these thresholds are DSEC-tuned. With the 640x480 virtual camera a
+    # healthy local map only covers ~20-30% of the image, so the original DAVIS
+    # values (coverage 0.4 / visibility 0.9 / baseline 0.1) fire on EVERY 3 Hz
+    # check -> the mapper rebuilds constantly and never stabilises, and an
+    # occasional degenerate rebuild (a few dozen points) then wipes the tracker.
+    # Relaxed values let a keyframe live until the camera has genuinely moved on.
+    expand:
+      enabled: true
+      rate: 3                       # Hz at which the conditions are checked
+      visibility_threshold: 0.5     # update if < this fraction of map pts in-frame
+      coverage_threshold: 0.1       # update if map covers < this fraction of image
+      baseline_threshold: 0.4       # update if (translation since map)/mean_depth >
+      number_of_initial_maps_to_skip: 0
 
     # ── Reconstruction (EKF + Poisson, optional visualization) ────────────
     reco:

@@ -9,6 +9,7 @@
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
+  <depend>ament_index_cpp</depend>
   <build_depend>dua_app_management</build_depend>
   <build_depend>dua_common_interfaces</build_depend>
   <build_depend>dua_node_cpp</build_depend>

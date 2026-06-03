@@ -28,6 +28,7 @@ set(THREADS_PREFER_PTHREAD_FLAG ON)
 
 # Find dependencies
 find_package(ament_cmake REQUIRED)
+find_package(ament_index_cpp REQUIRED)
 find_package(dua_app_management REQUIRED)
 find_package(dua_common_interfaces REQUIRED)
 find_package(dua_node_cpp REQUIRED)
@@ -99,6 +100,7 @@ target_link_libraries(evo
   Threads::Threads
 )
 ament_target_dependencies(evo
+  ament_index_cpp
   dua_common_interfaces
   dua_node_cpp
   dua_qos_cpp

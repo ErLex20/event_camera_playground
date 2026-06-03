@@ -50,6 +50,9 @@
 
 #include <rpg_common_ros/params_helper.hpp>
 
+#include <Eigen/Core>
+#include <opencv2/core/core.hpp>
+
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 
@@ -134,7 +137,19 @@ private:
    *        reconstruction node subscribed to.
    */
   void feed_map(const pcl::PointCloud<pcl::PointXYZI>::Ptr & map,
-                const rclcpp::Time & stamp);
+                const rclcpp::Time & stamp, bool from_mapper = false);
+
+  /* Map expansion (internal port of the original trigger_map_expansion.py).
+   * As the camera moves, the single keyframe map loses coverage/visibility; this
+   * stage monitors the current map against the latest tracked pose and asks the
+   * mapper to build a fresh keyframe map (onRemoteKey("update")) when it degrades.
+   * Without it the camera eventually leaves the mapped region and tracking
+   * diverges. */
+  void map_expansion_thread(std::atomic<bool> & running);
+  void check_map_expansion();
+  void note_expansion_map(const pcl::PointCloud<pcl::PointXYZ>::Ptr & map_world);
+
+  enum class MapExpansionState { DISABLED, WAIT_FOR_MAP, CHECKING };
 
   /* Callback Groups. */
   rclcpp::CallbackGroup::SharedPtr cgroup_event_packet_;
@@ -165,6 +180,28 @@ private:
   std::thread thread_bootstrap_;   ///< fronto-planar bootstrapping thread
   std::thread thread_tracking_;    ///< 100 Hz tracking thread
   std::thread thread_overlap_;     ///< debug map-overlay thread
+  std::thread thread_map_expansion_;  ///< map-expansion monitor thread
+
+  /* Map-expansion state (guarded by me_mutex_). */
+  std::mutex me_mutex_;
+  MapExpansionState me_state_{MapExpansionState::WAIT_FOR_MAP};
+  pcl::PointCloud<pcl::PointXYZ>::Ptr me_map_;  ///< last map fed to the tracker (world frame)
+  Eigen::Vector3d me_t_map_{0.0, 0.0, 0.0};     ///< world-origin-in-camera translation when me_map_ arrived
+  bool me_have_t_map_{false};
+  int me_maps_seen_{0};
+
+  /* Map-expansion configuration. */
+  bool me_enabled_{true};
+  int me_rate_hz_{3};
+  double me_visibility_th_{0.9};
+  double me_coverage_th_{0.4};
+  double me_baseline_th_{0.1};
+  int me_skip_first_{0};
+
+  /* Real-camera intrinsics used to project the map for the heuristics. */
+  cv::Matx33d me_K_;
+  int me_img_w_{0};
+  int me_img_h_{0};
 
   /* Callbacks and synchronization. */
   std::mutex stage_mutex_;         ///< protects pose_msg_ relay to mapper

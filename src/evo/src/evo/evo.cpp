@@ -24,13 +24,23 @@
 
 #include "evo/evo.hpp"
 
+#include <ament_index_cpp/get_package_share_directory.hpp>
+
+#include <glog/logging.h>
+
+#include <chrono>
+#include <thread>
+
+#include <Eigen/Geometry>
+#include <opencv2/imgproc.hpp>
+
 #include <pcl/common/io.h>
 
 namespace evo
 {
 
 void EVO::feed_map(const pcl::PointCloud<pcl::PointXYZI>::Ptr & map,
-                   const rclcpp::Time & stamp)
+                   const rclcpp::Time & stamp, bool from_mapper)
 {
   // The tracker and the reconstruction operate on PointXYZ; the mapper and the
   // bootstrapper produce PointXYZI. copyPointCloud transfers the common x/y/z
@@ -42,6 +52,129 @@ void EVO::feed_map(const pcl::PointCloud<pcl::PointXYZI>::Ptr & map,
 
   tracker_->setMap(map_xyz);
   reconstruction_->setMap(map_xyz, evo::EventTime(stamp.nanoseconds()));
+
+  // Arm the map-expansion monitor with the latest map the tracker is using.
+  // Only the mapper's keyframe maps drive expansion (the original
+  // trigger_map_expansion.py subscribed to dvs_mapping/pointcloud, not the
+  // bootstrap map).
+  if (from_mapper && me_enabled_) {
+    note_expansion_map(map_xyz);
+  }
+}
+
+void EVO::note_expansion_map(const pcl::PointCloud<pcl::PointXYZ>::Ptr & map_world)
+{
+  // Record the camera pose (world-origin-in-camera translation) at the instant
+  // this map was produced, so baseline-over-depth can be measured against it.
+  Eigen::Vector3d t_map(0.0, 0.0, 0.0);
+  bool have = false;
+  try {
+    const auto tf =
+      tf_buffer_->lookupTransform(dvs_frame_id_, world_frame_id_, tf2::TimePointZero);
+    t_map = {tf.transform.translation.x, tf.transform.translation.y,
+             tf.transform.translation.z};
+    have = true;
+  } catch (const tf2::TransformException &) {
+  }
+
+  std::lock_guard<std::mutex> lk(me_mutex_);
+  me_map_ = map_world;  // shared ownership; the tracker keeps its own copy
+  me_t_map_ = t_map;
+  me_have_t_map_ = have;
+  ++me_maps_seen_;
+  me_state_ = MapExpansionState::CHECKING;
+}
+
+void EVO::check_map_expansion()
+{
+  // Snapshot the shared state, then release the lock before any heavy work or
+  // any call back into the mapper (which takes its own lock) to avoid an
+  // AB-BA deadlock with note_expansion_map().
+  pcl::PointCloud<pcl::PointXYZ>::Ptr map;
+  Eigen::Vector3d t_map;
+  bool have_t_map;
+  int seen;
+  MapExpansionState st;
+  {
+    std::lock_guard<std::mutex> lk(me_mutex_);
+    st = me_state_;
+    map = me_map_;
+    t_map = me_t_map_;
+    have_t_map = me_have_t_map_;
+    seen = me_maps_seen_;
+  }
+
+  if (st != MapExpansionState::CHECKING) return;
+  if (!map || map->empty()) return;
+  if (seen <= me_skip_first_) return;
+
+  // Latest tracked pose: this transform maps world points into the camera frame.
+  geometry_msgs::msg::TransformStamped tf;
+  try {
+    tf = tf_buffer_->lookupTransform(dvs_frame_id_, world_frame_id_, tf2::TimePointZero);
+  } catch (const tf2::TransformException &) {
+    return;
+  }
+
+  const Eigen::Quaterniond q(tf.transform.rotation.w, tf.transform.rotation.x,
+                             tf.transform.rotation.y, tf.transform.rotation.z);
+  const Eigen::Matrix3d R = q.toRotationMatrix();
+  const Eigen::Vector3d t(tf.transform.translation.x, tf.transform.translation.y,
+                          tf.transform.translation.z);
+
+  const double fx = me_K_(0, 0), fy = me_K_(1, 1), cx = me_K_(0, 2),
+               cy = me_K_(1, 2);
+
+  cv::Mat mask = cv::Mat::zeros(me_img_h_, me_img_w_, CV_8U);
+  size_t N = 0, in_bounds = 0;
+  double depth_sum = 0.0;
+
+  for (const auto & P : map->points) {
+    const Eigen::Vector3d pc = R * Eigen::Vector3d(P.x, P.y, P.z) + t;
+    if (pc.z() <= 0.0) continue;
+    ++N;
+    depth_sum += pc.norm();
+    const double u = fx * pc.x() / pc.z() + cx;
+    const double v = fy * pc.y() / pc.z() + cy;
+    cv::circle(mask, cv::Point(cvRound(u), cvRound(v)), 7, 255, -1);
+    if (u >= 0.0 && v >= 0.0 && u < me_img_w_ && v < me_img_h_) ++in_bounds;
+  }
+
+  if (N == 0) return;
+
+  const double coverage = static_cast<double>(cv::countNonZero(mask)) /
+                          static_cast<double>(me_img_w_ * me_img_h_);
+  const double visibility =
+    static_cast<double>(in_bounds) / static_cast<double>(N);
+  const double avg_depth = depth_sum / static_cast<double>(N);
+  const double bod = have_t_map ? (t - t_map).norm() / avg_depth : 0.0;
+
+  if (coverage < me_coverage_th_ || visibility < me_visibility_th_ ||
+      bod > me_baseline_th_) {
+    // Set WAIT_FOR_MAP before triggering: the update is synchronous and will
+    // produce a fresh map -> note_expansion_map() flips us back to CHECKING.
+    {
+      std::lock_guard<std::mutex> lk(me_mutex_);
+      if (me_state_ == MapExpansionState::CHECKING)
+        me_state_ = MapExpansionState::WAIT_FOR_MAP;
+    }
+    RCLCPP_INFO(
+      this->get_logger(),
+      "Map expansion: coverage=%.1f%% visibility=%.1f%% baseline/depth=%.3f -> update",
+      coverage * 100.0, visibility * 100.0, bod);
+    mapper_->onRemoteKey("update");
+  }
+}
+
+void EVO::map_expansion_thread(std::atomic<bool> & running)
+{
+  const int rate = me_rate_hz_ > 0 ? me_rate_hz_ : 3;
+  const auto period = std::chrono::milliseconds(1000 / rate);
+  LOG(INFO) << "Spawned map-expansion thread.";
+  while (running.load(std::memory_order_acquire)) {
+    std::this_thread::sleep_for(period);
+    check_map_expansion();
+  }
 }
 
 EVO::EVO(const rclcpp::NodeOptions & node_options)
@@ -61,7 +194,19 @@ EVO::EVO(const rclcpp::NodeOptions & node_options)
   bootstrap_frame_id_ =
     rpg_common_ros::param<std::string>(sp, "dvs_bootstrap_frame_id", "camera_0");
   camera_name_ = rpg_common_ros::param<std::string>(sp, "camera_name", "DAVIS-ijrr");
-  calib_file_ = "/home/neo/workspace/src/evo/config/evo_calibration.yaml";
+  // Camera calibration file, settable from config/evo.yaml via the `calib_file`
+  // parameter. An empty value (the default) resolves to the calibration
+  // installed in the package share directory (config/evo_calibration.yaml).
+  // Declared here so the tracker/bootstrapper stages just read the shared value;
+  // we write the resolved path back so those stages see the absolute path.
+  calib_file_ = rpg_common_ros::param<std::string>(sp, "calib_file", "");
+  if (calib_file_.empty()) {
+    calib_file_ = ament_index_cpp::get_package_share_directory("evo") +
+                  "/config/evo_calibration.yaml";
+    this->set_parameter(rclcpp::Parameter("calib_file", calib_file_));
+  }
+  RCLCPP_INFO(this->get_logger(), "Using camera calibration: %s",
+              calib_file_.c_str());
   min_depth_ = rpg_common_ros::param<double>(sp, "min_depth", 0.4);
   max_depth_ = rpg_common_ros::param<double>(sp, "max_depth", 5.0);
   num_depth_cells_ = rpg_common_ros::param<int>(sp, "num_depth_cells", 100);
@@ -101,7 +246,7 @@ EVO::EVO(const rclcpp::NodeOptions & node_options)
   mapper_->setMapCallback(
       [this](const pcl::PointCloud<pcl::PointXYZI>::Ptr &map,
              const evo::EventTime &stamp) {
-        feed_map(map, rclcpp::Time(stamp.toNSec()));
+        feed_map(map, rclcpp::Time(stamp.toNSec()), /*from_mapper=*/true);
       });
 
   // Wire the callback into the bootstrapper so it can invoke it.
@@ -118,6 +263,27 @@ EVO::EVO(const rclcpp::NodeOptions & node_options)
 
   // Reconstruction: optional Poisson mosaic.
   reconstruction_->setup(this, tf_buffer_, bootstrapper_->getCamModel());
+
+  // ── Map-expansion monitor config + real-camera intrinsics ───────────────
+  {
+    auto ep = stage_params("expand");
+    me_enabled_ = rpg_common_ros::param<bool>(ep, "enabled", true);
+    me_rate_hz_ = rpg_common_ros::param<int>(ep, "rate", 3);
+    me_visibility_th_ =
+      rpg_common_ros::param<double>(ep, "visibility_threshold", 0.9);
+    me_coverage_th_ =
+      rpg_common_ros::param<double>(ep, "coverage_threshold", 0.4);
+    me_baseline_th_ =
+      rpg_common_ros::param<double>(ep, "baseline_threshold", 0.1);
+    me_skip_first_ =
+      rpg_common_ros::param<int>(ep, "number_of_initial_maps_to_skip", 0);
+
+    const auto & cam = bootstrapper_->getCamModel();
+    me_K_ = cam.fullIntrinsicMatrix();
+    const cv::Size res = cam.fullResolution();
+    me_img_w_ = res.width;
+    me_img_h_ = res.height;
+  }
 
   // ── Remote key subscription (replaces the original ROS1 /evo/remote_key) ─
   rclcpp::SubscriptionOptions remote_opts;

@@ -141,11 +141,12 @@ void Tracker::setup(rclcpp::Node * node,
     map_ = PointCloud::Ptr(new PointCloud);
     map_local_ = PointCloud::Ptr(new PointCloud);
 
-    // Load camera calibration
+    // Load camera calibration (shared calib_file param declared by the EVO
+    // node; defaults to the package-share calibration, no hardcoded path).
     const std::string camera_name =
         rpg_common_ros::param<std::string>(nh_, "camera_name", "");
     const std::string calib_file =
-        "/home/neo/workspace/src/evo/config/evo_calibration.yaml";
+        rpg_common_ros::param<std::string>(nh_, "calib_file", "");
     c_ = evo_utils::camera::loadPinholeCamera(camera_name, calib_file);
     postCameraLoaded();
 
@@ -167,14 +168,6 @@ void Tracker::trackingThread(std::atomic<bool> & running) {
 
     while (running.load(std::memory_order_acquire)) {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));  // 100 Hz
-
-        // [TRK-DIAG]
-        {
-            static int n = 0;
-            if ((n++ % 100) == 0)
-                LOG(INFO) << "[TRK-DIAG] thread tick idle_=" << idle_
-                          << " keypoints_=" << keypoints_.size();
-        }
 
         if (!idle_ && keypoints_.size() > 0) {
             estimateTrajectory();
@@ -468,12 +461,6 @@ void Tracker::estimateTrajectory() {
 
     std::lock_guard<std::mutex> lock(data_mutex_);
 
-    // [TRK-DIAG]
-    LOG(INFO) << "[TRK-DIAG] estimateTrajectory enter cur_ev_=" << cur_ev_
-              << " kf_ev_=" << kf_ev_ << " events_=" << events_.size()
-              << " need=" << (cur_ev_ + std::max(step_size_, frame_size_));
-
-    int trk_frames = 0;
     while (true) {
         if (cur_ev_ + std::max(step_size_, frame_size_) > events_.size()) break;
 
@@ -507,14 +494,8 @@ void Tracker::estimateTrajectory() {
         T_ref_cam_ *= SE3::exp(-x_).matrix();
 
         publishTF();
-        ++trk_frames;
         cur_ev_ += step_size_;
     }
-
-    // [TRK-DIAG]
-    LOG(INFO) << "[TRK-DIAG] estimateTrajectory exit frames=" << trk_frames
-              << " poses_=" << poses_.size()
-              << " poses_filtered_=" << poses_filtered_.size();
 }
 
 }  // namespace evo
