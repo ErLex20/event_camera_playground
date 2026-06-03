@@ -35,7 +35,7 @@ def generate_launch_description():
     config = os.path.join(
         get_package_share_directory('evo'),
         'config',
-        'evo.yaml'
+        'evo_evk4.yaml'
     )
     trigger_config = os.path.join(
         get_package_share_directory("prophesee_evk4_driver"),
