@@ -126,7 +126,11 @@ void LKSE3::precomputeReferenceFrame() {
     static std::mt19937 g(seq);
     std::shuffle(keypoints_.begin(), keypoints_.end(), g);
 
-    batches_ = std::ceil(keypoints_.size() / batch_size_);
+    // NOTE: integer division floors here (the original std::ceil was a no-op),
+    // which keeps full-batch processing OOB-safe. Guard against 0 batches when
+    // the reference frame has fewer than batch_size_ keypoints (e.g. a sparse
+    // first keyframe), otherwise `iter % batches_` divides by zero (SIGFPE).
+    batches_ = std::max<size_t>(1, keypoints_.size() / batch_size_);
 }
 
 void LKSE3::updateTransformation(const int offset, const int N,
@@ -144,7 +148,13 @@ void LKSE3::updateTransformation(const int offset, const int N,
     H = Matrix6::Zero();
     Jres = Vector8::Zero();
 
-    for (auto i = offset; i != offset + N; ++i) {
+    // Clamp the batch end to the available keypoints. For full batches
+    // (keypoints_.size() >= batch_size_) this is a no-op and behaviour is
+    // identical to the original; it only guards the degenerate last/partial
+    // batch when the reference frame is sparse, preventing an OOB read.
+    const int end =
+        std::min<int>(offset + N, static_cast<int>(keypoints_.size()));
+    for (auto i = offset; i != end; ++i) {
         const Keypoint &k = keypoints_[i];
 
         Eigen::Vector3f p = T_cur_ref_ * k.P;

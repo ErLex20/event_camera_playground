@@ -27,6 +27,7 @@
 #include <glog/logging.h>
 
 #include <chrono>
+#include <cmath>
 
 #include <cv_bridge/cv_bridge.hpp>
 
@@ -301,10 +302,16 @@ void Mosaic::reprojectDepthmap(const tf2::Transform &T, cv::Mat &_depthmap,
                      z_values.end());
     depth_median_ = z_values[z_values.size() / 2];
 
+    // Pixels with no contribution have weights==0, so `depth /= weights`
+    // leaves them NaN (0/0). A plain `< .1f` test does NOT catch NaN/Inf
+    // (comparisons with NaN are false), which would propagate non-finite
+    // event coordinates into draw() and segfault. Treat non-finite as invalid.
     for (size_t y = 0; y < h; ++y)
-        for (size_t x = 0; x < w; ++x)
-            if (depth.at<float>(y, x) < .1f)
+        for (size_t x = 0; x < w; ++x) {
+            const float d = depth.at<float>(y, x);
+            if (!std::isfinite(d) || d < .1f)
                 depth.at<float>(y, x) = depth_median_;
+        }
 
     cv::medianBlur(depth, depth, 3);
 

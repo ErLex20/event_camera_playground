@@ -49,6 +49,21 @@ void EVO::event_packet_callback(const EventPacket::ConstSharedPtr msg)
     return;
   }
 
+  // [DIAG] Track packet receipt vs. publisher seq to quantify drops.
+  {
+    static uint64_t recv_pkts = 0, recv_evs = 0, dropped = 0, last_seq = 0;
+    static bool have_last = false;
+    if (have_last && msg->seq > last_seq + 1) dropped += msg->seq - last_seq - 1;
+    last_seq = msg->seq;
+    have_last = true;
+    recv_pkts += 1;
+    recv_evs += decoded_events_.size();
+    RCLCPP_INFO_THROTTLE(
+      this->get_logger(), *this->get_clock(), 1000,
+      "[DIAG] recv_pkts=%lu recv_evs=%lu dropped_pkts=%lu (seq=%lu)",
+      recv_pkts, recv_evs, dropped, msg->seq);
+  }
+
   // Fan the decoded events out to every active stage.
   dispatch_events(decoded_events_);
 }

@@ -50,7 +50,7 @@
       events_to_recreate_kf: 1000000
       skip_batches: 0
       min_batch_size: 20000     # min new events for a map update
-      max_event_rate: 10000000
+      max_event_rate: 30000000  # DSEC (640x480) peaks ~22 M/s; was 10 M (DAVIS240)
       radius_search: 0.2        # local-map outlier-removal radius [m]
       min_num_neighbors: 2
       voxel_filter_leaf_size: 0.005   # global-map voxel filter [m] (0=off)
@@ -66,7 +66,7 @@
       noise_rate: 10000         # skip frames below this event rate
       frame_size: 5000          # window of events considered
       step_size: 15000          # min new events between pose updates
-      max_event_rate: 4000000
+      max_event_rate: 30000000  # DSEC (640x480): median 12.6, p99 20, peak 22 M/s; was 4 M (DAVIS240)
       pose_mean_filter_size: 5
       events_per_kf: 100000
       event_map_overlap_rate: 15

@@ -146,6 +146,14 @@ void DepthFromDefocusNode::onTrackedPose(const rclcpp::Time& stamp) {
 
     if (auto_trigger_ &&
         (newest_tracked_event_ - current_event_ > events_to_recreate_kf_)) {
+        // Faithful to the original tfCallback: the auto-triggered FIRST keyframe
+        // is built against the bootstrap frame (camera_0 — a single identity
+        // pose). getPoseAt lookups against it leave T_w_cur at identity, so the
+        // DSI is a clean fronto-planar reprojection. Only AFTER this first
+        // update do we switch the pose-lookup frame to the live tracked frame
+        // (dvs_evo), which the tracker populates continuously from there on.
+        // (Switching before update() builds the first DSI from jittery/stale
+        // tracker poses -> degenerate map -> the tracker loses all keypoints.)
         update();
         auto_trigger_ = false;
         frame_id_ = regular_frame_id_;

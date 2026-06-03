@@ -7,6 +7,7 @@
 
 #include <opencv2/core/core.hpp>
 
+#include <cmath>
 #include <cstddef>
 
 namespace evo_utils::interpolate {
@@ -99,6 +100,10 @@ inline float nn(const float* img, const size_t w, const size_t h,
  */
 inline void draw(cv::Mat& img, const float x, const float y, const float val) {
     const int w = img.cols, h = img.rows;
+
+    // Non-finite coords would make the (int) casts below undefined (typically
+    // INT_MIN), bypassing the bounds checks and corrupting memory. Reject them.
+    if (!std::isfinite(x) || !std::isfinite(y)) return;
 
     if (x < 0 || y < 0) return;
 

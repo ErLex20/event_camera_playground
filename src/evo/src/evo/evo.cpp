@@ -161,9 +161,33 @@ void EVO::init_subscribers()
   rclcpp::SubscriptionOptions opts;
   opts.callback_group = cgroup_event_packet_;
 
+  // Event-stream QoS. For a live event camera BestEffort is correct (drop
+  // stale data rather than build latency). For OFFLINE replay (e.g. the
+  // dsec_publisher) the producer outruns EVO's compute, and BestEffort would
+  // silently drop most packets -> the tracker never gets a usable stream and
+  // no pose is produced. Setting `event_sub_reliable: true` (with a deep
+  // queue) makes delivery lossless: EVO buffers and processes every event at
+  // its own pace (slower than wall-clock, but complete).
+  const bool reliable =
+    this->has_parameter("event_sub_reliable")
+      ? this->get_parameter("event_sub_reliable").as_bool()
+      : this->declare_parameter<bool>("event_sub_reliable", false);
+  const int depth =
+    this->has_parameter("event_sub_depth")
+      ? static_cast<int>(this->get_parameter("event_sub_depth").as_int())
+      : this->declare_parameter<int>("event_sub_depth", 5000);
+
+  const rclcpp::QoS qos = reliable
+    ? dua_qos::Reliable::get_datum_qos(static_cast<unsigned int>(depth))
+    : dua_qos::BestEffort::get_datum_qos();
+
+  RCLCPP_INFO(
+    this->get_logger(), "Event subscription QoS: %s (depth %d)",
+    reliable ? "RELIABLE" : "BEST_EFFORT", depth);
+
   sub_event_packet_ = this->create_subscription<EventPacket>(
     "~/events",
-    dua_qos::BestEffort::get_datum_qos(),
+    qos,
     std::bind(&EVO::event_packet_callback, this, std::placeholders::_1),
     opts);
 }
