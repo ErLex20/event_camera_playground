@@ -41,6 +41,31 @@ struct Events
   size_t size() const { return x.size(); }
 };
 
+struct ObjectiveProfile
+{
+  int focus_calls = 0;
+  int value_calls = 0;
+  int value_and_grad_calls = 0;
+  int event_flow_calls = 0;
+  double build_stencils_ms = 0.0;
+  double build_time_aware_ms = 0.0;
+  double g0_render_ms = 0.0;
+  double g0_contrast_ms = 0.0;
+  double focus_ms = 0.0;
+  double value_ms = 0.0;
+  double value_and_grad_ms = 0.0;
+  double boundary_ms = 0.0;
+  double propagate_ms = 0.0;
+  double event_sample_ms = 0.0;
+  double render_iwe_ms = 0.0;
+  double contrast_ms = 0.0;
+  double backprop_ms = 0.0;
+  double scatter_ms = 0.0;
+  double propagate_vjp_ms = 0.0;
+  double tv_ms = 0.0;
+  double event_flow_ms = 0.0;
+};
+
 struct ObjectiveParams
 {
   int img_w = 0;            // IWE render width  [px]
@@ -63,6 +88,8 @@ struct ObjectiveParams
   // on the tiles), so across a multi-scale solve it can be computed once and
   // injected here to skip recomputation. <= 0 means "compute it".
   float g0_override = 0.0f;
+  // Optional profiling sink. It is never owned by Objective and may be null.
+  ObjectiveProfile * profile = nullptr;
 };
 
 /**

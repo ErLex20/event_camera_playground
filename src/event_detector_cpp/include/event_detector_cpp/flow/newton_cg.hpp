@@ -20,12 +20,27 @@
 #pragma once
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 
 #include <Eigen/Core>
 
 namespace event_detector_cpp::flow
 {
+
+struct NewtonCgProfile
+{
+  int outer_iterations = 0;
+  int cg_iterations = 0;
+  int line_search_iterations = 0;
+  int value_calls = 0;
+  int value_and_grad_calls = 0;
+  double value_ms = 0.0;
+  double value_and_grad_ms = 0.0;
+  double cg_loop_ms = 0.0;
+  double line_search_ms = 0.0;
+  double total_ms = 0.0;
+};
 
 struct NewtonCgParams
 {
@@ -43,7 +58,22 @@ struct NewtonCgParams
   // products: large enough to exceed float splat noise, small enough to stay
   // local. In pixel-displacement coordinates a fraction of a pixel works well.
   float fd_step = 0.5f;
+  // Optional profiling sink. When non-null, it is reset and filled by one call
+  // to newton_cg_minimize().
+  NewtonCgProfile * profile = nullptr;
 };
+
+namespace detail
+{
+
+inline double elapsed_ms(
+  const std::chrono::steady_clock::time_point & start,
+  const std::chrono::steady_clock::time_point & end)
+{
+  return std::chrono::duration<double, std::milli>(end - start).count();
+}
+
+}  // namespace detail
 
 /**
  * @brief Minimize `obj` over `x` in place with Newton-CG.
@@ -57,20 +87,42 @@ struct NewtonCgParams
 template <class Obj>
 void newton_cg_minimize(const Obj & obj, Eigen::VectorXf & x, const NewtonCgParams & p)
 {
+  using Clock = std::chrono::steady_clock;
+  const auto t_total = Clock::now();
+  if (p.profile != nullptr) {
+    *p.profile = NewtonCgProfile{};
+  }
+
   const float s = (p.var_scale > 0.0f) ? p.var_scale : 1.0f;
 
   // Optimize in scaled coordinates z, with the objective variable x = s * z.
   // The gradient w.r.t. z is s * (gradient w.r.t. x) (s is an isotropic scale).
-  auto val = [&](const Eigen::VectorXf & z) { return obj.value(s * z); };
+  auto val = [&](const Eigen::VectorXf & z) {
+    const auto t0 = Clock::now();
+    const float v = obj.value(s * z);
+    if (p.profile != nullptr) {
+      p.profile->value_calls += 1;
+      p.profile->value_ms += detail::elapsed_ms(t0, Clock::now());
+    }
+    return v;
+  };
   auto vag = [&](const Eigen::VectorXf & z, Eigen::VectorXf & g) {
+    const auto t0 = Clock::now();
     const float v = obj.value_and_grad(s * z, g);
     g *= s;
+    if (p.profile != nullptr) {
+      p.profile->value_and_grad_calls += 1;
+      p.profile->value_and_grad_ms += detail::elapsed_ms(t0, Clock::now());
+    }
     return v;
   };
 
   Eigen::VectorXf z = x / s;
   Eigen::VectorXf g, g_probe;
   for (int outer = 0; outer < p.newton_max_iter; ++outer) {
+    if (p.profile != nullptr) {
+      p.profile->outer_iterations += 1;
+    }
     const float fz = vag(z, g);
     const float gnorm = g.norm();
     if (!std::isfinite(gnorm) || gnorm < 1e-6f) {
@@ -90,7 +142,11 @@ void newton_cg_minimize(const Obj & obj, Eigen::VectorXf & x, const NewtonCgPara
       ? p.fd_step
       : 1e-3f * std::max(1.0f, z.norm());
 
+    const auto t_cg = Clock::now();
     for (int cg = 0; cg < p.cg_max_iter; ++cg) {
+      if (p.profile != nullptr) {
+        p.profile->cg_iterations += 1;
+      }
       const float pn = pdir.norm();
       if (pn < 1e-12f) {
         break;
@@ -118,6 +174,9 @@ void newton_cg_minimize(const Obj & obj, Eigen::VectorXf & x, const NewtonCgPara
       pdir = r + static_cast<float>(rs_new / rs_old) * pdir;
       rs_old = rs_new;
     }
+    if (p.profile != nullptr) {
+      p.profile->cg_loop_ms += detail::elapsed_ms(t_cg, Clock::now());
+    }
 
     // Ensure d is a descent direction; fall back to steepest descent otherwise.
     float gd = g.dot(d);
@@ -130,7 +189,11 @@ void newton_cg_minimize(const Obj & obj, Eigen::VectorXf & x, const NewtonCgPara
     const float c = 1e-4f;
     float t = 1.0f;
     bool improved = false;
+    const auto t_ls = Clock::now();
     for (int ls = 0; ls < 25; ++ls) {
+      if (p.profile != nullptr) {
+        p.profile->line_search_iterations += 1;
+      }
       const float f_try = val(z + t * d);
       if (std::isfinite(f_try) && f_try <= fz + c * t * gd) {
         z += t * d;
@@ -139,11 +202,17 @@ void newton_cg_minimize(const Obj & obj, Eigen::VectorXf & x, const NewtonCgPara
       }
       t *= 0.5f;
     }
+    if (p.profile != nullptr) {
+      p.profile->line_search_ms += detail::elapsed_ms(t_ls, Clock::now());
+    }
     if (!improved) {
       break;  // line search failed to make progress
     }
   }
   x = s * z;
+  if (p.profile != nullptr) {
+    p.profile->total_ms = detail::elapsed_ms(t_total, Clock::now());
+  }
 }
 
 }  // namespace event_detector_cpp::flow

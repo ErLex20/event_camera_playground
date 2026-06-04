@@ -34,6 +34,7 @@
 #include "event_detector_cpp/event_detector_cpp.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -58,6 +59,7 @@ using event_detector_cpp::flow::ContrastNorm;
 using event_detector_cpp::flow::Events;
 using event_detector_cpp::flow::Objective;
 using event_detector_cpp::flow::ObjectiveParams;
+using event_detector_cpp::flow::ObjectiveProfile;
 using event_detector_cpp::flow::Scheme;
 
 // Hard cap on events fed to the objective; busier windows are strided down so
@@ -72,6 +74,15 @@ struct EventSample
   float y;
   int64_t t_us;
 };
+
+using ProfileClock = std::chrono::steady_clock;
+
+double elapsed_ms(
+  const ProfileClock::time_point & start,
+  const ProfileClock::time_point & end = ProfileClock::now())
+{
+  return std::chrono::duration<double, std::milli>(end - start).count();
+}
 
 /**
  * Bilinearly sample the tile-grid flow field at a pixel, matching the stencil
@@ -141,6 +152,7 @@ void sanitize_field(Eigen::VectorXf & F)
 
 EventDetector::FlowResult EventDetector::solve_flow_cmax(const dv::EventStore & window)
 {
+  const auto t_total = ProfileClock::now();
   FlowResult result;
   if (window.isEmpty() || res_.width <= 0 || res_.height <= 0) {
     return result;
@@ -151,6 +163,7 @@ EventDetector::FlowResult EventDetector::solve_flow_cmax(const dv::EventStore & 
   const float vis_speed_cap = static_cast<float>(flow_max_speed_px_s_);
 
   // Build the event set for the objective, strided down if over the cap.
+  const auto t_select = ProfileClock::now();
   const std::size_t total = static_cast<std::size_t>(window.size());
   const std::size_t stride = (total + kMaxSolveEvents - 1) / kMaxSolveEvents;
   std::vector<EventSample> solve_samples;
@@ -168,10 +181,16 @@ EventDetector::FlowResult EventDetector::solve_flow_cmax(const dv::EventStore & 
       static_cast<float>(e.y()),
       e.timestamp()});
   }
+  const double select_ms = elapsed_ms(t_select);
   if (solve_samples.size() < 2) {
+    RCLCPP_INFO(
+      get_logger(),
+      "Flow profile: skipped CMax, raw_events=%zu solve_events=%zu stride=%zu select=%.3f ms",
+      total, solve_samples.size(), stride, select_ms);
     return result;
   }
 
+  const auto t_pack = ProfileClock::now();
   auto by_time = [](const EventSample & a, const EventSample & b) {
     return a.t_us < b.t_us;
   };
@@ -194,6 +213,7 @@ EventDetector::FlowResult EventDetector::solve_flow_cmax(const dv::EventStore & 
     ev.y.push_back(e.y);
     ev.t.push_back(static_cast<float>(e.t_us - t_ref_us) * 1e-6f);
   }
+  const double pack_ms = elapsed_ms(t_pack);
 
   flow::NewtonCgParams ncg;
   ncg.newton_max_iter = static_cast<int>(flow_newton_max_iter_);
@@ -213,9 +233,44 @@ EventDetector::FlowResult EventDetector::solve_flow_cmax(const dv::EventStore & 
   int tx_prev = 0, ty_prev = 0;
   ObjectiveParams final_params;
   float cached_g0 = 0.0f;  // G(0) is tile-independent: compute once, reuse.
+  double cmax_objective_ms = 0.0;
+  double cmax_init_ms = 0.0;
+  double cmax_solver_ms = 0.0;
+  double cmax_value_ms = 0.0;
+  double cmax_value_and_grad_ms = 0.0;
+  double cmax_cg_loop_ms = 0.0;
+  double cmax_line_search_ms = 0.0;
+  int cmax_outer_iterations = 0;
+  int cmax_cg_iterations = 0;
+  int cmax_line_search_iterations = 0;
+  int cmax_value_calls = 0;
+  int cmax_value_and_grad_calls = 0;
+  double obj_build_stencils_ms = 0.0;
+  double obj_build_time_aware_ms = 0.0;
+  double obj_g0_render_ms = 0.0;
+  double obj_g0_contrast_ms = 0.0;
+  double obj_focus_ms = 0.0;
+  double obj_value_ms = 0.0;
+  double obj_value_and_grad_ms = 0.0;
+  double obj_boundary_ms = 0.0;
+  double obj_propagate_ms = 0.0;
+  double obj_event_sample_ms = 0.0;
+  double obj_render_iwe_ms = 0.0;
+  double obj_contrast_ms = 0.0;
+  double obj_backprop_ms = 0.0;
+  double obj_scatter_ms = 0.0;
+  double obj_propagate_vjp_ms = 0.0;
+  double obj_tv_ms = 0.0;
+  int obj_focus_calls = 0;
+  int obj_value_calls = 0;
+  int obj_value_and_grad_calls = 0;
+  const auto t_cmax = ProfileClock::now();
   for (int l = 1; l <= n_scales; ++l) {
     const int tiles = 1 << (l - 1);
 
+    const auto t_scale = ProfileClock::now();
+    const auto t_objective = ProfileClock::now();
+    ObjectiveProfile objective_profile;
     ObjectiveParams p;
     p.img_w = w;
     p.img_h = h;
@@ -235,6 +290,7 @@ EventDetector::FlowResult EventDetector::solve_flow_cmax(const dv::EventStore & 
       static_cast<double>(flow_prop_grid_) * h / w));
     p.cfl = 0.5f;
     p.g0_override = cached_g0;  // 0 at the coarsest scale -> computed there
+    p.profile = &objective_profile;
 
     Objective obj(ev, p);
     if (cached_g0 <= 0.0f) {
@@ -242,9 +298,13 @@ EventDetector::FlowResult EventDetector::solve_flow_cmax(const dv::EventStore & 
     }
     p.g0_override = cached_g0;
     final_params = p;
+    final_params.profile = nullptr;
+    const double objective_ms = elapsed_ms(t_objective);
+    cmax_objective_ms += objective_ms;
 
     // Within-pyramid initialization: zero at the coarsest scale, otherwise the
     // bilinearly upscaled coarser-scale flow of this window.
+    const auto t_init = ProfileClock::now();
     Eigen::VectorXf init = (tx_prev == 0)
       ? Eigen::VectorXf::Zero(obj.num_vars())
       : upsample_field(F, tx_prev, ty_prev, tiles, tiles, w, h);
@@ -258,19 +318,102 @@ EventDetector::FlowResult EventDetector::solve_flow_cmax(const dv::EventStore & 
                        tiles, tiles, w, h);
       init = (tx_prev == 0) ? prev_at : (0.5f * (init + prev_at)).eval();
     }
+    const double init_ms = elapsed_ms(t_init);
+    cmax_init_ms += init_ms;
 
+    flow::NewtonCgProfile solver_profile;
+    ncg.profile = &solver_profile;
+    const auto t_solver = ProfileClock::now();
     F = std::move(init);
     flow::newton_cg_minimize(obj, F, ncg);
     sanitize_field(F);
+    const double solver_ms = elapsed_ms(t_solver);
+    cmax_solver_ms += solver_ms;
+    cmax_value_ms += solver_profile.value_ms;
+    cmax_value_and_grad_ms += solver_profile.value_and_grad_ms;
+    cmax_cg_loop_ms += solver_profile.cg_loop_ms;
+    cmax_line_search_ms += solver_profile.line_search_ms;
+    cmax_outer_iterations += solver_profile.outer_iterations;
+    cmax_cg_iterations += solver_profile.cg_iterations;
+    cmax_line_search_iterations += solver_profile.line_search_iterations;
+    cmax_value_calls += solver_profile.value_calls;
+    cmax_value_and_grad_calls += solver_profile.value_and_grad_calls;
+    obj_build_stencils_ms += objective_profile.build_stencils_ms;
+    obj_build_time_aware_ms += objective_profile.build_time_aware_ms;
+    obj_g0_render_ms += objective_profile.g0_render_ms;
+    obj_g0_contrast_ms += objective_profile.g0_contrast_ms;
+    obj_focus_ms += objective_profile.focus_ms;
+    obj_value_ms += objective_profile.value_ms;
+    obj_value_and_grad_ms += objective_profile.value_and_grad_ms;
+    obj_boundary_ms += objective_profile.boundary_ms;
+    obj_propagate_ms += objective_profile.propagate_ms;
+    obj_event_sample_ms += objective_profile.event_sample_ms;
+    obj_render_iwe_ms += objective_profile.render_iwe_ms;
+    obj_contrast_ms += objective_profile.contrast_ms;
+    obj_backprop_ms += objective_profile.backprop_ms;
+    obj_scatter_ms += objective_profile.scatter_ms;
+    obj_propagate_vjp_ms += objective_profile.propagate_vjp_ms;
+    obj_tv_ms += objective_profile.tv_ms;
+    obj_focus_calls += objective_profile.focus_calls;
+    obj_value_calls += objective_profile.value_calls;
+    obj_value_and_grad_calls += objective_profile.value_and_grad_calls;
 
     tx_prev = tiles;
     ty_prev = tiles;
+
+    RCLCPP_INFO(
+      get_logger(),
+      "Flow profile CMax scale %d/%d: tiles=%dx%d vars=%d "
+      "objective_setup=%.3f ms init=%.3f ms newton_cg=%.3f ms total=%.3f ms "
+      "outer=%d cg=%d line_search=%d value_calls=%d grad_calls=%d "
+      "value=%.3f ms grad=%.3f ms cg_loop=%.3f ms line_search_loop=%.3f ms",
+      l, n_scales, tiles, tiles, obj.num_vars(),
+      objective_ms, init_ms, solver_ms, elapsed_ms(t_scale),
+      solver_profile.outer_iterations,
+      solver_profile.cg_iterations,
+      solver_profile.line_search_iterations,
+      solver_profile.value_calls,
+      solver_profile.value_and_grad_calls,
+      solver_profile.value_ms,
+      solver_profile.value_and_grad_ms,
+      solver_profile.cg_loop_ms,
+      solver_profile.line_search_ms);
+    RCLCPP_INFO(
+      get_logger(),
+      "Flow profile Objective scale %d/%d: build_stencils=%.3f ms "
+      "build_time_aware=%.3f ms g0_render=%.3f ms g0_contrast=%.3f ms "
+      "focus=%.3f ms value=%.3f ms value_grad=%.3f ms boundary=%.3f ms "
+      "propagate=%.3f ms event_sample=%.3f ms render_iwe=%.3f ms "
+      "contrast=%.3f ms backprop=%.3f ms scatter=%.3f ms "
+      "propagate_vjp=%.3f ms tv=%.3f ms calls(focus/value/grad)=%d/%d/%d",
+      l, n_scales,
+      objective_profile.build_stencils_ms,
+      objective_profile.build_time_aware_ms,
+      objective_profile.g0_render_ms,
+      objective_profile.g0_contrast_ms,
+      objective_profile.focus_ms,
+      objective_profile.value_ms,
+      objective_profile.value_and_grad_ms,
+      objective_profile.boundary_ms,
+      objective_profile.propagate_ms,
+      objective_profile.event_sample_ms,
+      objective_profile.render_iwe_ms,
+      objective_profile.contrast_ms,
+      objective_profile.backprop_ms,
+      objective_profile.scatter_ms,
+      objective_profile.propagate_vjp_ms,
+      objective_profile.tv_ms,
+      objective_profile.focus_calls,
+      objective_profile.value_calls,
+      objective_profile.value_and_grad_calls);
   }
+  const double cmax_ms = elapsed_ms(t_cmax);
 
   // Persist the finest-scale field to warm-start the next window.
   prev_flow_field_ = F;
   prev_flow_tiles_ = tx_prev;
 
+  const auto t_render_events = ProfileClock::now();
   Events render_ev;
   render_ev.x.reserve(total);
   render_ev.y.reserve(total);
@@ -288,8 +431,10 @@ EventDetector::FlowResult EventDetector::solve_flow_cmax(const dv::EventStore & 
     render_t_lo = std::min(render_t_lo, tau);
     render_t_hi = std::max(render_t_hi, tau);
   }
+  const double render_events_ms = elapsed_ms(t_render_events);
 
   // ── Render the dense flow field as HSV (hue = direction, value = speed) ─────
+  const auto t_flow_image = ProfileClock::now();
   cv::Mat angle(h, w, CV_32F);
   cv::Mat magnitude(h, w, CV_32F);
   for (int y = 0; y < h; ++y) {
@@ -362,8 +507,10 @@ EventDetector::FlowResult EventDetector::solve_flow_cmax(const dv::EventStore & 
   cv::Mat hsv;
   cv::merge(hsv_parts, 3, hsv);
   cv::cvtColor(hsv, result.flow, cv::COLOR_HSV2BGR);
+  const double flow_image_ms = elapsed_ms(t_flow_image);
 
   // ── Render the IWE: warp every event by the objective's local flow to t_mid ─
+  const auto t_iwe_objective = ProfileClock::now();
   const int scale = std::max<int>(1, static_cast<int>(flow_iwe_scale_));
   const int iw = (w + scale - 1) / scale;
   const int ih = (h + scale - 1) / scale;
@@ -374,11 +521,18 @@ EventDetector::FlowResult EventDetector::solve_flow_cmax(const dv::EventStore & 
   final_params.t_lo = render_t_lo;
   final_params.t_hi = render_t_hi;
   final_params.g0_override = cached_g0;
+  ObjectiveProfile render_objective_profile;
+  final_params.profile = &render_objective_profile;
   Objective render_obj(render_ev, final_params);
+  const double iwe_objective_ms = elapsed_ms(t_iwe_objective);
+
   std::vector<float> render_vx;
   std::vector<float> render_vy;
+  const auto t_iwe_event_flow = ProfileClock::now();
   render_obj.event_flow(F, render_vx, render_vy);
+  const double iwe_event_flow_ms = elapsed_ms(t_iwe_event_flow);
 
+  const auto t_iwe_splat = ProfileClock::now();
   cv::Mat iwe = cv::Mat::zeros(ih, iw, CV_32F);
   for (size_t k = 0; k < render_ev.size(); ++k) {
     const float wx = (render_ev.x[k] + render_ev.t[k] * render_vx[k]) * inv_scale;
@@ -397,6 +551,50 @@ EventDetector::FlowResult EventDetector::solve_flow_cmax(const dv::EventStore & 
     r1[x0 + 1] += fx * fy;
   }
   cv::normalize(iwe, result.iwe, 0.0, 255.0, cv::NORM_MINMAX, CV_8U);
+  const double iwe_splat_ms = elapsed_ms(t_iwe_splat);
+
+  RCLCPP_INFO(
+    get_logger(),
+    "Flow profile OpticalFlow render: render_events=%zu event_pack=%.3f ms "
+    "flow_image=%.3f ms iwe_objective=%.3f ms iwe_event_flow=%.3f ms "
+    "iwe_splat_norm=%.3f ms render_obj(build_stencils=%.3f "
+    "build_time_aware=%.3f boundary=%.3f propagate=%.3f event_sample=%.3f "
+    "event_flow=%.3f calls=%d)",
+    render_ev.size(), render_events_ms, flow_image_ms, iwe_objective_ms,
+    iwe_event_flow_ms, iwe_splat_ms,
+    render_objective_profile.build_stencils_ms,
+    render_objective_profile.build_time_aware_ms,
+    render_objective_profile.boundary_ms,
+    render_objective_profile.propagate_ms,
+    render_objective_profile.event_sample_ms,
+    render_objective_profile.event_flow_ms,
+    render_objective_profile.event_flow_calls);
+
+  RCLCPP_INFO(
+    get_logger(),
+    "Flow profile summary: raw_events=%zu solve_events=%zu stride=%zu span=%.3f ms "
+    "setup_select=%.3f ms setup_pack=%.3f ms cmax=%.3f ms "
+    "(objective_setup=%.3f init=%.3f newton_cg=%.3f value=%.3f grad=%.3f "
+    "cg_loop=%.3f line_search=%.3f outer=%d cg=%d line_search_iter=%d "
+    "value_calls=%d grad_calls=%d obj_build_stencils=%.3f obj_build_time_aware=%.3f "
+    "obj_g0_render=%.3f obj_g0_contrast=%.3f obj_focus=%.3f obj_value=%.3f "
+    "obj_value_grad=%.3f obj_render_iwe=%.3f obj_contrast=%.3f obj_boundary=%.3f "
+    "obj_propagate=%.3f obj_event_sample=%.3f obj_backprop=%.3f obj_scatter=%.3f "
+    "obj_propagate_vjp=%.3f obj_tv=%.3f obj_calls=%d/%d/%d) "
+    "render=%.3f ms total=%.3f ms",
+    total, solve_samples.size(), stride, static_cast<double>(t_hi_us - t_lo_us) * 1e-3,
+    select_ms, pack_ms, cmax_ms,
+    cmax_objective_ms, cmax_init_ms, cmax_solver_ms, cmax_value_ms,
+    cmax_value_and_grad_ms, cmax_cg_loop_ms, cmax_line_search_ms,
+    cmax_outer_iterations, cmax_cg_iterations, cmax_line_search_iterations,
+    cmax_value_calls, cmax_value_and_grad_calls,
+    obj_build_stencils_ms, obj_build_time_aware_ms, obj_g0_render_ms,
+    obj_g0_contrast_ms, obj_focus_ms, obj_value_ms, obj_value_and_grad_ms,
+    obj_render_iwe_ms, obj_contrast_ms, obj_boundary_ms, obj_propagate_ms,
+    obj_event_sample_ms, obj_backprop_ms, obj_scatter_ms, obj_propagate_vjp_ms,
+    obj_tv_ms, obj_focus_calls, obj_value_calls, obj_value_and_grad_calls,
+    render_events_ms + flow_image_ms + iwe_objective_ms + iwe_event_flow_ms + iwe_splat_ms,
+    elapsed_ms(t_total));
 
   return result;
 }

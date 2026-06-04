@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <climits>
 #include <cmath>
 #include <cstddef>
@@ -23,6 +24,29 @@ namespace event_detector_cpp::flow
 
 namespace
 {
+
+using ProfileClock = std::chrono::steady_clock;
+
+double elapsed_ms(
+  const ProfileClock::time_point & start,
+  const ProfileClock::time_point & end = ProfileClock::now())
+{
+  return std::chrono::duration<double, std::milli>(end - start).count();
+}
+
+void add_profile(ObjectiveProfile * profile, double ObjectiveProfile::* field, double value)
+{
+  if (profile != nullptr) {
+    (profile->*field) += value;
+  }
+}
+
+void inc_profile(ObjectiveProfile * profile, int ObjectiveProfile::* field)
+{
+  if (profile != nullptr) {
+    (profile->*field) += 1;
+  }
+}
 
 // Mean IWE gradient-magnitude focus G (Eq. 6) and, optionally, its adjoint
 // dG/dI scaled by `seed` (= dE/dG) accumulated into `adj`.
@@ -251,6 +275,7 @@ Objective::Objective(Events events, ObjectiveParams params)
 
 void Objective::build_stencils()
 {
+  const auto t_stencils = ProfileClock::now();
   const int tx = params_.tiles_x;
   const int ty = params_.tiles_y;
   const double sx = static_cast<double>(params_.img_w) / tx;  // tile spacing [px]
@@ -262,6 +287,8 @@ void Objective::build_stencils()
     bilinear(events_.x[k], events_.y[k], tx, ty, sx, sy,
              stencils_[k].idx, stencils_[k].w);
   }
+  add_profile(
+    params_.profile, &ObjectiveProfile::build_stencils_ms, elapsed_ms(t_stencils));
 
   // Zero-flow normalization G0: events splat unwarped, identical for all refs.
   // G0 is tile-independent, so a caller solving multiple scales can compute it
@@ -271,13 +298,19 @@ void Objective::build_stencils()
     return;
   }
   const int w = params_.img_w, h = params_.img_h;
+  const auto t_g0_render = ProfileClock::now();
   std::vector<double> I = render_iwe(
     events_.size(), w, h,
     [this](size_t k, double & xp, double & yp) {
       xp = events_.x[k];
       yp = events_.y[k];
     });
+  add_profile(
+    params_.profile, &ObjectiveProfile::g0_render_ms, elapsed_ms(t_g0_render));
+  const auto t_g0_contrast = ProfileClock::now();
   g0_ = static_cast<float>(contrast(I, w, h, params_.norm, nullptr, nullptr));
+  add_profile(
+    params_.profile, &ObjectiveProfile::g0_contrast_ms, elapsed_ms(t_g0_contrast));
   if (!(g0_ > 0.0f)) g0_ = 1.0f;  // guard empty/degenerate windows
 }
 
@@ -301,10 +334,13 @@ float Objective::focus(const Eigen::VectorXf & F) const
   if (params_.time_aware) {
     return focus_time_aware(F, nullptr);
   }
+  inc_profile(params_.profile, &ObjectiveProfile::focus_calls);
+  const auto t_focus = ProfileClock::now();
   const int w = params_.img_w, h = params_.img_h;
   const std::array<float, 3> refs = {params_.t_lo, 0.0f, params_.t_hi};
   std::array<double, 3> G{};
   for (int r = 0; r < 3; ++r) {
+    const auto t_render = ProfileClock::now();
     std::vector<double> I = render_iwe(
       events_.size(), w, h,
       [this, &F, &refs, r](size_t k, double & xp, double & yp) {
@@ -314,9 +350,14 @@ float Objective::focus(const Eigen::VectorXf & F) const
         xp = events_.x[k] + f * vx;
         yp = events_.y[k] + f * vy;
       });
+    add_profile(params_.profile, &ObjectiveProfile::render_iwe_ms, elapsed_ms(t_render));
+    const auto t_contrast = ProfileClock::now();
     G[r] = contrast(I, w, h, params_.norm, nullptr, nullptr);
+    add_profile(params_.profile, &ObjectiveProfile::contrast_ms, elapsed_ms(t_contrast));
   }
-  return static_cast<float>((G[0] + 2.0 * G[1] + G[2]) / (4.0 * g0_));
+  const float f = static_cast<float>((G[0] + 2.0 * G[1] + G[2]) / (4.0 * g0_));
+  add_profile(params_.profile, &ObjectiveProfile::focus_ms, elapsed_ms(t_focus));
+  return f;
 }
 
 void Objective::event_flow(
@@ -324,11 +365,14 @@ void Objective::event_flow(
   std::vector<float> & vx,
   std::vector<float> & vy) const
 {
+  inc_profile(params_.profile, &ObjectiveProfile::event_flow_calls);
+  const auto t_event_flow = ProfileClock::now();
   const size_t N = events_.size();
   vx.assign(N, 0.0f);
   vy.assign(N, 0.0f);
 
   if (!params_.time_aware) {
+    const auto t_sample = ProfileClock::now();
     #pragma omp parallel for schedule(static)
     for (std::ptrdiff_t kk = 0; kk < static_cast<std::ptrdiff_t>(N); ++kk) {
       double sx = 0.0;
@@ -338,13 +382,20 @@ void Objective::event_flow(
       vx[k] = static_cast<float>(sx);
       vy[k] = static_cast<float>(sy);
     }
+    add_profile(params_.profile, &ObjectiveProfile::event_sample_ms, elapsed_ms(t_sample));
+    add_profile(params_.profile, &ObjectiveProfile::event_flow_ms, elapsed_ms(t_event_flow));
     return;
   }
 
+  const auto t_boundary = ProfileClock::now();
   const Grid v0 = boundary_field(F);
+  add_profile(params_.profile, &ObjectiveProfile::boundary_ms, elapsed_ms(t_boundary));
+  const auto t_propagate = ProfileClock::now();
   const std::vector<Grid> V =
     propagate(v0, bin_times_, params_.scheme, ds_, params_.cfl);
+  add_profile(params_.profile, &ObjectiveProfile::propagate_ms, elapsed_ms(t_propagate));
 
+  const auto t_sample = ProfileClock::now();
   #pragma omp parallel for schedule(static)
   for (std::ptrdiff_t kk = 0; kk < static_cast<std::ptrdiff_t>(N); ++kk) {
     const size_t k = static_cast<size_t>(kk);
@@ -359,29 +410,42 @@ void Objective::event_flow(
     vx[k] = static_cast<float>(sx);
     vy[k] = static_cast<float>(sy);
   }
+  add_profile(params_.profile, &ObjectiveProfile::event_sample_ms, elapsed_ms(t_sample));
+  add_profile(params_.profile, &ObjectiveProfile::event_flow_ms, elapsed_ms(t_event_flow));
 }
 
 float Objective::value(const Eigen::VectorXf & F) const
 {
+  inc_profile(params_.profile, &ObjectiveProfile::value_calls);
+  const auto t_value = ProfileClock::now();
   const double f = focus(F);
   double E = 1.0 / static_cast<double>(f);
   if (params_.tv_weight > 0.0f) {
+    const auto t_tv = ProfileClock::now();
     E += tv(F, params_.tiles_x, params_.tiles_y, params_.tv_eps,
             params_.tv_weight, nullptr) * params_.tv_weight;
+    add_profile(params_.profile, &ObjectiveProfile::tv_ms, elapsed_ms(t_tv));
   }
+  add_profile(params_.profile, &ObjectiveProfile::value_ms, elapsed_ms(t_value));
   return static_cast<float>(E);
 }
 
 float Objective::value_and_grad(const Eigen::VectorXf & F, Eigen::VectorXf & grad) const
 {
+  inc_profile(params_.profile, &ObjectiveProfile::value_and_grad_calls);
+  const auto t_value_and_grad = ProfileClock::now();
   if (params_.time_aware) {
     grad = Eigen::VectorXf::Zero(F.size());
     const double f = focus_time_aware(F, &grad);
     double E = 1.0 / f;
     if (params_.tv_weight > 0.0f) {
+      const auto t_tv = ProfileClock::now();
       E += tv(F, params_.tiles_x, params_.tiles_y, params_.tv_eps,
               params_.tv_weight, &grad) * params_.tv_weight;
+      add_profile(params_.profile, &ObjectiveProfile::tv_ms, elapsed_ms(t_tv));
     }
+    add_profile(
+      params_.profile, &ObjectiveProfile::value_and_grad_ms, elapsed_ms(t_value_and_grad));
     return static_cast<float>(E);
   }
 
@@ -394,6 +458,7 @@ float Objective::value_and_grad(const Eigen::VectorXf & F, Eigen::VectorXf & gra
   std::array<std::vector<double>, 3> Is;
   std::array<double, 3> G{};
   for (int r = 0; r < 3; ++r) {
+    const auto t_render = ProfileClock::now();
     Is[r] = render_iwe(
       events_.size(), w, h,
       [this, &F, &refs, r](size_t k, double & xp, double & yp) {
@@ -403,7 +468,10 @@ float Objective::value_and_grad(const Eigen::VectorXf & F, Eigen::VectorXf & gra
         xp = events_.x[k] + fct * vx;
         yp = events_.y[k] + fct * vy;
       });
+    add_profile(params_.profile, &ObjectiveProfile::render_iwe_ms, elapsed_ms(t_render));
+    const auto t_contrast = ProfileClock::now();
     G[r] = contrast(Is[r], w, h, params_.norm, nullptr, nullptr);
+    add_profile(params_.profile, &ObjectiveProfile::contrast_ms, elapsed_ms(t_contrast));
   }
 
   const double f = (G[0] + 2.0 * G[1] + G[2]) / (4.0 * g0_);
@@ -414,10 +482,13 @@ float Objective::value_and_grad(const Eigen::VectorXf & F, Eigen::VectorXf & gra
     // dE/dG_r = dE/df * df/dG_r = dE_df * coef_r / (4 G0).
     double seed = dE_df * coef[r] / (4.0 * static_cast<double>(g0_));
     std::vector<double> adjI(static_cast<size_t>(w) * h, 0.0);
+    const auto t_contrast = ProfileClock::now();
     contrast(Is[r], w, h, params_.norm, &seed, &adjI);
+    add_profile(params_.profile, &ObjectiveProfile::contrast_ms, elapsed_ms(t_contrast));
 
     // Per-event velocity gradient (independent -> parallel); the cheap scatter
     // into the shared tile gradient is then done serially to avoid races.
+    const auto t_backprop = ProfileClock::now();
     const size_t N = events_.size();
     std::vector<double> dvx(N), dvy(N);
     #pragma omp parallel for schedule(static)
@@ -432,6 +503,8 @@ float Objective::value_and_grad(const Eigen::VectorXf & F, Eigen::VectorXf & gra
       dvx[k] = dxp * fct;
       dvy[k] = dyp * fct;
     }
+    add_profile(params_.profile, &ObjectiveProfile::backprop_ms, elapsed_ms(t_backprop));
+    const auto t_scatter = ProfileClock::now();
     for (size_t k = 0; k < N; ++k) {
       const int * idx = stencils_[k].idx;
       const float * wv = stencils_[k].w;
@@ -440,13 +513,18 @@ float Objective::value_and_grad(const Eigen::VectorXf & F, Eigen::VectorXf & gra
         grad[2 * idx[c] + 1] += static_cast<float>(wv[c] * dvy[k]);
       }
     }
+    add_profile(params_.profile, &ObjectiveProfile::scatter_ms, elapsed_ms(t_scatter));
   }
 
   double E = 1.0 / f;
   if (params_.tv_weight > 0.0f) {
+    const auto t_tv = ProfileClock::now();
     E += tv(F, params_.tiles_x, params_.tiles_y, params_.tv_eps,
             params_.tv_weight, &grad) * params_.tv_weight;
+    add_profile(params_.profile, &ObjectiveProfile::tv_ms, elapsed_ms(t_tv));
   }
+  add_profile(
+    params_.profile, &ObjectiveProfile::value_and_grad_ms, elapsed_ms(t_value_and_grad));
   return static_cast<float>(E);
 }
 
@@ -454,6 +532,7 @@ float Objective::value_and_grad(const Eigen::VectorXf & F, Eigen::VectorXf & gra
 
 void Objective::build_time_aware()
 {
+  const auto t_build = ProfileClock::now();
   const int w = params_.img_w, h = params_.img_h;
   const int tx = params_.tiles_x, ty = params_.tiles_y;
   pw_ = std::max(2, params_.prop_w);
@@ -498,6 +577,8 @@ void Objective::build_time_aware()
       ev_bin_[k] = std::clamp(b, 0, nb - 1);
     }
   }
+  add_profile(
+    params_.profile, &ObjectiveProfile::build_time_aware_ms, elapsed_ms(t_build));
 }
 
 Grid Objective::boundary_field(const Eigen::VectorXf & F) const
@@ -518,17 +599,24 @@ Grid Objective::boundary_field(const Eigen::VectorXf & F) const
 
 float Objective::focus_time_aware(const Eigen::VectorXf & F, Eigen::VectorXf * grad) const
 {
+  inc_profile(params_.profile, &ObjectiveProfile::focus_calls);
+  const auto t_focus = ProfileClock::now();
   const int w = params_.img_w, h = params_.img_h;
   const std::array<float, 3> refs = {params_.t_lo, 0.0f, params_.t_hi};
   const std::array<double, 3> coef = {1.0, 2.0, 1.0};
   const size_t N = events_.size();
 
   // Transport the boundary field at t_mid to each time bin (Eq. 7).
+  const auto t_boundary = ProfileClock::now();
   const Grid v0 = boundary_field(F);
+  add_profile(params_.profile, &ObjectiveProfile::boundary_ms, elapsed_ms(t_boundary));
+  const auto t_propagate = ProfileClock::now();
   const std::vector<Grid> V =
     propagate(v0, bin_times_, params_.scheme, ds_, params_.cfl);
+  add_profile(params_.profile, &ObjectiveProfile::propagate_ms, elapsed_ms(t_propagate));
 
   // Flow value v_hat sampled at each event's own (x, t) bin (Eq. 8).
+  const auto t_sample = ProfileClock::now();
   std::vector<double> vhx(N), vhy(N);
   #pragma omp parallel for schedule(static)
   for (size_t k = 0; k < N; ++k) {
@@ -542,11 +630,13 @@ float Objective::focus_time_aware(const Eigen::VectorXf & F, Eigen::VectorXf * g
     vhx[k] = ax;
     vhy[k] = ay;
   }
+  add_profile(params_.profile, &ObjectiveProfile::event_sample_ms, elapsed_ms(t_sample));
 
   // Forward: build the three reference IWEs and their focus values.
   std::array<std::vector<double>, 3> Is;
   std::array<double, 3> G{};
   for (int r = 0; r < 3; ++r) {
+    const auto t_render = ProfileClock::now();
     Is[r] = render_iwe(
       N, w, h,
       [this, &refs, &vhx, &vhy, r](size_t k, double & xp, double & yp) {
@@ -554,11 +644,15 @@ float Objective::focus_time_aware(const Eigen::VectorXf & F, Eigen::VectorXf * g
         xp = events_.x[k] + fct * vhx[k];
         yp = events_.y[k] + fct * vhy[k];
       });
+    add_profile(params_.profile, &ObjectiveProfile::render_iwe_ms, elapsed_ms(t_render));
+    const auto t_contrast = ProfileClock::now();
     G[r] = contrast(Is[r], w, h, params_.norm, nullptr, nullptr);
+    add_profile(params_.profile, &ObjectiveProfile::contrast_ms, elapsed_ms(t_contrast));
   }
 
   const double f = (G[0] + 2.0 * G[1] + G[2]) / (4.0 * static_cast<double>(g0_));
   if (grad == nullptr) {
+    add_profile(params_.profile, &ObjectiveProfile::focus_ms, elapsed_ms(t_focus));
     return static_cast<float>(f);
   }
 
@@ -568,7 +662,10 @@ float Objective::focus_time_aware(const Eigen::VectorXf & F, Eigen::VectorXf * g
   for (int r = 0; r < 3; ++r) {
     double seed = dE_df * coef[r] / (4.0 * static_cast<double>(g0_));
     std::vector<double> adjI(static_cast<size_t>(w) * h, 0.0);
+    const auto t_contrast = ProfileClock::now();
     contrast(Is[r], w, h, params_.norm, &seed, &adjI);
+    add_profile(params_.profile, &ObjectiveProfile::contrast_ms, elapsed_ms(t_contrast));
+    const auto t_backprop = ProfileClock::now();
     #pragma omp parallel for schedule(static)
     for (size_t k = 0; k < N; ++k) {
       const double fct = events_.t[k] - refs[r];
@@ -579,9 +676,11 @@ float Objective::focus_time_aware(const Eigen::VectorXf & F, Eigen::VectorXf * g
       dvhx[k] += dxp * fct;
       dvhy[k] += dyp * fct;
     }
+    add_profile(params_.profile, &ObjectiveProfile::backprop_ms, elapsed_ms(t_backprop));
   }
 
   // Scatter dE/dv_hat onto the per-bin propagated grids.
+  const auto t_scatter_events = ProfileClock::now();
   std::vector<Grid> gV(bin_times_.size(), Grid(pw_, ph_));
   for (size_t k = 0; k < N; ++k) {
     Grid & g = gV[static_cast<size_t>(ev_bin_[k])];
@@ -591,10 +690,15 @@ float Objective::focus_time_aware(const Eigen::VectorXf & F, Eigen::VectorXf * g
       g.vy[st.idx[c]] += static_cast<float>(st.w[c] * dvhy[k]);
     }
   }
+  add_profile(params_.profile, &ObjectiveProfile::scatter_ms, elapsed_ms(t_scatter_events));
 
   // Adjoint of the transport, then of the boundary sampling, into dE/dF.
+  const auto t_propagate_vjp = ProfileClock::now();
   const Grid g_v0 =
     propagate_vjp(v0, bin_times_, params_.scheme, ds_, params_.cfl, gV);
+  add_profile(
+    params_.profile, &ObjectiveProfile::propagate_vjp_ms, elapsed_ms(t_propagate_vjp));
+  const auto t_scatter_boundary = ProfileClock::now();
   for (size_t n = 0; n < bnd_stencils_.size(); ++n) {
     const Stencil & st = bnd_stencils_[n];
     for (int c = 0; c < 4; ++c) {
@@ -602,6 +706,8 @@ float Objective::focus_time_aware(const Eigen::VectorXf & F, Eigen::VectorXf * g
       (*grad)[2 * st.idx[c] + 1] += static_cast<float>(st.w[c] * g_v0.vy[n]);
     }
   }
+  add_profile(params_.profile, &ObjectiveProfile::scatter_ms, elapsed_ms(t_scatter_boundary));
+  add_profile(params_.profile, &ObjectiveProfile::focus_ms, elapsed_ms(t_focus));
   return static_cast<float>(f);
 }
 
