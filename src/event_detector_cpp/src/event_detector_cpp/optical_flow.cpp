@@ -36,6 +36,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <utility>
 #include <vector>
 
@@ -64,6 +65,13 @@ using event_detector_cpp::flow::Scheme;
 // accommodate the paper's per-window event counts (up to 1.5M for DSEC); reduce
 // flow_num_events for faster, lower-fidelity runs.
 constexpr std::size_t kMaxSolveEvents = 2000000;
+
+struct EventSample
+{
+  float x;
+  float y;
+  int64_t t_us;
+};
 
 /**
  * Bilinearly sample the tile-grid flow field at a pixel, matching the stencil
@@ -115,19 +123,14 @@ Eigen::VectorXf upsample_field(
   return F_new;
 }
 
-// Clamp each tile's speed to max_spd and zero out any non-finite component.
-void clamp_field(Eigen::VectorXf & F, float max_spd)
+// The paper's optimization is unconstrained; only sanitize non-finite solver
+// output before carrying the field to the next scale/window.
+void sanitize_field(Eigen::VectorXf & F)
 {
   for (int k = 0; k < F.size() / 2; ++k) {
     float vx = F[2 * k], vy = F[2 * k + 1];
     if (!std::isfinite(vx) || !std::isfinite(vy)) {
       vx = vy = 0.0f;
-    }
-    const float mag = std::hypot(vx, vy);
-    if (mag > max_spd) {
-      const float s = max_spd / mag;
-      vx *= s;
-      vy *= s;
     }
     F[2 * k] = vx;
     F[2 * k + 1] = vy;
@@ -145,21 +148,13 @@ EventDetector::FlowResult EventDetector::solve_flow_cmax(const dv::EventStore & 
 
   const int w = res_.width;
   const int h = res_.height;
-  const float max_spd = static_cast<float>(flow_max_speed_px_s_);
-
-  // Warp reference is the window midpoint; event times are stored relative to
-  // it [s], so the field F estimates the flow at t_mid (Sec. III-B).
-  const int64_t t_lo_us = window.getLowestTime();
-  const int64_t t_hi_us = window.getHighestTime();
-  const int64_t t_mid_us = t_lo_us + (t_hi_us - t_lo_us) / 2;
+  const float vis_speed_cap = static_cast<float>(flow_max_speed_px_s_);
 
   // Build the event set for the objective, strided down if over the cap.
   const std::size_t total = static_cast<std::size_t>(window.size());
   const std::size_t stride = (total + kMaxSolveEvents - 1) / kMaxSolveEvents;
-  Events ev;
-  ev.x.reserve(total / stride + 1);
-  ev.y.reserve(total / stride + 1);
-  ev.t.reserve(total / stride + 1);
+  std::vector<EventSample> solve_samples;
+  solve_samples.reserve(total / stride + 1);
   std::size_t idx = 0;
   for (const auto & e : window) {
     if (idx++ % stride != 0) {
@@ -168,18 +163,36 @@ EventDetector::FlowResult EventDetector::solve_flow_cmax(const dv::EventStore & 
     if (e.x() < 0 || e.y() < 0 || e.x() >= w || e.y() >= h) {
       continue;
     }
-    ev.x.push_back(static_cast<float>(e.x()));
-    ev.y.push_back(static_cast<float>(e.y()));
-    ev.t.push_back(static_cast<float>(e.timestamp() - t_mid_us) * 1e-6f);
+    solve_samples.push_back({
+      static_cast<float>(e.x()),
+      static_cast<float>(e.y()),
+      e.timestamp()});
   }
-  if (ev.size() < 2) {
+  if (solve_samples.size() < 2) {
     return result;
   }
 
-  float t_lo = 0.0f, t_hi = 0.0f;
-  for (float t : ev.t) {
-    t_lo = std::min(t_lo, t);
-    t_hi = std::max(t_hi, t);
+  auto by_time = [](const EventSample & a, const EventSample & b) {
+    return a.t_us < b.t_us;
+  };
+  const auto t_minmax = std::minmax_element(
+    solve_samples.begin(), solve_samples.end(), by_time);
+  const int64_t t_lo_us = t_minmax.first->t_us;
+  const int64_t t_hi_us = t_minmax.second->t_us;
+  const int64_t t_ref_us = t_lo_us + (t_hi_us - t_lo_us) / 2;
+  const float t_lo = static_cast<float>(t_lo_us - t_ref_us) * 1e-6f;
+  const float t_hi = static_cast<float>(t_hi_us - t_ref_us) * 1e-6f;
+
+  // Warp reference is the selected event set midpoint; event times are stored
+  // relative to it [s], so F estimates the flow at t_mid (Sec. III-B).
+  Events ev;
+  ev.x.reserve(solve_samples.size());
+  ev.y.reserve(solve_samples.size());
+  ev.t.reserve(solve_samples.size());
+  for (const EventSample & e : solve_samples) {
+    ev.x.push_back(e.x);
+    ev.y.push_back(e.y);
+    ev.t.push_back(static_cast<float>(e.t_us - t_ref_us) * 1e-6f);
   }
 
   flow::NewtonCgParams ncg;
@@ -198,6 +211,7 @@ EventDetector::FlowResult EventDetector::solve_flow_cmax(const dv::EventStore & 
     prev_flow_field_.size() == 2 * prev_flow_tiles_ * prev_flow_tiles_);
   Eigen::VectorXf F;
   int tx_prev = 0, ty_prev = 0;
+  ObjectiveParams final_params;
   float cached_g0 = 0.0f;  // G(0) is tile-independent: compute once, reuse.
   for (int l = 1; l <= n_scales; ++l) {
     const int tiles = 1 << (l - 1);
@@ -226,6 +240,8 @@ EventDetector::FlowResult EventDetector::solve_flow_cmax(const dv::EventStore & 
     if (cached_g0 <= 0.0f) {
       cached_g0 = obj.g0();  // reuse for all finer scales
     }
+    p.g0_override = cached_g0;
+    final_params = p;
 
     // Within-pyramid initialization: zero at the coarsest scale, otherwise the
     // bilinearly upscaled coarser-scale flow of this window.
@@ -245,7 +261,7 @@ EventDetector::FlowResult EventDetector::solve_flow_cmax(const dv::EventStore & 
 
     F = std::move(init);
     flow::newton_cg_minimize(obj, F, ncg);
-    clamp_field(F, max_spd);
+    sanitize_field(F);
 
     tx_prev = tiles;
     ty_prev = tiles;
@@ -254,6 +270,24 @@ EventDetector::FlowResult EventDetector::solve_flow_cmax(const dv::EventStore & 
   // Persist the finest-scale field to warm-start the next window.
   prev_flow_field_ = F;
   prev_flow_tiles_ = tx_prev;
+
+  Events render_ev;
+  render_ev.x.reserve(total);
+  render_ev.y.reserve(total);
+  render_ev.t.reserve(total);
+  float render_t_lo = 0.0f;
+  float render_t_hi = 0.0f;
+  for (const auto & e : window) {
+    if (e.x() < 0 || e.y() < 0 || e.x() >= w || e.y() >= h) {
+      continue;
+    }
+    const float tau = static_cast<float>(e.timestamp() - t_ref_us) * 1e-6f;
+    render_ev.x.push_back(static_cast<float>(e.x()));
+    render_ev.y.push_back(static_cast<float>(e.y()));
+    render_ev.t.push_back(tau);
+    render_t_lo = std::min(render_t_lo, tau);
+    render_t_hi = std::max(render_t_hi, tau);
+  }
 
   // ── Render the dense flow field as HSV (hue = direction, value = speed) ─────
   cv::Mat angle(h, w, CV_32F);
@@ -266,42 +300,89 @@ EventDetector::FlowResult EventDetector::solve_flow_cmax(const dv::EventStore & 
       sample_tile_velocity(
         F, tx_prev, ty_prev, w, h,
         static_cast<float>(x), static_cast<float>(y), vx, vy);
+      // F is the paper's warp parameter in x' = x + dt * v. Physical optical
+      // flow has the opposite sign, as in the authors' dense-flow renderer.
+      vx = -vx;
+      vy = -vy;
       float a = std::atan2(vy, vx);                       // [-pi, pi]
       if (a < 0.0f) a += 2.0f * static_cast<float>(CV_PI);  // [0, 2pi)
       arow[x] = a;
       mrow[x] = std::hypot(vx, vy);
     }
   }
+
+  std::vector<float> support_speeds;
+  support_speeds.reserve(static_cast<size_t>(w) * h);
+  double support_speed_sum = 0.0;
+  double support_max_speed = 0.0;
+  for (int y = 0; y < h; ++y) {
+    const float * mrow = magnitude.ptr<float>(y);
+    for (int x = 0; x < w; ++x) {
+      const float spd = mrow[x];
+      if (!std::isfinite(spd)) {
+        continue;
+      }
+      support_speeds.push_back(spd);
+      support_speed_sum += spd;
+      support_max_speed = std::max(support_max_speed, static_cast<double>(spd));
+    }
+  }
+
   cv::Mat hsv_parts[3];
   // Map angle [0, 2pi) to OpenCV's 8-bit hue range [0, 180).
   cv::Mat hue = angle * (180.0f / (2.0f * static_cast<float>(CV_PI)));
   hue.convertTo(hsv_parts[0], CV_8U);
   hsv_parts[1] = cv::Mat(h, w, CV_8U, cv::Scalar(255));
-  magnitude *= (255.0f / max_spd);
+  double observed_max_speed = 0.0;
+  cv::minMaxLoc(magnitude, nullptr, &observed_max_speed);
+  double robust_max_speed = support_max_speed;
+  if (!support_speeds.empty()) {
+    const size_t nth = std::min(
+      support_speeds.size() - 1,
+      static_cast<size_t>(0.95 * static_cast<double>(support_speeds.size())));
+    std::nth_element(support_speeds.begin(), support_speeds.begin() + nth, support_speeds.end());
+    robust_max_speed = std::max<double>(support_speeds[nth], 0.05 * support_max_speed);
+  }
+  const double display_max_speed = (robust_max_speed > 1e-6)
+    ? std::min(static_cast<double>(vis_speed_cap), robust_max_speed)
+    : ((observed_max_speed > 1e-6)
+      ? std::min(static_cast<double>(vis_speed_cap), observed_max_speed)
+      : static_cast<double>(vis_speed_cap));
+  const double support_mean_speed = support_speeds.empty()
+    ? 0.0
+    : support_speed_sum / static_cast<double>(support_speeds.size());
+  RCLCPP_INFO_THROTTLE(
+    get_logger(), *get_clock(), 1000,
+    "Flow speed [px/s]: mean=%.3f max=%.3f display_max=%.3f pixels=%zu",
+    support_mean_speed, support_max_speed, display_max_speed, support_speeds.size());
+
+  magnitude *= (255.0f / static_cast<float>(display_max_speed));
   cv::threshold(magnitude, magnitude, 255.0, 255.0, cv::THRESH_TRUNC);
   magnitude.convertTo(hsv_parts[2], CV_8U);
   cv::Mat hsv;
   cv::merge(hsv_parts, 3, hsv);
   cv::cvtColor(hsv, result.flow, cv::COLOR_HSV2BGR);
 
-  // ── Render the IWE: warp every event by its local flow to t_mid ─────────────
+  // ── Render the IWE: warp every event by the objective's local flow to t_mid ─
   const int scale = std::max<int>(1, static_cast<int>(flow_iwe_scale_));
   const int iw = (w + scale - 1) / scale;
   const int ih = (h + scale - 1) / scale;
   const float inv_scale = 1.0f / static_cast<float>(scale);
+
+  final_params.tiles_x = tx_prev;
+  final_params.tiles_y = ty_prev;
+  final_params.t_lo = render_t_lo;
+  final_params.t_hi = render_t_hi;
+  final_params.g0_override = cached_g0;
+  Objective render_obj(render_ev, final_params);
+  std::vector<float> render_vx;
+  std::vector<float> render_vy;
+  render_obj.event_flow(F, render_vx, render_vy);
+
   cv::Mat iwe = cv::Mat::zeros(ih, iw, CV_32F);
-  for (const auto & e : window) {
-    const float px = static_cast<float>(e.x());
-    const float py = static_cast<float>(e.y());
-    if (px < 0 || py < 0 || px >= w || py >= h) {
-      continue;
-    }
-    float vx, vy;
-    sample_tile_velocity(F, tx_prev, ty_prev, w, h, px, py, vx, vy);
-    const float tau = static_cast<float>(e.timestamp() - t_mid_us) * 1e-6f;
-    // Time-aware warp Eq. (8): x' = x + (t_k - t_ref) * v.
-    const float wx = (px + tau * vx) * inv_scale;
-    const float wy = (py + tau * vy) * inv_scale;
+  for (size_t k = 0; k < render_ev.size(); ++k) {
+    const float wx = (render_ev.x[k] + render_ev.t[k] * render_vx[k]) * inv_scale;
+    const float wy = (render_ev.y[k] + render_ev.t[k] * render_vy[k]) * inv_scale;
     const int x0 = static_cast<int>(std::floor(wx));
     const int y0 = static_cast<int>(std::floor(wy));
     if (x0 < 0 || y0 < 0 || x0 + 1 >= iw || y0 + 1 >= ih) {

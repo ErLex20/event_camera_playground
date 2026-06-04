@@ -8,6 +8,7 @@
 
 #include <cmath>
 #include <random>
+#include <vector>
 
 #include <Eigen/Core>
 
@@ -116,6 +117,30 @@ TEST(Objective, GradientMatchesFiniteDifferenceL1)
   EXPECT_GE(close, static_cast<int>(0.75 * F.size()));  // most components agree
 }
 
+TEST(Objective, EventFlowMatchesConstantTileField)
+{
+  ObjectiveParams p;
+  p.img_w = 32; p.img_h = 24;
+  p.tiles_x = 1; p.tiles_y = 1;
+  p.t_lo = -0.01f; p.t_hi = 0.01f;
+  Objective obj(make_events(100, p.img_w, p.img_h, p.t_lo, p.t_hi, 13), p);
+
+  Eigen::VectorXf F(obj.num_vars());
+  F[0] = 42.0f;
+  F[1] = -17.0f;
+
+  std::vector<float> vx;
+  std::vector<float> vy;
+  obj.event_flow(F, vx, vy);
+  EXPECT_GT(obj.focus(F), 0.0f);  // force focus path to stay callable
+  ASSERT_EQ(vx.size(), vy.size());
+  ASSERT_EQ(vx.size(), 100u);
+  for (size_t k = 0; k < vx.size(); ++k) {
+    EXPECT_NEAR(vx[k], 42.0f, 1e-5f);
+    EXPECT_NEAR(vy[k], -17.0f, 1e-5f);
+  }
+}
+
 // Time-aware warp (Sec. III-C): even after transporting the boundary field
 // through the self-advection PDE, the identity warp (F = 0) keeps the IWE
 // unwarped, so the normalized focus is still exactly 1.
@@ -135,6 +160,68 @@ TEST(ObjectiveTimeAware, ZeroFlowFocusIsOne)
 
   Eigen::VectorXf F = Eigen::VectorXf::Zero(obj.num_vars());
   EXPECT_NEAR(obj.focus(F), 1.0f, 1e-5f);
+}
+
+TEST(ObjectiveTimeAware, EventFlowKeepsConstantFieldSteady)
+{
+  ObjectiveParams p;
+  p.img_w = 32; p.img_h = 24;
+  p.tiles_x = 1; p.tiles_y = 1;
+  p.t_lo = -0.02f; p.t_hi = 0.02f;
+  p.time_aware = true;
+  p.scheme = Scheme::Upwind;
+  p.time_bins = 5;
+  p.prop_w = 8; p.prop_h = 6;
+  p.cfl = 0.5f;
+  Objective obj(make_events(120, p.img_w, p.img_h, p.t_lo, p.t_hi, 17), p);
+
+  Eigen::VectorXf F(obj.num_vars());
+  F[0] = -35.0f;
+  F[1] = 28.0f;
+
+  std::vector<float> vx;
+  std::vector<float> vy;
+  obj.event_flow(F, vx, vy);
+  ASSERT_EQ(vx.size(), vy.size());
+  ASSERT_EQ(vx.size(), 120u);
+  for (size_t k = 0; k < vx.size(); ++k) {
+    EXPECT_NEAR(vx[k], -35.0f, 1e-4f);
+    EXPECT_NEAR(vy[k], 28.0f, 1e-4f);
+  }
+}
+
+TEST(ObjectiveTimeAware, EvenTimeBinsSampleBoundaryAtMidTime)
+{
+  ObjectiveParams p;
+  p.img_w = 40; p.img_h = 40;
+  p.tiles_x = 2; p.tiles_y = 2;
+  p.t_lo = -0.02f; p.t_hi = 0.02f;
+  p.time_aware = true;
+  p.scheme = Scheme::Upwind;
+  p.time_bins = 40;  // DSEC setting from the paper
+  p.prop_w = 2; p.prop_h = 2;
+  p.cfl = 0.5f;
+
+  Events e;
+  e.x = {10.0f, 30.0f};
+  e.y = {10.0f, 30.0f};
+  e.t = {0.0f, 0.0f};
+  Objective obj(e, p);
+
+  Eigen::VectorXf F(obj.num_vars());
+  F << 80.0f, -20.0f,
+       -40.0f, 30.0f,
+       15.0f, 70.0f,
+       -90.0f, -50.0f;
+
+  std::vector<float> vx;
+  std::vector<float> vy;
+  obj.event_flow(F, vx, vy);
+  ASSERT_EQ(vx.size(), 2u);
+  EXPECT_NEAR(vx[0], 80.0f, 1e-5f);
+  EXPECT_NEAR(vy[0], -20.0f, 1e-5f);
+  EXPECT_NEAR(vx[1], -90.0f, 1e-5f);
+  EXPECT_NEAR(vy[1], -50.0f, 1e-5f);
 }
 
 // The analytic gradient of the time-aware objective (whose chain runs

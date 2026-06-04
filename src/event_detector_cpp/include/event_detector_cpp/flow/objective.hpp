@@ -89,6 +89,13 @@ public:
   /// Multi-reference focus f(F) (without the 1/f or TV terms).
   float focus(const Eigen::VectorXf & F) const;
 
+  /// Per-event velocity used by the objective warp. With time-aware flow this
+  /// is \hat{v}(x_k, t_k) from Eq. (8); otherwise it is v(x_k) from Eq. (4).
+  void event_flow(
+    const Eigen::VectorXf & F,
+    std::vector<float> & vx,
+    std::vector<float> & vy) const;
+
   /// Zero-flow normalization constant G0.
   float g0() const { return g0_; }
 

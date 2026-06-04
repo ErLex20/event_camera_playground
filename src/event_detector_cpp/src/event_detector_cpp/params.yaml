@@ -107,7 +107,7 @@ params:
     var_name: flow_tv_charbonnier_eps_
   flow_time_aware:
     type: bool
-    default_value: false
+    default_value: true
     description: "Enable time-aware flow propagation (Sec. III-C) when supported by the objective."
     constraints: "Cannot be changed at runtime."
     read_only: true
@@ -185,7 +185,7 @@ params:
     min_value: 1.0
     max_value: 100000.0
     step: 0.0
-    description: "Speed used to normalize flow colour and to clamp the estimated velocity [px/s]."
+    description: "Upper saturation speed for flow colour visualization [px/s]."
     constraints: "Must be positive."
     read_only: false
     var_name: flow_max_speed_px_s_

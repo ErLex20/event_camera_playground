@@ -13,6 +13,7 @@
 #include <array>
 #include <climits>
 #include <cmath>
+#include <cstddef>
 #include <utility>
 
 #include <omp.h>
@@ -93,6 +94,7 @@ double tv(
   double lambda, Eigen::VectorXf * grad)
 {
   const double eps2 = eps * eps;
+  const double norm = static_cast<double>(std::max(1, tx * ty));
   double R = 0.0;
   auto vx = [&](int i, int j) { return static_cast<double>(F[2 * (j * tx + i)]); };
   auto vy = [&](int i, int j) { return static_cast<double>(F[2 * (j * tx + i) + 1]); };
@@ -106,7 +108,7 @@ double tv(
       const double m = std::sqrt(dxx * dxx + dxy * dxy + dyx * dyx + dyy * dyy + eps2);
       R += m;
       if (grad) {
-        const double inv = lambda / m;
+        const double inv = lambda / (norm * m);
         const int k = j * tx + i;
         if (hx) {
           const int kr = j * tx + (i + 1);
@@ -125,7 +127,7 @@ double tv(
       }
     }
   }
-  return R;
+  return R / norm;
 }
 
 // Bilinear stencil for a query pixel over a regular grid of nx*ny nodes whose
@@ -202,6 +204,40 @@ inline void iwe_splat_adj(
   }
 }
 
+// Race-free IWE renderer. Events are parallelized, but each worker splats into
+// a private image; private images are then reduced into the output image.
+template <class WarpFn>
+std::vector<double> render_iwe(
+  size_t n_events, int w, int h, const WarpFn & warp)
+{
+  const size_t n_pix = static_cast<size_t>(w) * h;
+  std::vector<double> I(n_pix, 0.0);
+  if (n_events == 0 || n_pix == 0) {
+    return I;
+  }
+
+  #pragma omp parallel
+  {
+    std::vector<double> local(n_pix, 0.0);
+    #pragma omp for schedule(static)
+    for (std::ptrdiff_t kk = 0; kk < static_cast<std::ptrdiff_t>(n_events); ++kk) {
+      double xp = 0.0;
+      double yp = 0.0;
+      warp(static_cast<size_t>(kk), xp, yp);
+      iwe_splat(local.data(), w, h, xp, yp, 1.0);
+    }
+
+    #pragma omp critical
+    {
+      for (size_t i = 0; i < n_pix; ++i) {
+        I[i] += local[i];
+      }
+    }
+  }
+
+  return I;
+}
+
 }  // namespace
 
 Objective::Objective(Events events, ObjectiveParams params)
@@ -235,16 +271,12 @@ void Objective::build_stencils()
     return;
   }
   const int w = params_.img_w, h = params_.img_h;
-  std::vector<double> I(static_cast<size_t>(w) * h, 0.0);
-  #pragma omp parallel
-  {
-    const int nt = omp_get_num_threads();
-    const int tid = omp_get_thread_num();
-    const int rlo = (h * tid) / nt, rhi = (h * (tid + 1)) / nt;
-    for (size_t k = 0; k < events_.size(); ++k) {
-      iwe_splat(I.data(), w, h, events_.x[k], events_.y[k], 1.0);
-    }
-  }
+  std::vector<double> I = render_iwe(
+    events_.size(), w, h,
+    [this](size_t k, double & xp, double & yp) {
+      xp = events_.x[k];
+      yp = events_.y[k];
+    });
   g0_ = static_cast<float>(contrast(I, w, h, params_.norm, nullptr, nullptr));
   if (!(g0_ > 0.0f)) g0_ = 1.0f;  // guard empty/degenerate windows
 }
@@ -273,24 +305,60 @@ float Objective::focus(const Eigen::VectorXf & F) const
   const std::array<float, 3> refs = {params_.t_lo, 0.0f, params_.t_hi};
   std::array<double, 3> G{};
   for (int r = 0; r < 3; ++r) {
-    std::vector<double> I(static_cast<size_t>(w) * h, 0.0);
-    #pragma omp parallel
-    {
-      const int nt = omp_get_num_threads();
-      const int tid = omp_get_thread_num();
-      const int rlo = (h * tid) / nt, rhi = (h * (tid + 1)) / nt;
-      for (size_t k = 0; k < events_.size(); ++k) {
+    std::vector<double> I = render_iwe(
+      events_.size(), w, h,
+      [this, &F, &refs, r](size_t k, double & xp, double & yp) {
         double vx, vy;
         sample_v(F, stencils_[k].idx, stencils_[k].w, vx, vy);
         const double f = events_.t[k] - refs[r];
-        const double xp = events_.x[k] + f * vx;
-        const double yp = events_.y[k] + f * vy;
-        iwe_splat(I.data(), w, h, xp, yp, 1.0);
-      }
-    }
+        xp = events_.x[k] + f * vx;
+        yp = events_.y[k] + f * vy;
+      });
     G[r] = contrast(I, w, h, params_.norm, nullptr, nullptr);
   }
   return static_cast<float>((G[0] + 2.0 * G[1] + G[2]) / (4.0 * g0_));
+}
+
+void Objective::event_flow(
+  const Eigen::VectorXf & F,
+  std::vector<float> & vx,
+  std::vector<float> & vy) const
+{
+  const size_t N = events_.size();
+  vx.assign(N, 0.0f);
+  vy.assign(N, 0.0f);
+
+  if (!params_.time_aware) {
+    #pragma omp parallel for schedule(static)
+    for (std::ptrdiff_t kk = 0; kk < static_cast<std::ptrdiff_t>(N); ++kk) {
+      double sx = 0.0;
+      double sy = 0.0;
+      const size_t k = static_cast<size_t>(kk);
+      sample_v(F, stencils_[k].idx, stencils_[k].w, sx, sy);
+      vx[k] = static_cast<float>(sx);
+      vy[k] = static_cast<float>(sy);
+    }
+    return;
+  }
+
+  const Grid v0 = boundary_field(F);
+  const std::vector<Grid> V =
+    propagate(v0, bin_times_, params_.scheme, ds_, params_.cfl);
+
+  #pragma omp parallel for schedule(static)
+  for (std::ptrdiff_t kk = 0; kk < static_cast<std::ptrdiff_t>(N); ++kk) {
+    const size_t k = static_cast<size_t>(kk);
+    const Stencil & st = ev_prop_stencils_[k];
+    const Grid & g = V[static_cast<size_t>(ev_bin_[k])];
+    double sx = 0.0;
+    double sy = 0.0;
+    for (int c = 0; c < 4; ++c) {
+      sx += static_cast<double>(st.w[c]) * g.vx[st.idx[c]];
+      sy += static_cast<double>(st.w[c]) * g.vy[st.idx[c]];
+    }
+    vx[k] = static_cast<float>(sx);
+    vy[k] = static_cast<float>(sy);
+  }
 }
 
 float Objective::value(const Eigen::VectorXf & F) const
@@ -326,21 +394,15 @@ float Objective::value_and_grad(const Eigen::VectorXf & F, Eigen::VectorXf & gra
   std::array<std::vector<double>, 3> Is;
   std::array<double, 3> G{};
   for (int r = 0; r < 3; ++r) {
-    Is[r].assign(static_cast<size_t>(w) * h, 0.0);
-    #pragma omp parallel
-    {
-      const int nt = omp_get_num_threads();
-      const int tid = omp_get_thread_num();
-      const int rlo = (h * tid) / nt, rhi = (h * (tid + 1)) / nt;
-      for (size_t k = 0; k < events_.size(); ++k) {
+    Is[r] = render_iwe(
+      events_.size(), w, h,
+      [this, &F, &refs, r](size_t k, double & xp, double & yp) {
         double vx, vy;
         sample_v(F, stencils_[k].idx, stencils_[k].w, vx, vy);
         const double fct = events_.t[k] - refs[r];
-        const double xp = events_.x[k] + fct * vx;
-        const double yp = events_.y[k] + fct * vy;
-        iwe_splat(Is[r].data(), w, h, xp, yp, 1.0);
-      }
-    }
+        xp = events_.x[k] + fct * vx;
+        yp = events_.y[k] + fct * vy;
+      });
     G[r] = contrast(Is[r], w, h, params_.norm, nullptr, nullptr);
   }
 
@@ -419,8 +481,11 @@ void Objective::build_time_aware()
   const double span = t_hi - t_lo;
   bin_times_.assign(nb, 0.0f);
   for (int b = 0; b < nb; ++b) {
+    // Match the paper/reference implementation's "flow at t_mid" convention:
+    // bin nb/2 is exactly the t=0 boundary field, with neighbours propagated by
+    // one temporal-bin step. For odd bin counts this is equivalent to bin centers.
     bin_times_[b] = (span > 0.0)
-      ? static_cast<float>(t_lo + (b + 0.5) * span / nb)
+      ? static_cast<float>((b - nb / 2) * span / nb)
       : 0.0f;
   }
   ev_prop_stencils_.resize(events_.size());
@@ -482,19 +547,13 @@ float Objective::focus_time_aware(const Eigen::VectorXf & F, Eigen::VectorXf * g
   std::array<std::vector<double>, 3> Is;
   std::array<double, 3> G{};
   for (int r = 0; r < 3; ++r) {
-    Is[r].assign(static_cast<size_t>(w) * h, 0.0);
-    #pragma omp parallel
-    {
-      const int nt = omp_get_num_threads();
-      const int tid = omp_get_thread_num();
-      const int rlo = (h * tid) / nt, rhi = (h * (tid + 1)) / nt;
-      for (size_t k = 0; k < N; ++k) {
+    Is[r] = render_iwe(
+      N, w, h,
+      [this, &refs, &vhx, &vhy, r](size_t k, double & xp, double & yp) {
         const double fct = events_.t[k] - refs[r];
-        const double xp = events_.x[k] + fct * vhx[k];
-        const double yp = events_.y[k] + fct * vhy[k];
-        iwe_splat(Is[r].data(), w, h, xp, yp, 1.0);
-      }
-    }
+        xp = events_.x[k] + fct * vhx[k];
+        yp = events_.y[k] + fct * vhy[k];
+      });
     G[r] = contrast(Is[r], w, h, params_.norm, nullptr, nullptr);
   }
 

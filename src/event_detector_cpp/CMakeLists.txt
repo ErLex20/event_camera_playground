@@ -138,6 +138,26 @@ install(DIRECTORY launch
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
+  find_package(ament_cmake_gtest REQUIRED)
+
+  ament_add_gtest(flow_core_tests
+    test/test_propagation.cpp
+    test/test_objective.cpp
+    test/test_solver.cpp
+    src/event_detector_cpp/flow_propagation.cpp
+    src/event_detector_cpp/flow_objective.cpp)
+  if(TARGET flow_core_tests)
+    target_include_directories(flow_core_tests PRIVATE
+      include
+      ${EIGEN3_INCLUDE_DIR})
+    target_link_libraries(flow_core_tests
+      Eigen3::Eigen
+      OpenMP::OpenMP_CXX
+      Threads::Threads)
+    set_tests_properties(flow_core_tests PROPERTIES
+      ENVIRONMENT "OMP_NUM_THREADS=4")
+  endif()
+
   # the following line skips the linter which checks for copyrights
   # uncomment the line when a copyright and license is not present in all source files
   #set(ament_cmake_copyright_FOUND TRUE)

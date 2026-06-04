@@ -61,8 +61,8 @@ void EventDetector::worker_thread_routine()
     // Background-activity filtering (per packet).
     // Evaluate time to calculate everything
     auto t_ba = std::chrono::high_resolution_clock::now();
-    dv::EventStore events = ba_filter_enabled_ ? compute_ba(chunk.events) : chunk.events;
-    if (events.isEmpty()) {
+    dv::EventStore sae_events = ba_filter_enabled_ ? compute_ba(chunk.events) : chunk.events;
+    if (sae_events.isEmpty() && !(iwe_enabled_ || flow_enabled_)) {
       continue;
     }
     auto dt1 = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -72,8 +72,10 @@ void EventDetector::worker_thread_routine()
     // Surface of Active Events (per packet).
     if (sae_enabled_) {
       auto t_sae = std::chrono::high_resolution_clock::now();
-      publish_image(
-        pub_sae_, compute_sae(events), sensor_msgs::image_encodings::BGR8, chunk.header);
+      if (!sae_events.isEmpty()) {
+        publish_image(
+          pub_sae_, compute_sae(sae_events), sensor_msgs::image_encodings::BGR8, chunk.header);
+      }
       auto dt2 = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::high_resolution_clock::now() - t_sae).count();
       RCLCPP_INFO_THROTTLE(this->get_logger(), *get_clock(), 1000, "SAE: %ld ms", dt2);
@@ -82,7 +84,7 @@ void EventDetector::worker_thread_routine()
     // IWE and optical flow run once per flow window. The window is closed by
     // event count (the paper's set E_i of N events), not by wall time.
     if (iwe_enabled_ || flow_enabled_) {
-      flow_accum_.add(events);
+      flow_accum_.add(chunk.events);
       if (static_cast<int64_t>(flow_accum_.size()) >= flow_num_events_) {
         dv::EventStore window = flow_accum_;
         flow_accum_ = dv::EventStore();
