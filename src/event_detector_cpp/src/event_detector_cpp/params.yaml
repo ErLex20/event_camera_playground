@@ -58,63 +58,134 @@ params:
     constraints: "Cannot be changed at runtime."
     read_only: true
     var_name: flow_enabled_
-  flow_window_ms:
-    type: double
-    default_value: 10.0
-    min_value: 1.0
-    max_value: 200.0
-    step: 0.0
-    description: "Event accumulation window per flow estimate [ms]."
+  flow_num_events:
+    type: integer
+    default_value: 30000
+    min_value: 100
+    max_value: 5000000
+    step: 1
+    description: "Events accumulated per flow estimate (the paper's set E_i of N events)."
     constraints: "Must be positive."
     read_only: false
-    var_name: flow_window_ms_
-  flow_patch_size:
+    var_name: flow_num_events_
+  flow_num_scales:
     type: integer
-    default_value: 32
-    min_value: 8
-    max_value: 256
+    default_value: 5
+    min_value: 1
+    max_value: 8
     step: 1
-    description: "Side length of the square flow patches [px]; sets the dense-field grid resolution."
+    description: "Tile-pyramid scales; scale l uses 2^(l-1) tiles per side (Sec. III-D)."
     constraints: "Cannot be changed at runtime."
     read_only: true
-    var_name: flow_patch_size_
-  flow_min_events:
-    type: integer
-    default_value: 50
-    min_value: 1
-    max_value: 100000
-    step: 1
-    description: "Minimum events in a patch to estimate its velocity; sparser patches are left empty."
+    var_name: flow_num_scales_
+  flow_contrast_l2:
+    type: bool
+    default_value: false
+    description: "Use squared-L2 IWE gradient focus instead of the L1 default (Eq. 6)."
+    constraints: "Cannot be changed at runtime."
+    read_only: true
+    var_name: flow_contrast_l2_
+  flow_tv_weight:
+    type: double
+    default_value: 0.0025
+    min_value: 0.0
+    max_value: 10.0
+    step: 0.0
+    description: "Total-variation regularizer weight lambda (Eq. 9)."
+    constraints: "Must be non-negative."
+    read_only: false
+    var_name: flow_tv_weight_
+  flow_tv_charbonnier_eps:
+    type: double
+    default_value: 0.001
+    min_value: 0.000001
+    max_value: 1.0
+    step: 0.0
+    description: "Charbonnier epsilon smoothing the isotropic TV norm (Sec. III-E)."
     constraints: "Must be positive."
     read_only: false
-    var_name: flow_min_events_
+    var_name: flow_tv_charbonnier_eps_
+  flow_time_aware:
+    type: bool
+    default_value: false
+    description: "Enable time-aware flow propagation (Sec. III-C) when supported by the objective."
+    constraints: "Cannot be changed at runtime."
+    read_only: true
+    var_name: flow_time_aware_
+  flow_pde_burgers:
+    type: bool
+    default_value: false
+    description: "Use the Burgers flux scheme for time-aware propagation instead of upwind."
+    constraints: "Cannot be changed at runtime."
+    read_only: true
+    var_name: flow_pde_burgers_
+  flow_time_bins:
+    type: integer
+    default_value: 5
+    min_value: 1
+    max_value: 200
+    step: 1
+    description: "Number of temporal bins for time-aware propagation (5 MVSEC / 40 DSEC)."
+    constraints: "Must be positive."
+    read_only: false
+    var_name: flow_time_bins_
+  flow_prop_grid:
+    type: integer
+    default_value: 32
+    min_value: 4
+    max_value: 256
+    step: 1
+    description: "Side length of the square propagation grid for time-aware flow."
+    constraints: "Must be positive."
+    read_only: false
+    var_name: flow_prop_grid_
+  flow_newton_max_iter:
+    type: integer
+    default_value: 30
+    min_value: 1
+    max_value: 500
+    step: 1
+    description: "Maximum outer Newton iterations per scale for the truncated-Newton solver."
+    constraints: "Must be positive."
+    read_only: false
+    var_name: flow_newton_max_iter_
+  flow_cg_max_iter:
+    type: integer
+    default_value: 20
+    min_value: 1
+    max_value: 500
+    step: 1
+    description: "Maximum inner conjugate-gradient iterations per Newton step."
+    constraints: "Must be positive."
+    read_only: false
+    var_name: flow_cg_max_iter_
+  flow_cg_tol:
+    type: double
+    default_value: 0.1
+    min_value: 0.000001
+    max_value: 1.0
+    step: 0.0
+    description: "Forcing-tolerance factor for the inner CG solve (truncated Newton)."
+    constraints: "Must be positive."
+    read_only: false
+    var_name: flow_cg_tol_
+  flow_iwe_scale:
+    type: integer
+    default_value: 1
+    min_value: 1
+    max_value: 8
+    step: 1
+    description: "Downscale factor for the rendered IWE image (1 = full resolution)."
+    constraints: "Must be positive."
+    read_only: false
+    var_name: flow_iwe_scale_
   flow_max_speed_px_s:
     type: double
     default_value: 4000.0
     min_value: 1.0
     max_value: 100000.0
     step: 0.0
-    description: "Speed used to normalize flow colour and to bound the velocity search [px/s]."
+    description: "Speed used to normalize flow colour and to clamp the estimated velocity [px/s]."
     constraints: "Must be positive."
     read_only: false
     var_name: flow_max_speed_px_s_
-  flow_cmax_max_iter:
-    type: integer
-    default_value: 100
-    min_value: 1
-    max_value: 400
-    step: 1
-    description: "Maximum Levenberg-Marquardt function evaluations per patch (maxfev)."
-    constraints: "Must be positive."
-    read_only: false
-    var_name: flow_cmax_max_iter_
-  flow_cmax_learning_rate:
-    type: double
-    default_value: 0.1
-    min_value: 0.0001
-    max_value: 10.0
-    step: 0.0
-    description: "Numerical-differentiation step factor for the contrast-maximization solver."
-    constraints: "Must be positive."
-    read_only: false
-    var_name: flow_cmax_learning_rate_

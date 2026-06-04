@@ -79,39 +79,28 @@ void EventDetector::worker_thread_routine()
       RCLCPP_INFO_THROTTLE(this->get_logger(), *get_clock(), 1000, "SAE: %ld ms", dt2);
     }
 
-    // IWE and optical flow run once per flow window.
+    // IWE and optical flow run once per flow window. The window is closed by
+    // event count (the paper's set E_i of N events), not by wall time.
     if (iwe_enabled_ || flow_enabled_) {
-      if (flow_window_start_us_ == std::numeric_limits<int64_t>::lowest()) {
-        flow_window_start_us_ = events.getLowestTime();
-      }
       flow_accum_.add(events);
-      if (events.getHighestTime() - flow_window_start_us_ >=
-        static_cast<int64_t>(flow_window_ms_ * 1000.0))
-      {
+      if (static_cast<int64_t>(flow_accum_.size()) >= flow_num_events_) {
         dv::EventStore window = flow_accum_;
         flow_accum_ = dv::EventStore();
-        flow_window_start_us_ = events.getHighestTime();
 
-        // The global IWE velocity seeds the per-patch flow when IWE is enabled;
-        // otherwise the flow falls back to a zero seed and its own search.
-        cv::Vec2f v_global(0.0f, 0.0f);
+        auto t_flow = std::chrono::high_resolution_clock::now();
+        FlowResult res = solve_flow_cmax(window);
+        auto dt_flow = std::chrono::duration_cast<std::chrono::milliseconds>(
+          std::chrono::high_resolution_clock::now() - t_flow).count();
+        RCLCPP_INFO_THROTTLE(
+          this->get_logger(), *get_clock(), 1000, "Flow CMax: %ld ms", dt_flow);
+
         if (iwe_enabled_) {
-          auto t_iwe = std::chrono::high_resolution_clock::now();
           publish_image(
-            pub_iwe_, compute_iwe(window, v_global),
-            sensor_msgs::image_encodings::MONO8, chunk.header);
-          auto dt3 = std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::high_resolution_clock::now() - t_iwe).count();
-          RCLCPP_INFO_THROTTLE(this->get_logger(), *get_clock(), 1000, "IWE: %ld ms", dt3);
+            pub_iwe_, res.iwe, sensor_msgs::image_encodings::MONO8, chunk.header);
         }
         if (flow_enabled_) {
-          auto t_flow = std::chrono::high_resolution_clock::now();
           publish_image(
-            pub_flow_, compute_optical_flow(window, v_global),
-            sensor_msgs::image_encodings::BGR8, chunk.header);
-          auto dt4 = std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::high_resolution_clock::now() - t_flow).count();
-          RCLCPP_INFO_THROTTLE(this->get_logger(), *get_clock(), 1000, "Flow: %ld ms", dt4);
+            pub_flow_, res.flow, sensor_msgs::image_encodings::BGR8, chunk.header);
         }
       }
     }

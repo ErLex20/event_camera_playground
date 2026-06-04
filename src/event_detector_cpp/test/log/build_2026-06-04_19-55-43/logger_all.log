@@ -1,0 +1,749 @@
+[0.053s] DEBUG:colcon:Command line arguments: ['/usr/bin/colcon', 'build', '--symlink-install', '--packages-select', 'event_detector_cpp', '--base-paths', '/home/neo/workspace']
+[0.053s] DEBUG:colcon:Parsed command line arguments: Namespace(log_base=None, log_level=None, verb_name='build', build_base='build', install_base='install', merge_install=False, symlink_install=True, test_result_base=None, continue_on_error=False, executor='parallel', parallel_workers=24, event_handlers=None, ignore_user_meta=False, metas=['./colcon.meta'], base_paths=['/home/neo/workspace'], packages_ignore=[], packages_ignore_regex=None, paths=None, packages_up_to=None, packages_up_to_regex=None, packages_above=None, packages_above_and_dependencies=None, packages_above_depth=None, packages_select_by_dep=None, packages_skip_by_dep=None, packages_skip_up_to=None, packages_select_build_failed=False, packages_skip_build_finished=False, packages_select_test_failures=False, packages_skip_test_passed=False, packages_select=['event_detector_cpp'], packages_skip=None, packages_select_regex=None, packages_skip_regex=None, packages_start=None, packages_end=None, cmake_args=None, cmake_target=None, cmake_target_skip_unavailable=False, cmake_clean_cache=False, cmake_clean_first=False, cmake_force_configure=False, ament_cmake_args=None, catkin_cmake_args=None, catkin_skip_building_tests=False, mixin_files=None, mixin=None, verb_parser=<colcon_mixin.mixin.mixin_argument.MixinArgumentDecorator object at 0x7c2491d8ccb0>, verb_extension=<colcon_core.verb.build.BuildVerb object at 0x7c2491cad220>, main=<bound method BuildVerb.main of <colcon_core.verb.build.BuildVerb object at 0x7c2491cad220>>, mixin_verb=('build',))
+[0.071s] Level 1:colcon.colcon_core.package_discovery:discover_packages(colcon_meta) check parameters
+[0.071s] Level 1:colcon.colcon_core.package_discovery:discover_packages(recursive) check parameters
+[0.071s] Level 1:colcon.colcon_core.package_discovery:discover_packages(ignore) check parameters
+[0.071s] Level 1:colcon.colcon_core.package_discovery:discover_packages(path) check parameters
+[0.071s] Level 1:colcon.colcon_core.package_discovery:discover_packages(recursive) discover
+[0.071s] INFO:colcon.colcon_core.package_discovery:Crawling recursively for packages in '/home/neo/workspace'
+[0.071s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace) by extensions ['ignore', 'ignore_ament_install']
+[0.071s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace) by extension 'ignore'
+[0.071s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace) by extension 'ignore_ament_install'
+[0.071s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace) by extensions ['colcon_pkg']
+[0.071s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace) by extension 'colcon_pkg'
+[0.071s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace) by extensions ['colcon_meta']
+[0.071s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace) by extension 'colcon_meta'
+[0.071s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace) by extensions ['ros']
+[0.071s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace) by extension 'ros'
+[0.083s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace) by extensions ['cmake', 'python']
+[0.083s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace) by extension 'cmake'
+[0.083s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace) by extension 'python'
+[0.083s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace) by extensions ['python_setup_py']
+[0.083s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace) by extension 'python_setup_py'
+[0.083s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/bin) by extensions ['ignore', 'ignore_ament_install']
+[0.083s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/bin) by extension 'ignore'
+[0.083s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/bin) by extension 'ignore_ament_install'
+[0.083s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/bin) by extensions ['colcon_pkg']
+[0.083s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/bin) by extension 'colcon_pkg'
+[0.083s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/bin) by extensions ['colcon_meta']
+[0.083s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/bin) by extension 'colcon_meta'
+[0.083s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/bin) by extensions ['ros']
+[0.083s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/bin) by extension 'ros'
+[0.083s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/bin) by extensions ['cmake', 'python']
+[0.083s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/bin) by extension 'cmake'
+[0.083s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/bin) by extension 'python'
+[0.083s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/bin) by extensions ['python_setup_py']
+[0.083s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/bin) by extension 'python_setup_py'
+[0.083s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/bin/dua-templates) by extensions ['ignore', 'ignore_ament_install']
+[0.083s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/bin/dua-templates) by extension 'ignore'
+[0.083s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/bin/dua-templates) by extension 'ignore_ament_install'
+[0.083s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/bin/dua-templates) by extensions ['colcon_pkg']
+[0.083s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/bin/dua-templates) by extension 'colcon_pkg'
+[0.083s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/bin/dua-templates) by extensions ['colcon_meta']
+[0.083s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/bin/dua-templates) by extension 'colcon_meta'
+[0.083s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/bin/dua-templates) by extensions ['ros']
+[0.083s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/bin/dua-templates) by extension 'ros'
+[0.083s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/bin/dua-templates) by extensions ['cmake', 'python']
+[0.083s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/bin/dua-templates) by extension 'cmake'
+[0.083s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/bin/dua-templates) by extension 'python'
+[0.083s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/bin/dua-templates) by extensions ['python_setup_py']
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/bin/dua-templates) by extension 'python_setup_py'
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/bin/dua-templates/context) by extensions ['ignore', 'ignore_ament_install']
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/bin/dua-templates/context) by extension 'ignore'
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/bin/dua-templates/context) by extension 'ignore_ament_install'
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/bin/dua-templates/context) by extensions ['colcon_pkg']
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/bin/dua-templates/context) by extension 'colcon_pkg'
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/bin/dua-templates/context) by extensions ['colcon_meta']
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/bin/dua-templates/context) by extension 'colcon_meta'
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/bin/dua-templates/context) by extensions ['ros']
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/bin/dua-templates/context) by extension 'ros'
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/bin/dua-templates/context) by extensions ['cmake', 'python']
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/bin/dua-templates/context) by extension 'cmake'
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/bin/dua-templates/context) by extension 'python'
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/bin/dua-templates/context) by extensions ['python_setup_py']
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/bin/dua-templates/context) by extension 'python_setup_py'
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/build) by extensions ['ignore', 'ignore_ament_install']
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/build) by extension 'ignore'
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/build) ignored
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/config) by extensions ['ignore', 'ignore_ament_install']
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/config) by extension 'ignore'
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/config) by extension 'ignore_ament_install'
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/config) by extensions ['colcon_pkg']
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/config) by extension 'colcon_pkg'
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/config) by extensions ['colcon_meta']
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/config) by extension 'colcon_meta'
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/config) by extensions ['ros']
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/config) by extension 'ros'
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/config) by extensions ['cmake', 'python']
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/config) by extension 'cmake'
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/config) by extension 'python'
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/config) by extensions ['python_setup_py']
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/config) by extension 'python_setup_py'
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/docker) by extensions ['ignore', 'ignore_ament_install']
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/docker) by extension 'ignore'
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/docker) by extension 'ignore_ament_install'
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/docker) by extensions ['colcon_pkg']
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/docker) by extension 'colcon_pkg'
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/docker) by extensions ['colcon_meta']
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/docker) by extension 'colcon_meta'
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/docker) by extensions ['ros']
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/docker) by extension 'ros'
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/docker) by extensions ['cmake', 'python']
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/docker) by extension 'cmake'
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/docker) by extension 'python'
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/docker) by extensions ['python_setup_py']
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/docker) by extension 'python_setup_py'
+[0.084s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/docker/container-x86-cudev) by extensions ['ignore', 'ignore_ament_install']
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/docker/container-x86-cudev) by extension 'ignore'
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/docker/container-x86-cudev) by extension 'ignore_ament_install'
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/docker/container-x86-cudev) by extensions ['colcon_pkg']
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/docker/container-x86-cudev) by extension 'colcon_pkg'
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/docker/container-x86-cudev) by extensions ['colcon_meta']
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/docker/container-x86-cudev) by extension 'colcon_meta'
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/docker/container-x86-cudev) by extensions ['ros']
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/docker/container-x86-cudev) by extension 'ros'
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/docker/container-x86-cudev) by extensions ['cmake', 'python']
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/docker/container-x86-cudev) by extension 'cmake'
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/docker/container-x86-cudev) by extension 'python'
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/docker/container-x86-cudev) by extensions ['python_setup_py']
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/docker/container-x86-cudev) by extension 'python_setup_py'
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/docker/container-x86-cudev/zsh_history) by extensions ['ignore', 'ignore_ament_install']
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/docker/container-x86-cudev/zsh_history) by extension 'ignore'
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/docker/container-x86-cudev/zsh_history) by extension 'ignore_ament_install'
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/docker/container-x86-cudev/zsh_history) by extensions ['colcon_pkg']
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/docker/container-x86-cudev/zsh_history) by extension 'colcon_pkg'
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/docker/container-x86-cudev/zsh_history) by extensions ['colcon_meta']
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/docker/container-x86-cudev/zsh_history) by extension 'colcon_meta'
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/docker/container-x86-cudev/zsh_history) by extensions ['ros']
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/docker/container-x86-cudev/zsh_history) by extension 'ros'
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/docker/container-x86-cudev/zsh_history) by extensions ['cmake', 'python']
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/docker/container-x86-cudev/zsh_history) by extension 'cmake'
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/docker/container-x86-cudev/zsh_history) by extension 'python'
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/docker/container-x86-cudev/zsh_history) by extensions ['python_setup_py']
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/docker/container-x86-cudev/zsh_history) by extension 'python_setup_py'
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/install) by extensions ['ignore', 'ignore_ament_install']
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/install) by extension 'ignore'
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/install) ignored
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/log) by extensions ['ignore', 'ignore_ament_install']
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/log) by extension 'ignore'
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/log) ignored
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/logs) by extensions ['ignore', 'ignore_ament_install']
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/logs) by extension 'ignore'
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/logs) ignored
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src) by extensions ['ignore', 'ignore_ament_install']
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src) by extension 'ignore'
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src) by extension 'ignore_ament_install'
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src) by extensions ['colcon_pkg']
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src) by extension 'colcon_pkg'
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src) by extensions ['colcon_meta']
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src) by extension 'colcon_meta'
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src) by extensions ['ros']
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src) by extension 'ros'
+[0.085s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src) by extensions ['cmake', 'python']
+[0.086s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src) by extension 'cmake'
+[0.086s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src) by extension 'python'
+[0.086s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src) by extensions ['python_setup_py']
+[0.086s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src) by extension 'python_setup_py'
+[0.086s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/dsec_publisher) by extensions ['ignore', 'ignore_ament_install']
+[0.086s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/dsec_publisher) by extension 'ignore'
+[0.086s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/dsec_publisher) by extension 'ignore_ament_install'
+[0.086s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/dsec_publisher) by extensions ['colcon_pkg']
+[0.086s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/dsec_publisher) by extension 'colcon_pkg'
+[0.086s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/dsec_publisher) by extensions ['colcon_meta']
+[0.086s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/dsec_publisher) by extension 'colcon_meta'
+[0.086s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/dsec_publisher) by extensions ['ros']
+[0.086s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/dsec_publisher) by extension 'ros'
+[0.087s] DEBUG:colcon.colcon_core.package_identification:Package '/home/neo/workspace/src/dsec_publisher' with type 'ros.ament_python' and name 'dsec_publisher'
+[0.087s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/event_detector) by extensions ['ignore', 'ignore_ament_install']
+[0.087s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/event_detector) by extension 'ignore'
+[0.087s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/event_detector) by extension 'ignore_ament_install'
+[0.087s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/event_detector) by extensions ['colcon_pkg']
+[0.087s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/event_detector) by extension 'colcon_pkg'
+[0.087s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/event_detector) by extensions ['colcon_meta']
+[0.087s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/event_detector) by extension 'colcon_meta'
+[0.087s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/event_detector) by extensions ['ros']
+[0.087s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/event_detector) by extension 'ros'
+[0.087s] DEBUG:colcon.colcon_core.package_identification:Package '/home/neo/workspace/src/event_detector' with type 'ros.ament_python' and name 'event_detector'
+[0.087s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/event_detector_cpp) by extensions ['ignore', 'ignore_ament_install']
+[0.088s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/event_detector_cpp) by extension 'ignore'
+[0.088s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/event_detector_cpp) by extension 'ignore_ament_install'
+[0.088s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/event_detector_cpp) by extensions ['colcon_pkg']
+[0.088s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/event_detector_cpp) by extension 'colcon_pkg'
+[0.088s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/event_detector_cpp) by extensions ['colcon_meta']
+[0.088s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/event_detector_cpp) by extension 'colcon_meta'
+[0.088s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/event_detector_cpp) by extensions ['ros']
+[0.088s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/event_detector_cpp) by extension 'ros'
+[0.088s] DEBUG:colcon.colcon_core.package_identification:Package '/home/neo/workspace/src/event_detector_cpp' with type 'ros.ament_cmake' and name 'event_detector_cpp'
+[0.088s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver) by extensions ['ignore', 'ignore_ament_install']
+[0.088s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver) by extension 'ignore'
+[0.088s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver) by extension 'ignore_ament_install'
+[0.088s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver) by extensions ['colcon_pkg']
+[0.088s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver) by extension 'colcon_pkg'
+[0.088s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver) by extensions ['colcon_meta']
+[0.088s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver) by extension 'colcon_meta'
+[0.088s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver) by extensions ['ros']
+[0.088s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver) by extension 'ros'
+[0.088s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver) by extensions ['cmake', 'python']
+[0.088s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver) by extension 'cmake'
+[0.088s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver) by extension 'python'
+[0.088s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver) by extensions ['python_setup_py']
+[0.088s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver) by extension 'python_setup_py'
+[0.088s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/bin) by extensions ['ignore', 'ignore_ament_install']
+[0.088s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/bin) by extension 'ignore'
+[0.088s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/bin) by extension 'ignore_ament_install'
+[0.088s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/bin) by extensions ['colcon_pkg']
+[0.088s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/bin) by extension 'colcon_pkg'
+[0.088s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/bin) by extensions ['colcon_meta']
+[0.088s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/bin) by extension 'colcon_meta'
+[0.088s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/bin) by extensions ['ros']
+[0.088s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/bin) by extension 'ros'
+[0.088s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/bin) by extensions ['cmake', 'python']
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/bin) by extension 'cmake'
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/bin) by extension 'python'
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/bin) by extensions ['python_setup_py']
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/bin) by extension 'python_setup_py'
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/bin/dua-templates) by extensions ['ignore', 'ignore_ament_install']
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/bin/dua-templates) by extension 'ignore'
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/bin/dua-templates) by extension 'ignore_ament_install'
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/bin/dua-templates) by extensions ['colcon_pkg']
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/bin/dua-templates) by extension 'colcon_pkg'
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/bin/dua-templates) by extensions ['colcon_meta']
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/bin/dua-templates) by extension 'colcon_meta'
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/bin/dua-templates) by extensions ['ros']
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/bin/dua-templates) by extension 'ros'
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/bin/dua-templates) by extensions ['cmake', 'python']
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/bin/dua-templates) by extension 'cmake'
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/bin/dua-templates) by extension 'python'
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/bin/dua-templates) by extensions ['python_setup_py']
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/bin/dua-templates) by extension 'python_setup_py'
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/bin/dua-templates/context) by extensions ['ignore', 'ignore_ament_install']
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/bin/dua-templates/context) by extension 'ignore'
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/bin/dua-templates/context) by extension 'ignore_ament_install'
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/bin/dua-templates/context) by extensions ['colcon_pkg']
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/bin/dua-templates/context) by extension 'colcon_pkg'
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/bin/dua-templates/context) by extensions ['colcon_meta']
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/bin/dua-templates/context) by extension 'colcon_meta'
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/bin/dua-templates/context) by extensions ['ros']
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/bin/dua-templates/context) by extension 'ros'
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/bin/dua-templates/context) by extensions ['cmake', 'python']
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/bin/dua-templates/context) by extension 'cmake'
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/bin/dua-templates/context) by extension 'python'
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/bin/dua-templates/context) by extensions ['python_setup_py']
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/bin/dua-templates/context) by extension 'python_setup_py'
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/config) by extensions ['ignore', 'ignore_ament_install']
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/config) by extension 'ignore'
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/config) by extension 'ignore_ament_install'
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/config) by extensions ['colcon_pkg']
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/config) by extension 'colcon_pkg'
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/config) by extensions ['colcon_meta']
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/config) by extension 'colcon_meta'
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/config) by extensions ['ros']
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/config) by extension 'ros'
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/config) by extensions ['cmake', 'python']
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/config) by extension 'cmake'
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/config) by extension 'python'
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/config) by extensions ['python_setup_py']
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/config) by extension 'python_setup_py'
+[0.089s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker) by extensions ['ignore', 'ignore_ament_install']
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker) by extension 'ignore'
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker) by extension 'ignore_ament_install'
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker) by extensions ['colcon_pkg']
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker) by extension 'colcon_pkg'
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker) by extensions ['colcon_meta']
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker) by extension 'colcon_meta'
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker) by extensions ['ros']
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker) by extension 'ros'
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker) by extensions ['cmake', 'python']
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker) by extension 'cmake'
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker) by extension 'python'
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker) by extensions ['python_setup_py']
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker) by extension 'python_setup_py'
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-jetson6) by extensions ['ignore', 'ignore_ament_install']
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-jetson6) by extension 'ignore'
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-jetson6) by extension 'ignore_ament_install'
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-jetson6) by extensions ['colcon_pkg']
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-jetson6) by extension 'colcon_pkg'
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-jetson6) by extensions ['colcon_meta']
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-jetson6) by extension 'colcon_meta'
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-jetson6) by extensions ['ros']
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-jetson6) by extension 'ros'
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-jetson6) by extensions ['cmake', 'python']
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-jetson6) by extension 'cmake'
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-jetson6) by extension 'python'
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-jetson6) by extensions ['python_setup_py']
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-jetson6) by extension 'python_setup_py'
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-jetson6/zsh_history) by extensions ['ignore', 'ignore_ament_install']
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-jetson6/zsh_history) by extension 'ignore'
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-jetson6/zsh_history) by extension 'ignore_ament_install'
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-jetson6/zsh_history) by extensions ['colcon_pkg']
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-jetson6/zsh_history) by extension 'colcon_pkg'
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-jetson6/zsh_history) by extensions ['colcon_meta']
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-jetson6/zsh_history) by extension 'colcon_meta'
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-jetson6/zsh_history) by extensions ['ros']
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-jetson6/zsh_history) by extension 'ros'
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-jetson6/zsh_history) by extensions ['cmake', 'python']
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-jetson6/zsh_history) by extension 'cmake'
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-jetson6/zsh_history) by extension 'python'
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-jetson6/zsh_history) by extensions ['python_setup_py']
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-jetson6/zsh_history) by extension 'python_setup_py'
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-cudev) by extensions ['ignore', 'ignore_ament_install']
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-cudev) by extension 'ignore'
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-cudev) by extension 'ignore_ament_install'
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-cudev) by extensions ['colcon_pkg']
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-cudev) by extension 'colcon_pkg'
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-cudev) by extensions ['colcon_meta']
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-cudev) by extension 'colcon_meta'
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-cudev) by extensions ['ros']
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-cudev) by extension 'ros'
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-cudev) by extensions ['cmake', 'python']
+[0.090s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-cudev) by extension 'cmake'
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-cudev) by extension 'python'
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-cudev) by extensions ['python_setup_py']
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-cudev) by extension 'python_setup_py'
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-cudev/zsh_history) by extensions ['ignore', 'ignore_ament_install']
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-cudev/zsh_history) by extension 'ignore'
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-cudev/zsh_history) by extension 'ignore_ament_install'
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-cudev/zsh_history) by extensions ['colcon_pkg']
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-cudev/zsh_history) by extension 'colcon_pkg'
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-cudev/zsh_history) by extensions ['colcon_meta']
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-cudev/zsh_history) by extension 'colcon_meta'
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-cudev/zsh_history) by extensions ['ros']
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-cudev/zsh_history) by extension 'ros'
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-cudev/zsh_history) by extensions ['cmake', 'python']
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-cudev/zsh_history) by extension 'cmake'
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-cudev/zsh_history) by extension 'python'
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-cudev/zsh_history) by extensions ['python_setup_py']
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-cudev/zsh_history) by extension 'python_setup_py'
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-dev) by extensions ['ignore', 'ignore_ament_install']
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-dev) by extension 'ignore'
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-dev) by extension 'ignore_ament_install'
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-dev) by extensions ['colcon_pkg']
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-dev) by extension 'colcon_pkg'
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-dev) by extensions ['colcon_meta']
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-dev) by extension 'colcon_meta'
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-dev) by extensions ['ros']
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-dev) by extension 'ros'
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-dev) by extensions ['cmake', 'python']
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-dev) by extension 'cmake'
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-dev) by extension 'python'
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-dev) by extensions ['python_setup_py']
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-dev) by extension 'python_setup_py'
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-dev/zsh_history) by extensions ['ignore', 'ignore_ament_install']
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-dev/zsh_history) by extension 'ignore'
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-dev/zsh_history) by extension 'ignore_ament_install'
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-dev/zsh_history) by extensions ['colcon_pkg']
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-dev/zsh_history) by extension 'colcon_pkg'
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-dev/zsh_history) by extensions ['colcon_meta']
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-dev/zsh_history) by extension 'colcon_meta'
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-dev/zsh_history) by extensions ['ros']
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-dev/zsh_history) by extension 'ros'
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-dev/zsh_history) by extensions ['cmake', 'python']
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-dev/zsh_history) by extension 'cmake'
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-dev/zsh_history) by extension 'python'
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-dev/zsh_history) by extensions ['python_setup_py']
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/docker/container-x86-dev/zsh_history) by extension 'python_setup_py'
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/logs) by extensions ['ignore', 'ignore_ament_install']
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/logs) by extension 'ignore'
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/logs) ignored
+[0.091s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src) by extensions ['ignore', 'ignore_ament_install']
+[0.092s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src) by extension 'ignore'
+[0.092s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src) by extension 'ignore_ament_install'
+[0.092s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src) by extensions ['colcon_pkg']
+[0.092s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src) by extension 'colcon_pkg'
+[0.092s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src) by extensions ['colcon_meta']
+[0.092s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src) by extension 'colcon_meta'
+[0.092s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src) by extensions ['ros']
+[0.092s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src) by extension 'ros'
+[0.092s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src) by extensions ['cmake', 'python']
+[0.092s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src) by extension 'cmake'
+[0.092s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src) by extension 'python'
+[0.092s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src) by extensions ['python_setup_py']
+[0.092s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src) by extension 'python_setup_py'
+[0.092s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/dvs_msgs) by extensions ['ignore', 'ignore_ament_install']
+[0.092s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/dvs_msgs) by extension 'ignore'
+[0.092s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/dvs_msgs) by extension 'ignore_ament_install'
+[0.092s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/dvs_msgs) by extensions ['colcon_pkg']
+[0.092s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/dvs_msgs) by extension 'colcon_pkg'
+[0.092s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/dvs_msgs) by extensions ['colcon_meta']
+[0.092s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/dvs_msgs) by extension 'colcon_meta'
+[0.092s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/dvs_msgs) by extensions ['ros']
+[0.092s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/dvs_msgs) by extension 'ros'
+[0.095s] DEBUG:colcon.colcon_core.package_identification:Package '/home/neo/workspace/src/prophesee_evk4_driver/src/dvs_msgs' with type 'ros.ament_cmake' and name 'dvs_msgs'
+[0.095s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/event_camera_codecs) by extensions ['ignore', 'ignore_ament_install']
+[0.095s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/event_camera_codecs) by extension 'ignore'
+[0.095s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/event_camera_codecs) by extension 'ignore_ament_install'
+[0.095s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/event_camera_codecs) by extensions ['colcon_pkg']
+[0.095s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/event_camera_codecs) by extension 'colcon_pkg'
+[0.095s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/event_camera_codecs) by extensions ['colcon_meta']
+[0.095s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/event_camera_codecs) by extension 'colcon_meta'
+[0.095s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/event_camera_codecs) by extensions ['ros']
+[0.095s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/event_camera_codecs) by extension 'ros'
+[0.096s] DEBUG:colcon.colcon_core.package_identification:Package '/home/neo/workspace/src/prophesee_evk4_driver/src/event_camera_codecs' with type 'ros.ament_cmake' and name 'event_camera_codecs'
+[0.096s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/event_camera_msgs) by extensions ['ignore', 'ignore_ament_install']
+[0.097s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/event_camera_msgs) by extension 'ignore'
+[0.097s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/event_camera_msgs) by extension 'ignore_ament_install'
+[0.097s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/event_camera_msgs) by extensions ['colcon_pkg']
+[0.097s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/event_camera_msgs) by extension 'colcon_pkg'
+[0.097s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/event_camera_msgs) by extensions ['colcon_meta']
+[0.097s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/event_camera_msgs) by extension 'colcon_meta'
+[0.097s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/event_camera_msgs) by extensions ['ros']
+[0.097s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/event_camera_msgs) by extension 'ros'
+[0.098s] DEBUG:colcon.colcon_core.package_identification:Package '/home/neo/workspace/src/prophesee_evk4_driver/src/event_camera_msgs' with type 'ros.ament_cmake' and name 'event_camera_msgs'
+[0.098s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/event_camera_renderer) by extensions ['ignore', 'ignore_ament_install']
+[0.098s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/event_camera_renderer) by extension 'ignore'
+[0.098s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/event_camera_renderer) by extension 'ignore_ament_install'
+[0.098s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/event_camera_renderer) by extensions ['colcon_pkg']
+[0.098s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/event_camera_renderer) by extension 'colcon_pkg'
+[0.098s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/event_camera_renderer) by extensions ['colcon_meta']
+[0.098s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/event_camera_renderer) by extension 'colcon_meta'
+[0.098s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/event_camera_renderer) by extensions ['ros']
+[0.098s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/event_camera_renderer) by extension 'ros'
+[0.100s] DEBUG:colcon.colcon_core.package_identification:Package '/home/neo/workspace/src/prophesee_evk4_driver/src/event_camera_renderer' with type 'ros.ament_cmake' and name 'event_camera_renderer'
+[0.100s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/event_camera_tools) by extensions ['ignore', 'ignore_ament_install']
+[0.100s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/event_camera_tools) by extension 'ignore'
+[0.100s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/event_camera_tools) by extension 'ignore_ament_install'
+[0.100s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/event_camera_tools) by extensions ['colcon_pkg']
+[0.100s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/event_camera_tools) by extension 'colcon_pkg'
+[0.100s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/event_camera_tools) by extensions ['colcon_meta']
+[0.100s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/event_camera_tools) by extension 'colcon_meta'
+[0.100s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/event_camera_tools) by extensions ['ros']
+[0.100s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/event_camera_tools) by extension 'ros'
+[0.108s] DEBUG:colcon.colcon_core.package_identification:Package '/home/neo/workspace/src/prophesee_evk4_driver/src/event_camera_tools' with type 'ros.ament_cmake' and name 'event_camera_tools'
+[0.108s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/prophesee_event_msgs) by extensions ['ignore', 'ignore_ament_install']
+[0.108s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/prophesee_event_msgs) by extension 'ignore'
+[0.108s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/prophesee_event_msgs) by extension 'ignore_ament_install'
+[0.108s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/prophesee_event_msgs) by extensions ['colcon_pkg']
+[0.108s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/prophesee_event_msgs) by extension 'colcon_pkg'
+[0.109s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/prophesee_event_msgs) by extensions ['colcon_meta']
+[0.109s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/prophesee_event_msgs) by extension 'colcon_meta'
+[0.109s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/prophesee_event_msgs) by extensions ['ros']
+[0.109s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/prophesee_event_msgs) by extension 'ros'
+[0.110s] DEBUG:colcon.colcon_core.package_identification:Package '/home/neo/workspace/src/prophesee_evk4_driver/src/prophesee_event_msgs' with type 'ros.ament_cmake' and name 'prophesee_event_msgs'
+[0.110s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/prophesee_evk4_driver) by extensions ['ignore', 'ignore_ament_install']
+[0.110s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/prophesee_evk4_driver) by extension 'ignore'
+[0.110s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/prophesee_evk4_driver) by extension 'ignore_ament_install'
+[0.110s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/prophesee_evk4_driver) by extensions ['colcon_pkg']
+[0.110s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/prophesee_evk4_driver) by extension 'colcon_pkg'
+[0.110s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/prophesee_evk4_driver) by extensions ['colcon_meta']
+[0.110s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/prophesee_evk4_driver) by extension 'colcon_meta'
+[0.110s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/prophesee_evk4_driver) by extensions ['ros']
+[0.110s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/src/prophesee_evk4_driver) by extension 'ros'
+[0.110s] DEBUG:colcon.colcon_core.package_identification:Package '/home/neo/workspace/src/prophesee_evk4_driver/src/prophesee_evk4_driver' with type 'ros.ament_cmake' and name 'prophesee_evk4_driver'
+[0.110s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/tools) by extensions ['ignore', 'ignore_ament_install']
+[0.110s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/tools) by extension 'ignore'
+[0.110s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/prophesee_evk4_driver/tools) ignored
+[0.110s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver) by extensions ['ignore', 'ignore_ament_install']
+[0.110s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver) by extension 'ignore'
+[0.110s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver) by extension 'ignore_ament_install'
+[0.110s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver) by extensions ['colcon_pkg']
+[0.110s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver) by extension 'colcon_pkg'
+[0.110s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver) by extensions ['colcon_meta']
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver) by extension 'colcon_meta'
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver) by extensions ['ros']
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver) by extension 'ros'
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver) by extensions ['cmake', 'python']
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver) by extension 'cmake'
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver) by extension 'python'
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver) by extensions ['python_setup_py']
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver) by extension 'python_setup_py'
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/bin) by extensions ['ignore', 'ignore_ament_install']
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/bin) by extension 'ignore'
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/bin) by extension 'ignore_ament_install'
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/bin) by extensions ['colcon_pkg']
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/bin) by extension 'colcon_pkg'
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/bin) by extensions ['colcon_meta']
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/bin) by extension 'colcon_meta'
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/bin) by extensions ['ros']
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/bin) by extension 'ros'
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/bin) by extensions ['cmake', 'python']
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/bin) by extension 'cmake'
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/bin) by extension 'python'
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/bin) by extensions ['python_setup_py']
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/bin) by extension 'python_setup_py'
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/bin/dua-templates) by extensions ['ignore', 'ignore_ament_install']
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/bin/dua-templates) by extension 'ignore'
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/bin/dua-templates) by extension 'ignore_ament_install'
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/bin/dua-templates) by extensions ['colcon_pkg']
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/bin/dua-templates) by extension 'colcon_pkg'
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/bin/dua-templates) by extensions ['colcon_meta']
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/bin/dua-templates) by extension 'colcon_meta'
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/bin/dua-templates) by extensions ['ros']
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/bin/dua-templates) by extension 'ros'
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/bin/dua-templates) by extensions ['cmake', 'python']
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/bin/dua-templates) by extension 'cmake'
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/bin/dua-templates) by extension 'python'
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/bin/dua-templates) by extensions ['python_setup_py']
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/bin/dua-templates) by extension 'python_setup_py'
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/bin/dua-templates/context) by extensions ['ignore', 'ignore_ament_install']
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/bin/dua-templates/context) by extension 'ignore'
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/bin/dua-templates/context) by extension 'ignore_ament_install'
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/bin/dua-templates/context) by extensions ['colcon_pkg']
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/bin/dua-templates/context) by extension 'colcon_pkg'
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/bin/dua-templates/context) by extensions ['colcon_meta']
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/bin/dua-templates/context) by extension 'colcon_meta'
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/bin/dua-templates/context) by extensions ['ros']
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/bin/dua-templates/context) by extension 'ros'
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/bin/dua-templates/context) by extensions ['cmake', 'python']
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/bin/dua-templates/context) by extension 'cmake'
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/bin/dua-templates/context) by extension 'python'
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/bin/dua-templates/context) by extensions ['python_setup_py']
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/bin/dua-templates/context) by extension 'python_setup_py'
+[0.111s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/config) by extensions ['ignore', 'ignore_ament_install']
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/config) by extension 'ignore'
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/config) by extension 'ignore_ament_install'
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/config) by extensions ['colcon_pkg']
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/config) by extension 'colcon_pkg'
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/config) by extensions ['colcon_meta']
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/config) by extension 'colcon_meta'
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/config) by extensions ['ros']
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/config) by extension 'ros'
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/config) by extensions ['cmake', 'python']
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/config) by extension 'cmake'
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/config) by extension 'python'
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/config) by extensions ['python_setup_py']
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/config) by extension 'python_setup_py'
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker) by extensions ['ignore', 'ignore_ament_install']
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker) by extension 'ignore'
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker) by extension 'ignore_ament_install'
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker) by extensions ['colcon_pkg']
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker) by extension 'colcon_pkg'
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker) by extensions ['colcon_meta']
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker) by extension 'colcon_meta'
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker) by extensions ['ros']
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker) by extension 'ros'
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker) by extensions ['cmake', 'python']
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker) by extension 'cmake'
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker) by extension 'python'
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker) by extensions ['python_setup_py']
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker) by extension 'python_setup_py'
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-jetson6) by extensions ['ignore', 'ignore_ament_install']
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-jetson6) by extension 'ignore'
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-jetson6) by extension 'ignore_ament_install'
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-jetson6) by extensions ['colcon_pkg']
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-jetson6) by extension 'colcon_pkg'
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-jetson6) by extensions ['colcon_meta']
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-jetson6) by extension 'colcon_meta'
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-jetson6) by extensions ['ros']
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-jetson6) by extension 'ros'
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-jetson6) by extensions ['cmake', 'python']
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-jetson6) by extension 'cmake'
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-jetson6) by extension 'python'
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-jetson6) by extensions ['python_setup_py']
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-jetson6) by extension 'python_setup_py'
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-jetson6/zsh_history) by extensions ['ignore', 'ignore_ament_install']
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-jetson6/zsh_history) by extension 'ignore'
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-jetson6/zsh_history) by extension 'ignore_ament_install'
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-jetson6/zsh_history) by extensions ['colcon_pkg']
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-jetson6/zsh_history) by extension 'colcon_pkg'
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-jetson6/zsh_history) by extensions ['colcon_meta']
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-jetson6/zsh_history) by extension 'colcon_meta'
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-jetson6/zsh_history) by extensions ['ros']
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-jetson6/zsh_history) by extension 'ros'
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-jetson6/zsh_history) by extensions ['cmake', 'python']
+[0.112s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-jetson6/zsh_history) by extension 'cmake'
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-jetson6/zsh_history) by extension 'python'
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-jetson6/zsh_history) by extensions ['python_setup_py']
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-jetson6/zsh_history) by extension 'python_setup_py'
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-cudev) by extensions ['ignore', 'ignore_ament_install']
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-cudev) by extension 'ignore'
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-cudev) by extension 'ignore_ament_install'
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-cudev) by extensions ['colcon_pkg']
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-cudev) by extension 'colcon_pkg'
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-cudev) by extensions ['colcon_meta']
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-cudev) by extension 'colcon_meta'
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-cudev) by extensions ['ros']
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-cudev) by extension 'ros'
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-cudev) by extensions ['cmake', 'python']
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-cudev) by extension 'cmake'
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-cudev) by extension 'python'
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-cudev) by extensions ['python_setup_py']
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-cudev) by extension 'python_setup_py'
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-cudev/zsh_history) by extensions ['ignore', 'ignore_ament_install']
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-cudev/zsh_history) by extension 'ignore'
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-cudev/zsh_history) by extension 'ignore_ament_install'
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-cudev/zsh_history) by extensions ['colcon_pkg']
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-cudev/zsh_history) by extension 'colcon_pkg'
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-cudev/zsh_history) by extensions ['colcon_meta']
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-cudev/zsh_history) by extension 'colcon_meta'
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-cudev/zsh_history) by extensions ['ros']
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-cudev/zsh_history) by extension 'ros'
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-cudev/zsh_history) by extensions ['cmake', 'python']
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-cudev/zsh_history) by extension 'cmake'
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-cudev/zsh_history) by extension 'python'
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-cudev/zsh_history) by extensions ['python_setup_py']
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-cudev/zsh_history) by extension 'python_setup_py'
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-dev) by extensions ['ignore', 'ignore_ament_install']
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-dev) by extension 'ignore'
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-dev) by extension 'ignore_ament_install'
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-dev) by extensions ['colcon_pkg']
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-dev) by extension 'colcon_pkg'
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-dev) by extensions ['colcon_meta']
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-dev) by extension 'colcon_meta'
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-dev) by extensions ['ros']
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-dev) by extension 'ros'
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-dev) by extensions ['cmake', 'python']
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-dev) by extension 'cmake'
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-dev) by extension 'python'
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-dev) by extensions ['python_setup_py']
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-dev) by extension 'python_setup_py'
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-dev/zsh_history) by extensions ['ignore', 'ignore_ament_install']
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-dev/zsh_history) by extension 'ignore'
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-dev/zsh_history) by extension 'ignore_ament_install'
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-dev/zsh_history) by extensions ['colcon_pkg']
+[0.113s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-dev/zsh_history) by extension 'colcon_pkg'
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-dev/zsh_history) by extensions ['colcon_meta']
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-dev/zsh_history) by extension 'colcon_meta'
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-dev/zsh_history) by extensions ['ros']
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-dev/zsh_history) by extension 'ros'
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-dev/zsh_history) by extensions ['cmake', 'python']
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-dev/zsh_history) by extension 'cmake'
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-dev/zsh_history) by extension 'python'
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-dev/zsh_history) by extensions ['python_setup_py']
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/docker/container-x86-dev/zsh_history) by extension 'python_setup_py'
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/logs) by extensions ['ignore', 'ignore_ament_install']
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/logs) by extension 'ignore'
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/logs) by extension 'ignore_ament_install'
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/logs) by extensions ['colcon_pkg']
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/logs) by extension 'colcon_pkg'
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/logs) by extensions ['colcon_meta']
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/logs) by extension 'colcon_meta'
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/logs) by extensions ['ros']
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/logs) by extension 'ros'
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/logs) by extensions ['cmake', 'python']
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/logs) by extension 'cmake'
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/logs) by extension 'python'
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/logs) by extensions ['python_setup_py']
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/logs) by extension 'python_setup_py'
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/src) by extensions ['ignore', 'ignore_ament_install']
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/src) by extension 'ignore'
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/src) by extension 'ignore_ament_install'
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/src) by extensions ['colcon_pkg']
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/src) by extension 'colcon_pkg'
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/src) by extensions ['colcon_meta']
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/src) by extension 'colcon_meta'
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/src) by extensions ['ros']
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/src) by extension 'ros'
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/src) by extensions ['cmake', 'python']
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/src) by extension 'cmake'
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/src) by extension 'python'
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/src) by extensions ['python_setup_py']
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/src) by extension 'python_setup_py'
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/src/v4l2_camera_driver) by extensions ['ignore', 'ignore_ament_install']
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/src/v4l2_camera_driver) by extension 'ignore'
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/src/v4l2_camera_driver) by extension 'ignore_ament_install'
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/src/v4l2_camera_driver) by extensions ['colcon_pkg']
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/src/v4l2_camera_driver) by extension 'colcon_pkg'
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/src/v4l2_camera_driver) by extensions ['colcon_meta']
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/src/v4l2_camera_driver) by extension 'colcon_meta'
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/src/v4l2_camera_driver) by extensions ['ros']
+[0.114s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/src/v4l2_camera_driver) by extension 'ros'
+[0.115s] DEBUG:colcon.colcon_core.package_identification:Package '/home/neo/workspace/src/v4l2_camera_driver/src/v4l2_camera_driver' with type 'ros.ament_cmake' and name 'v4l2_camera_driver'
+[0.115s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/tools) by extensions ['ignore', 'ignore_ament_install']
+[0.115s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/tools) by extension 'ignore'
+[0.115s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/src/v4l2_camera_driver/tools) ignored
+[0.115s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/tools) by extensions ['ignore', 'ignore_ament_install']
+[0.115s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/tools) by extension 'ignore'
+[0.115s] Level 1:colcon.colcon_core.package_identification:_identify(/home/neo/workspace/tools) ignored
+[0.115s] Level 1:colcon.colcon_core.package_discovery:discover_packages(recursive) using defaults
+[0.124s] INFO:colcon.colcon_core.package_selection:Skipping not selected package 'dvs_msgs' in '/home/neo/workspace/src/prophesee_evk4_driver/src/dvs_msgs'
+[0.124s] INFO:colcon.colcon_core.package_selection:Skipping not selected package 'event_camera_msgs' in '/home/neo/workspace/src/prophesee_evk4_driver/src/event_camera_msgs'
+[0.124s] INFO:colcon.colcon_core.package_selection:Skipping not selected package 'prophesee_event_msgs' in '/home/neo/workspace/src/prophesee_evk4_driver/src/prophesee_event_msgs'
+[0.124s] INFO:colcon.colcon_core.package_selection:Skipping not selected package 'prophesee_evk4_driver' in '/home/neo/workspace/src/prophesee_evk4_driver/src/prophesee_evk4_driver'
+[0.124s] INFO:colcon.colcon_core.package_selection:Skipping not selected package 'v4l2_camera_driver' in '/home/neo/workspace/src/v4l2_camera_driver/src/v4l2_camera_driver'
+[0.124s] INFO:colcon.colcon_core.package_selection:Skipping not selected package 'dsec_publisher' in '/home/neo/workspace/src/dsec_publisher'
+[0.124s] INFO:colcon.colcon_core.package_selection:Skipping not selected package 'event_camera_codecs' in '/home/neo/workspace/src/prophesee_evk4_driver/src/event_camera_codecs'
+[0.124s] INFO:colcon.colcon_core.package_selection:Skipping not selected package 'event_detector' in '/home/neo/workspace/src/event_detector'
+[0.124s] INFO:colcon.colcon_core.package_selection:Skipping not selected package 'event_camera_renderer' in '/home/neo/workspace/src/prophesee_evk4_driver/src/event_camera_renderer'
+[0.124s] INFO:colcon.colcon_core.package_selection:Skipping not selected package 'event_camera_tools' in '/home/neo/workspace/src/prophesee_evk4_driver/src/event_camera_tools'
+[0.124s] Level 5:colcon.colcon_core.verb:set package 'event_detector_cpp' build argument 'cmake_args' from command line to 'None'
+[0.124s] Level 5:colcon.colcon_core.verb:set package 'event_detector_cpp' build argument 'cmake_target' from command line to 'None'
+[0.124s] Level 5:colcon.colcon_core.verb:set package 'event_detector_cpp' build argument 'cmake_target_skip_unavailable' from command line to 'False'
+[0.124s] Level 5:colcon.colcon_core.verb:set package 'event_detector_cpp' build argument 'cmake_clean_cache' from command line to 'False'
+[0.124s] Level 5:colcon.colcon_core.verb:set package 'event_detector_cpp' build argument 'cmake_clean_first' from command line to 'False'
+[0.124s] Level 5:colcon.colcon_core.verb:set package 'event_detector_cpp' build argument 'cmake_force_configure' from command line to 'False'
+[0.124s] Level 5:colcon.colcon_core.verb:set package 'event_detector_cpp' build argument 'ament_cmake_args' from command line to 'None'
+[0.124s] Level 5:colcon.colcon_core.verb:set package 'event_detector_cpp' build argument 'catkin_cmake_args' from command line to 'None'
+[0.124s] Level 5:colcon.colcon_core.verb:set package 'event_detector_cpp' build argument 'catkin_skip_building_tests' from command line to 'False'
+[0.124s] DEBUG:colcon.colcon_core.verb:Building package 'event_detector_cpp' with the following arguments: {'ament_cmake_args': None, 'build_base': '/home/neo/workspace/src/event_detector_cpp/test/build/event_detector_cpp', 'catkin_cmake_args': None, 'catkin_skip_building_tests': False, 'cmake_args': None, 'cmake_clean_cache': False, 'cmake_clean_first': False, 'cmake_force_configure': False, 'cmake_target': None, 'cmake_target_skip_unavailable': False, 'install_base': '/home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp', 'merge_install': False, 'path': '/home/neo/workspace/src/event_detector_cpp', 'symlink_install': True, 'test_result_base': None}
+[0.125s] INFO:colcon.colcon_core.executor:Executing jobs using 'parallel' executor
+[0.125s] DEBUG:colcon.colcon_parallel_executor.executor.parallel:run_until_complete
+[0.125s] INFO:colcon.colcon_ros.task.ament_cmake.build:Building ROS package in '/home/neo/workspace/src/event_detector_cpp' with build type 'ament_cmake'
+[0.125s] INFO:colcon.colcon_cmake.task.cmake.build:Building CMake package in '/home/neo/workspace/src/event_detector_cpp'
+[0.126s] INFO:colcon.colcon_core.plugin_system:Skipping extension 'colcon_core.shell.bat': Not used on non-Windows systems
+[0.126s] INFO:colcon.colcon_core.shell:Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[0.126s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[0.129s] WARNING:colcon.colcon_core.shell:The following packages are in the workspace but haven't been built:
+- event_camera_msgs
+- event_camera_codecs
+They are being used from the following locations instead:
+- /home/neo/workspace/install/event_camera_msgs
+- /home/neo/workspace/install/event_camera_codecs
+To suppress this warning ignore these packages in the workspace:
+--packages-ignore event_camera_msgs event_camera_codecs
+[0.133s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoking command in '/home/neo/workspace/src/event_detector_cpp/test/build/event_detector_cpp': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/neo/workspace/install/event_detector:/home/neo/workspace/install/dsec_publisher:/opt/ros/jazzy PS1=(dua-venv) %m%# VIRTUAL_ENV_PROMPT=(dua-venv) /usr/bin/cmake --build /home/neo/workspace/src/event_detector_cpp/test/build/event_detector_cpp -- -j24 -l24
+[20.417s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoked command in '/home/neo/workspace/src/event_detector_cpp/test/build/event_detector_cpp' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/neo/workspace/install/event_detector:/home/neo/workspace/install/dsec_publisher:/opt/ros/jazzy PS1=(dua-venv) %m%# VIRTUAL_ENV_PROMPT=(dua-venv) /usr/bin/cmake --build /home/neo/workspace/src/event_detector_cpp/test/build/event_detector_cpp -- -j24 -l24
+[20.424s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoking command in '/home/neo/workspace/src/event_detector_cpp/test/build/event_detector_cpp': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/neo/workspace/install/event_detector:/home/neo/workspace/install/dsec_publisher:/opt/ros/jazzy PS1=(dua-venv) %m%# VIRTUAL_ENV_PROMPT=(dua-venv) /usr/bin/cmake --install /home/neo/workspace/src/event_detector_cpp/test/build/event_detector_cpp
+[20.438s] Level 1:colcon.colcon_core.environment:create_environment_scripts_only(event_detector_cpp)
+[20.438s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoked command in '/home/neo/workspace/src/event_detector_cpp/test/build/event_detector_cpp' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/neo/workspace/install/event_detector:/home/neo/workspace/install/dsec_publisher:/opt/ros/jazzy PS1=(dua-venv) %m%# VIRTUAL_ENV_PROMPT=(dua-venv) /usr/bin/cmake --install /home/neo/workspace/src/event_detector_cpp/test/build/event_detector_cpp
+[20.439s] Level 1:colcon.colcon_core.environment:checking '/home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp' for CMake module files
+[20.439s] Level 1:colcon.colcon_core.environment:checking '/home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp' for CMake config files
+[20.440s] Level 1:colcon.colcon_core.shell:create_environment_hook('event_detector_cpp', 'cmake_prefix_path')
+[20.440s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/hook/cmake_prefix_path.ps1'
+[20.440s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/hook/cmake_prefix_path.dsv'
+[20.440s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/hook/cmake_prefix_path.sh'
+[20.441s] Level 1:colcon.colcon_core.environment:checking '/home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/lib'
+[20.441s] Level 1:colcon.colcon_core.shell:create_environment_hook('event_detector_cpp', 'ld_library_path_lib')
+[20.441s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/hook/ld_library_path_lib.ps1'
+[20.441s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/hook/ld_library_path_lib.dsv'
+[20.441s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/hook/ld_library_path_lib.sh'
+[20.441s] Level 1:colcon.colcon_core.environment:checking '/home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/bin'
+[20.442s] Level 1:colcon.colcon_core.environment:checking '/home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/lib/pkgconfig/event_detector_cpp.pc'
+[20.443s] Level 1:colcon.colcon_core.environment:checking '/home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/lib/python3.12/site-packages'
+[20.443s] Level 1:colcon.colcon_core.environment:checking '/home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/bin'
+[20.443s] INFO:colcon.colcon_core.shell:Creating package script '/home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/package.ps1'
+[20.444s] INFO:colcon.colcon_core.shell:Creating package descriptor '/home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/package.dsv'
+[20.444s] INFO:colcon.colcon_core.shell:Creating package script '/home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/package.sh'
+[20.444s] INFO:colcon.colcon_core.shell:Creating package script '/home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/package.bash'
+[20.445s] INFO:colcon.colcon_core.shell:Creating package script '/home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/package.zsh'
+[20.445s] Level 1:colcon.colcon_core.environment:create_file_with_runtime_dependencies(/home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/colcon-core/packages/event_detector_cpp)
+[20.445s] Level 1:colcon.colcon_core.environment:create_environment_scripts_only(event_detector_cpp)
+[20.445s] Level 1:colcon.colcon_core.environment:checking '/home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp' for CMake module files
+[20.445s] Level 1:colcon.colcon_core.environment:checking '/home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp' for CMake config files
+[20.446s] Level 1:colcon.colcon_core.shell:create_environment_hook('event_detector_cpp', 'cmake_prefix_path')
+[20.446s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/hook/cmake_prefix_path.ps1'
+[20.446s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/hook/cmake_prefix_path.dsv'
+[20.446s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/hook/cmake_prefix_path.sh'
+[20.446s] Level 1:colcon.colcon_core.environment:checking '/home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/lib'
+[20.446s] Level 1:colcon.colcon_core.shell:create_environment_hook('event_detector_cpp', 'ld_library_path_lib')
+[20.446s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/hook/ld_library_path_lib.ps1'
+[20.447s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/hook/ld_library_path_lib.dsv'
+[20.447s] INFO:colcon.colcon_core.shell:Creating environment hook '/home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/hook/ld_library_path_lib.sh'
+[20.447s] Level 1:colcon.colcon_core.environment:checking '/home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/bin'
+[20.447s] Level 1:colcon.colcon_core.environment:checking '/home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/lib/pkgconfig/event_detector_cpp.pc'
+[20.447s] Level 1:colcon.colcon_core.environment:checking '/home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/lib/python3.12/site-packages'
+[20.447s] Level 1:colcon.colcon_core.environment:checking '/home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/bin'
+[20.447s] INFO:colcon.colcon_core.shell:Creating package script '/home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/package.ps1'
+[20.448s] INFO:colcon.colcon_core.shell:Creating package descriptor '/home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/package.dsv'
+[20.448s] INFO:colcon.colcon_core.shell:Creating package script '/home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/package.sh'
+[20.448s] INFO:colcon.colcon_core.shell:Creating package script '/home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/package.bash'
+[20.448s] INFO:colcon.colcon_core.shell:Creating package script '/home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/package.zsh'
+[20.448s] Level 1:colcon.colcon_core.environment:create_file_with_runtime_dependencies(/home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/colcon-core/packages/event_detector_cpp)
+[20.448s] DEBUG:colcon.colcon_parallel_executor.executor.parallel:closing loop
+[20.449s] DEBUG:colcon.colcon_parallel_executor.executor.parallel:loop closed
+[20.449s] DEBUG:colcon.colcon_parallel_executor.executor.parallel:run_until_complete finished with '0'
+[20.449s] DEBUG:colcon.colcon_core.event_reactor:joining thread
+[20.452s] INFO:colcon.colcon_core.plugin_system:Skipping extension 'colcon_notification.desktop_notification.terminal_notifier': Not used on non-Darwin systems
+[20.452s] INFO:colcon.colcon_core.plugin_system:Skipping extension 'colcon_notification.desktop_notification.win32': Not used on non-Windows systems
+[20.452s] INFO:colcon.colcon_notification.desktop_notification:Sending desktop notification using 'notify2'
+[20.453s] DEBUG:colcon.colcon_notification.desktop_notification.notify2:Failed to initialize notify2: org.freedesktop.DBus.Error.Spawn.ExecFailed: /usr/bin/dbus-launch terminated abnormally without any error message
+[20.454s] DEBUG:colcon.colcon_core.event_reactor:joined thread
+[20.454s] INFO:colcon.colcon_core.shell:Creating prefix script '/home/neo/workspace/src/event_detector_cpp/test/install/local_setup.ps1'
+[20.454s] INFO:colcon.colcon_core.shell:Creating prefix util module '/home/neo/workspace/src/event_detector_cpp/test/install/_local_setup_util_ps1.py'
+[20.455s] INFO:colcon.colcon_core.shell:Creating prefix chain script '/home/neo/workspace/src/event_detector_cpp/test/install/setup.ps1'
+[20.456s] INFO:colcon.colcon_core.shell:Creating prefix script '/home/neo/workspace/src/event_detector_cpp/test/install/local_setup.sh'
+[20.456s] INFO:colcon.colcon_core.shell:Creating prefix util module '/home/neo/workspace/src/event_detector_cpp/test/install/_local_setup_util_sh.py'
+[20.456s] INFO:colcon.colcon_core.shell:Creating prefix chain script '/home/neo/workspace/src/event_detector_cpp/test/install/setup.sh'
+[20.457s] INFO:colcon.colcon_core.shell:Creating prefix script '/home/neo/workspace/src/event_detector_cpp/test/install/local_setup.bash'
+[20.457s] INFO:colcon.colcon_core.shell:Creating prefix chain script '/home/neo/workspace/src/event_detector_cpp/test/install/setup.bash'
+[20.458s] INFO:colcon.colcon_core.shell:Creating prefix script '/home/neo/workspace/src/event_detector_cpp/test/install/local_setup.zsh'
+[20.458s] INFO:colcon.colcon_core.shell:Creating prefix chain script '/home/neo/workspace/src/event_detector_cpp/test/install/setup.zsh'

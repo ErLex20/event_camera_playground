@@ -53,6 +53,8 @@
 #include <sensor_msgs/msg/image.hpp>
 #include <std_msgs/msg/header.hpp>
 
+#include <event_detector_cpp/flow/objective.hpp>
+
 using namespace event_camera_msgs::msg;
 
 namespace event_detector_cpp
@@ -130,33 +132,29 @@ private:
    */
   cv::Mat compute_sae(const dv::EventStore & events);
 
+  /* Outputs of one contrast-maximization flow solve over a window. */
+  struct FlowResult
+  {
+    cv::Mat flow;  // dense flow field, BGR8 (hue = direction, value = speed)
+    cv::Mat iwe;   // Image of Warped Events at the window midpoint, MONO8
+  };
+
   /**
-   * @brief Estimates a single global velocity from a window of events via
-   * contrast maximization and renders the events warped by it.
+   * @brief Estimates dense optical flow from a window of events by contrast
+   * maximization, following Shiba-Gallego "Secrets of Event-Based Optical Flow".
+   *
+   * Minimizes the composite energy E(F) = 1/f(F) + lambda*TV(F) (Eq. 9) over a
+   * tile-grid flow field, coarse-to-fine across a tile pyramid (2^(l-1) tiles
+   * per side), each scale solved with a Hessian-free Newton-CG optimizer and
+   * warm-started from the previous (coarser) scale. Renders both the dense flow
+   * field (HSV) and the Image of Warped Events at the window midpoint.
    *
    * Runs on the worker thread.
    *
-   * @param window The window of events to warp.
-   * @param v_global_out Set to the estimated global velocity [px/s].
-   * @return A single-channel (MONO8) image of the globally warped events.
-   */
-  cv::Mat compute_iwe(
-    const dv::EventStore & window,
-    cv::Vec2f & v_global_out);
-
-  /**
-   * @brief Estimates dense optical flow from a window of events.
-   *
-   * Runs per-patch contrast maximization and renders the velocity field as an
-   * HSV image. Runs on the worker thread.
-   *
    * @param window The window of events to estimate the flow from.
-   * @param seed Global velocity [px/s] used to warm-start each patch's solver.
-   * @return A BGR8 image of the dense flow field (hue = direction, value = speed).
+   * @return The rendered flow (BGR8) and IWE (MONO8) images.
    */
-  cv::Mat compute_optical_flow(
-    const dv::EventStore & window,
-    const cv::Vec2f & seed);
+  FlowResult solve_flow_cmax(const dv::EventStore & window);
 
   /**
    * @brief Allocates the resolution-dependent processors on the first packet.
@@ -257,15 +255,15 @@ private:
    * packet stream monotonic before accept() (which throws on out-of-order input). */
   int64_t filter_high_us_{std::numeric_limits<int64_t>::lowest()};
 
-  /* Optical-flow state. */
+  /* Optical-flow state. Events accumulate here until the window reaches
+   * flow_num_events_, at which point a contrast-maximization solve is run on
+   * the whole batch (event-count windowing, the paper's sets E_i of N events). */
   dv::EventStore flow_accum_;
-  int64_t flow_window_start_us_{std::numeric_limits<int64_t>::lowest()};
-  /* Previous window's per-patch velocity field (CV_32FC2, grid-sized), used to
-   * warm-start the solver. Empty until the first field has been estimated. */
-  cv::Mat prev_flow_;
-  /* Previous window's global velocity [px/s], used to warm-start the global
-   * contrast-maximization that drives the IWE and seeds the per-patch flow. */
-  cv::Vec2f prev_global_v_{0.0f, 0.0f};
+  /* Previous window's finest-scale tile flow field and its per-side tile count,
+   * used to warm-start the next window (Sec. III-D cross-window initialization).
+   * Empty (prev_flow_tiles_ == 0) until the first window has been solved. */
+  Eigen::VectorXf prev_flow_field_;
+  int prev_flow_tiles_{0};
 
   /* Node parameters. */
   bool    autostart_;
@@ -275,12 +273,20 @@ private:
   bool    sae_enabled_;
   bool    iwe_enabled_;
   bool    flow_enabled_;
-  double  flow_window_ms_;
-  int64_t flow_patch_size_;
-  int64_t flow_min_events_;
+  int64_t flow_num_events_;
+  int64_t flow_num_scales_;
+  bool    flow_contrast_l2_;
+  double  flow_tv_weight_;
+  double  flow_tv_charbonnier_eps_;
+  bool    flow_time_aware_;
+  bool    flow_pde_burgers_;
+  int64_t flow_time_bins_;
+  int64_t flow_prop_grid_;
+  int64_t flow_newton_max_iter_;
+  int64_t flow_cg_max_iter_;
+  double  flow_cg_tol_;
+  int64_t flow_iwe_scale_;
   double  flow_max_speed_px_s_;
-  int64_t flow_cmax_max_iter_;
-  double  flow_cmax_learning_rate_;
 
   /* Threads. */
   std::thread thread_worker_;

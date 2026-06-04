@@ -1,0 +1,31 @@
+[0.007s] Invoking command in '/home/neo/workspace/src/event_detector_cpp/test/build/event_detector_cpp': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/neo/workspace/install/event_detector:/home/neo/workspace/install/dsec_publisher:/opt/ros/jazzy PS1=(dua-venv) %m%# VIRTUAL_ENV_PROMPT=(dua-venv) /usr/bin/cmake --build /home/neo/workspace/src/event_detector_cpp/test/build/event_detector_cpp -- -j24 -l24
+[0.065s] [  7%] Building CXX object CMakeFiles/event_detector_cpp.dir/src/event_detector_cpp/optical_flow.cpp.o
+[6.881s] [ 14%] Linking CXX shared library libevent_detector_cpp.so
+[7.212s] [ 85%] Built target event_detector_cpp
+[7.237s] [ 92%] Linking CXX executable event_detector_cpp_app
+[7.400s] [100%] Built target event_detector_cpp_app
+[7.407s] Invoked command in '/home/neo/workspace/src/event_detector_cpp/test/build/event_detector_cpp' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/neo/workspace/install/event_detector:/home/neo/workspace/install/dsec_publisher:/opt/ros/jazzy PS1=(dua-venv) %m%# VIRTUAL_ENV_PROMPT=(dua-venv) /usr/bin/cmake --build /home/neo/workspace/src/event_detector_cpp/test/build/event_detector_cpp -- -j24 -l24
+[7.414s] Invoking command in '/home/neo/workspace/src/event_detector_cpp/test/build/event_detector_cpp': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/neo/workspace/install/event_detector:/home/neo/workspace/install/dsec_publisher:/opt/ros/jazzy PS1=(dua-venv) %m%# VIRTUAL_ENV_PROMPT=(dua-venv) /usr/bin/cmake --install /home/neo/workspace/src/event_detector_cpp/test/build/event_detector_cpp
+[7.419s] -- Install configuration: "RelWithDebInfo"
+[7.419s] -- Execute custom install script
+[7.420s] -- Up-to-date symlink: /home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/lib/libevent_detector_cpp.so
+[7.420s] -- Up-to-date symlink: /home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/lib/event_detector_cpp/event_detector_cpp_app
+[7.420s] -- Up-to-date symlink: /home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/config/event_detector_cpp.yaml
+[7.420s] -- Up-to-date symlink: /home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/launch/event_detector_cpp.launch.py
+[7.420s] -- Up-to-date symlink: /home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/ament_index/resource_index/package_run_dependencies/event_detector_cpp
+[7.420s] -- Up-to-date symlink: /home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/ament_index/resource_index/parent_prefix_path/event_detector_cpp
+[7.421s] -- Up-to-date symlink: /home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/environment/ament_prefix_path.sh
+[7.421s] -- Up-to-date symlink: /home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/environment/ament_prefix_path.dsv
+[7.421s] -- Up-to-date symlink: /home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/environment/path.sh
+[7.421s] -- Up-to-date symlink: /home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/environment/path.dsv
+[7.421s] -- Up-to-date symlink: /home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/local_setup.bash
+[7.421s] -- Up-to-date symlink: /home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/local_setup.sh
+[7.421s] -- Up-to-date symlink: /home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/local_setup.zsh
+[7.421s] -- Up-to-date symlink: /home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/local_setup.dsv
+[7.421s] -- Symlinking: /home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/package.dsv
+[7.426s] -- Up-to-date symlink: /home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/ament_index/resource_index/packages/event_detector_cpp
+[7.427s] -- Up-to-date symlink: /home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/ament_index/resource_index/rclcpp_components/event_detector_cpp
+[7.427s] -- Up-to-date symlink: /home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/cmake/event_detector_cppConfig.cmake
+[7.427s] -- Up-to-date symlink: /home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/cmake/event_detector_cppConfig-version.cmake
+[7.427s] -- Up-to-date symlink: /home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/package.xml
+[7.428s] Invoked command in '/home/neo/workspace/src/event_detector_cpp/test/build/event_detector_cpp' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/neo/workspace/install/event_detector:/home/neo/workspace/install/dsec_publisher:/opt/ros/jazzy PS1=(dua-venv) %m%# VIRTUAL_ENV_PROMPT=(dua-venv) /usr/bin/cmake --install /home/neo/workspace/src/event_detector_cpp/test/build/event_detector_cpp

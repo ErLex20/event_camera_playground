@@ -12,9 +12,17 @@
     sae_enabled: true
     iwe_enabled: true
     flow_enabled: true
-    flow_window_ms: 10.0
-    flow_patch_size: 8
-    flow_min_events: 1
+    flow_num_events: 30000
+    flow_num_scales: 5
+    flow_contrast_l2: false
+    flow_tv_weight: 0.0025
+    flow_tv_charbonnier_eps: 0.001
+    flow_time_aware: false
+    flow_pde_burgers: false
+    flow_time_bins: 5
+    flow_prop_grid: 32
+    flow_newton_max_iter: 10
+    flow_cg_max_iter: 5
+    flow_cg_tol: 0.1
+    flow_iwe_scale: 1
     flow_max_speed_px_s: 3000.0
-    flow_cmax_max_iter: 30
-    flow_cmax_learning_rate: 0.1

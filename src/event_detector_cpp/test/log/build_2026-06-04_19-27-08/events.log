@@ -1,0 +1,405 @@
+[0.000000] (-) TimerEvent: {}
+[0.000084] (-) JobUnselected: {'identifier': 'dsec_publisher'}
+[0.000111] (-) JobUnselected: {'identifier': 'dvs_msgs'}
+[0.000175] (-) JobUnselected: {'identifier': 'event_camera_codecs'}
+[0.000276] (-) JobUnselected: {'identifier': 'event_camera_msgs'}
+[0.000368] (-) JobUnselected: {'identifier': 'event_camera_renderer'}
+[0.000409] (-) JobUnselected: {'identifier': 'event_camera_tools'}
+[0.000456] (-) JobUnselected: {'identifier': 'event_detector'}
+[0.000516] (-) JobUnselected: {'identifier': 'prophesee_event_msgs'}
+[0.000532] (-) JobUnselected: {'identifier': 'prophesee_evk4_driver'}
+[0.000552] (-) JobUnselected: {'identifier': 'v4l2_camera_driver'}
+[0.000567] (event_detector_cpp) JobQueued: {'identifier': 'event_detector_cpp', 'dependencies': OrderedDict({'event_camera_msgs': '/home/neo/workspace/src/event_detector_cpp/test/install/event_camera_msgs', 'event_camera_codecs': '/home/neo/workspace/src/event_detector_cpp/test/install/event_camera_codecs'})}
+[0.000587] (event_detector_cpp) JobStarted: {'identifier': 'event_detector_cpp'}
+[0.007727] (event_detector_cpp) JobProgress: {'identifier': 'event_detector_cpp', 'progress': 'cmake'}
+[0.007997] (event_detector_cpp) Command: {'cmd': ['/usr/bin/cmake', '/home/neo/workspace/src/event_detector_cpp', '-DAMENT_CMAKE_SYMLINK_INSTALL=1', '-DCMAKE_INSTALL_PREFIX=/home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp'], 'cwd': '/home/neo/workspace/src/event_detector_cpp/test/build/event_detector_cpp', 'env': OrderedDict({'LIBRARY_PATH': '/usr/local/cuda/lib64/stubs', 'PYTHON_BASIC_REPL': '1', 'NV_LIBCUBLAS_VERSION': '12.8.4.1-1', 'NV_NVPROF_DEV_PACKAGE': 'cuda-nvprof-12-8=12.8.90-1', 'NV_CUDA_NSIGHT_COMPUTE_VERSION': '12.8.1-1', 'GZ_SIM_RESOURCE_PATH': '/opt/ros/jazzy/share', 'AI_AGENT': 'claude-code_2-1-162_agent', 'CLAUDE_CODE_ENTRYPOINT': 'cli', 'GZ_CONFIG_PATH': '/opt/ros/jazzy/opt/gz_sim_vendor/share/gz:/opt/ros/jazzy/opt/sdformat_vendor/share/gz:/opt/ros/jazzy/opt/gz_gui_vendor/share/gz:/opt/ros/jazzy/opt/gz_transport_vendor/share/gz:/opt/ros/jazzy/opt/gz_rendering_vendor/share/gz:/opt/ros/jazzy/opt/gz_plugin_vendor/share/gz:/opt/ros/jazzy/opt/gz_fuel_tools_vendor/share/gz:/opt/ros/jazzy/opt/gz_msgs_vendor/share/gz:/opt/ros/jazzy/opt/gz_common_vendor/share/gz', 'GIT_EDITOR': 'true', 'HOSTNAME': 'legolas', '__GLX_VENDOR_LIBRARY_NAME': 'nvidia', 'GIT_ASKPASS': '/vscode/vscode-server/bin/linux-x64/6a44c352bd24569c417e530095901b649960f9f8/extensions/git/dist/askpass.sh', 'LD_LIBRARY_PATH': '/home/neo/workspace/install/v4l2_camera_driver/lib:/home/neo/workspace/install/evo/lib:/home/neo/workspace/install/sophus_vendor/lib:/home/neo/workspace/install/event_camera_tools/lib:/home/neo/workspace/install/prophesee_event_msgs/lib:/home/neo/workspace/install/evo_utils/lib:/home/neo/workspace/install/minkindr/lib:/home/neo/workspace/install/event_detector_cpp/lib:/home/neo/workspace/install/event_camera_renderer/lib:/home/neo/workspace/install/event_camera_codecs/lib:/home/neo/workspace/install/event_camera_msgs/lib:/home/neo/workspace/install/dvs_slam_msgs/lib:/home/neo/workspace/install/dvs_msgs/lib:/opt/ros/dua-utils/install/lib:/opt/ros/zenoh/install/lib:/opt/ros/zenoh/install/opt/zenoh_cpp_vendor/lib:/opt/ros/jazzy/opt/gz_sim_vendor/lib:/opt/ros/jazzy/opt/gz_sensors_vendor/lib:/opt/ros/jazzy/opt/gz_physics_vendor/lib:/opt/ros/jazzy/opt/sdformat_vendor/lib:/opt/ros/jazzy/opt/rviz_ogre_vendor/lib:/opt/ros/jazzy/lib/x86_64-linux-gnu:/opt/ros/jazzy/opt/gz_gui_vendor/lib:/opt/ros/jazzy/opt/gz_transport_vendor/lib:/opt/ros/jazzy/opt/gz_rendering_vendor/lib:/opt/ros/jazzy/opt/gz_plugin_vendor/lib:/opt/ros/jazzy/opt/gz_fuel_tools_vendor/lib:/opt/ros/jazzy/opt/gz_msgs_vendor/lib:/opt/ros/jazzy/opt/gz_common_vendor/lib:/opt/ros/jazzy/opt/gz_math_vendor/lib:/opt/ros/jazzy/opt/gz_utils_vendor/lib:/opt/ros/jazzy/opt/gz_tools_vendor/lib:/opt/ros/jazzy/opt/gz_ogre_next_vendor/lib:/opt/ros/jazzy/opt/gz_dartsim_vendor/lib:/opt/ros/jazzy/opt/gz_cmake_vendor/lib:/opt/ros/jazzy/lib:/opt/ros/jazzy/opt/openeb_vendor/lib:/usr/local/cuda/lib64', 'NV_LIBNCCL_PACKAGE_VERSION': '2.25.1-1', 'SHLVL': '3', 'BROWSER': '/vscode/vscode-server/bin/linux-x64/6a44c352bd24569c417e530095901b649960f9f8/bin/helpers/browser.sh', 'HOME': '/home/neo', 'OLDPWD': '/home/neo/workspace/src/event_detector_cpp/test', 'LESS': '-R', 'NV_LIBCUBLAS_DEV_VERSION': '12.8.4.1-1', 'NV_CUDNN_PACKAGE_NAME': 'libcudnn9-cuda-12', 'TERM_PROGRAM_VERSION': '1.123.0', 'VSCODE_IPC_HOOK_CLI': '/tmp/vscode-ipc-e4b75da5-70b6-43b7-bd92-e91d62f1db41.sock', 'ZSH': '/home/neo/.oh-my-zsh', 'LSCOLORS': 'Gxfxcxdxbxegedabagacad', 'PAGER': 'less', 'ROS_PYTHON_VERSION': '3', 'VSCODE_GIT_ASKPASS_MAIN': '/vscode/vscode-server/bin/linux-x64/6a44c352bd24569c417e530095901b649960f9f8/extensions/git/dist/askpass-main.js', 'PS1': '(dua-venv) %m%#', 'VSCODE_GIT_ASKPASS_NODE': '/vscode/vscode-server/bin/linux-x64/6a44c352bd24569c417e530095901b649960f9f8/node', 'NV_LIBNCCL_DEV_PACKAGE_VERSION': '2.25.1-1', 'ZSH_THEMES': '/home/neo/.oh-my-zsh/custom/themes', 'ROS_LOG_DIR': '/home/neo/workspace/logs/ros', 'ROS_STATIC_PEERS': '', 'PYDEVD_DISABLE_FILE_VALIDATION': '1', 'BUNDLED_DEBUGPY_PATH': '/home/neo/.vscode-server/extensions/ms-python.debugpy-2026.6.0-linux-x64/bundled/libs/debugpy', 'VSCODE_PYTHON_AUTOACTIVATE_GUARD': '1', 'P9K_TTY': 'old', 'NV_LIBNPP_PACKAGE': 'libnpp-12-8=12.3.3.100-1', 'REMOTE_CONTAINERS': 'true', 'COLORTERM': 'truecolor', 'CUDA_VERSION': '12.8.1', 'NV_CUDNN_PACKAGE': 'libcudnn9-cuda-12=9.8.0.87-1', 'NV_NVPROF_VERSION': '12.8.90-1', 'TORCH_CUDA_ARCH_LIST': '12.0', 'ROS_DISTRO': 'jazzy', 'COLCON_PREFIX_PATH': '/home/neo/workspace/install:/opt/ros/dua-utils/install:/opt/ros/zenoh/install', 'TMPDIR': '/tmp/claude-1000', 'NV_LIBCUBLAS_PACKAGE_NAME': 'libcublas-12-8', 'DAGR_DIR': '/opt/dagr', 'REMOTE_CONTAINERS_IPC': '/tmp/vscode-remote-containers-ipc-9596d55e-bac2-414a-a399-570bd1f92112.sock', 'LOGNAME': 'neo', 'NVIDIA_REQUIRE_CUDA': 'cuda>=12.8 brand=unknown,driver>=470,driver<471 brand=grid,driver>=470,driver<471 brand=tesla,driver>=470,driver<471 brand=nvidia,driver>=470,driver<471 brand=quadro,driver>=470,driver<471 brand=quadrortx,driver>=470,driver<471 brand=nvidiartx,driver>=470,driver<471 brand=vapps,driver>=470,driver<471 brand=vpc,driver>=470,driver<471 brand=vcs,driver>=470,driver<471 brand=vws,driver>=470,driver<471 brand=cloudgaming,driver>=470,driver<471 brand=unknown,driver>=535,driver<536 brand=grid,driver>=535,driver<536 brand=tesla,driver>=535,driver<536 brand=nvidia,driver>=535,driver<536 brand=quadro,driver>=535,driver<536 brand=quadrortx,driver>=535,driver<536 brand=nvidiartx,driver>=535,driver<536 brand=vapps,driver>=535,driver<536 brand=vpc,driver>=535,driver<536 brand=vcs,driver>=535,driver<536 brand=vws,driver>=535,driver<536 brand=cloudgaming,driver>=535,driver<536 brand=unknown,driver>=550,driver<551 brand=grid,driver>=550,driver<551 brand=tesla,driver>=550,driver<551 brand=nvidia,driver>=550,driver<551 brand=quadro,driver>=550,driver<551 brand=quadrortx,driver>=550,driver<551 brand=nvidiartx,driver>=550,driver<551 brand=vapps,driver>=550,driver<551 brand=vpc,driver>=550,driver<551 brand=vcs,driver>=550,driver<551 brand=vws,driver>=550,driver<551 brand=cloudgaming,driver>=550,driver<551 brand=unknown,driver>=560,driver<561 brand=grid,driver>=560,driver<561 brand=tesla,driver>=560,driver<561 brand=nvidia,driver>=560,driver<561 brand=quadro,driver>=560,driver<561 brand=quadrortx,driver>=560,driver<561 brand=nvidiartx,driver>=560,driver<561 brand=vapps,driver>=560,driver<561 brand=vpc,driver>=560,driver<561 brand=vcs,driver>=560,driver<561 brand=vws,driver>=560,driver<561 brand=cloudgaming,driver>=560,driver<561 brand=unknown,driver>=565,driver<566 brand=grid,driver>=565,driver<566 brand=tesla,driver>=565,driver<566 brand=nvidia,driver>=565,driver<566 brand=quadro,driver>=565,driver<566 brand=quadrortx,driver>=565,driver<566 brand=nvidiartx,driver>=565,driver<566 brand=vapps,driver>=565,driver<566 brand=vpc,driver>=565,driver<566 brand=vcs,driver>=565,driver<566 brand=vws,driver>=565,driver<566 brand=cloudgaming,driver>=565,driver<566', '_P9K_SSH_TTY': '/dev/pts/0', '_': '/usr/bin/colcon', 'NVIDIA_DRIVER_CAPABILITIES': 'all', 'NV_CUDA_LIB_VERSION': '12.8.1-1', 'NV_LIBCUSPARSE_VERSION': '12.5.8.93-1', 'NV_LIBNCCL_PACKAGE_NAME': 'libnccl2', 'TENSORRT_VERSION': '10.9.0.34-1+cuda12.8', 'ULTRALYTICS_UPDATE_CHECK': 'False', 'ROS_VERSION': '2', 'RUST_LOG': 'zenoh=info', 'CLAUDE_CODE_SSE_PORT': '55161', 'USER_ZDOTDIR': '/home/neo', 'TERM': 'xterm-256color', 'NV_NVML_DEV_VERSION': '12.8.90-1', 'NV_LIBNPP_DEV_PACKAGE': 'libnpp-dev-12-8=12.3.3.100-1', 'NV_CUDA_CUDART_VERSION': '12.8.90-1', 'NV_CUDNN_PACKAGE_DEV': 'libcudnn9-dev-cuda-12=9.8.0.87-1', 'RUSTUP_HOME': '/opt/rust', 'TMPPREFIX': '/tmp/claude-1000/zsh', 'PATH': '/home/neo/.local/bin:/opt/dua-venv/bin:/home/neo/.vscode-server/data/User/globalStorage/github.copilot-chat/debugCommand:/home/neo/.vscode-server/data/User/globalStorage/github.copilot-chat/copilotCli:/vscode/vscode-server/bin/linux-x64/6a44c352bd24569c417e530095901b649960f9f8/bin/remote-cli:/home/neo/.local/bin:/opt/ros/jazzy/opt/openeb_vendor/bin:/opt/ros/jazzy/opt/gz_msgs_vendor/bin:/opt/ros/jazzy/opt/gz_tools_vendor/bin:/opt/ros/jazzy/opt/gz_ogre_next_vendor/bin:/opt/ros/jazzy/bin:/opt/dua-venv/bin:/opt/dds/Fast-DDS/src/fastddsgen/scripts:/opt/dds/cyclonedds/install/bin:/usr/src/tensorrt/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/neo/.vscode-server/extensions/ms-python.debugpy-2026.6.0-linux-x64/bundled/scripts/noConfigScripts:/home/neo/.claude/plugins/cache/claude-plugins-official/feature-dev/unknown/bin:/home/neo/.claude/plugins/cache/claude-plugins-official/ralph-loop/1.0.0/bin:/home/neo/.claude/plugins/cache/claude-plugins-official/superpowers/5.1.0/bin', 'NVARCH': 'x86_64', 'NV_LIBCUBLAS_PACKAGE': 'libcublas-12-8=12.8.4.1-1', 'NV_LIBCUBLAS_DEV_PACKAGE_NAME': 'libcublas-dev-12-8', 'MEDIAMTX_VERSION': 'v1.15.6', 'ZENOH_ROUTER_CHECK_ATTEMPTS': '1', 'CLAUDE_CODE_TMPDIR': '/tmp/claude-1000', 'COREPACK_ENABLE_AUTO_PIN': '0', 'DISPLAY': ':1', 'NV_LIBNCCL_PACKAGE': 'libnccl2=2.25.1-1+cuda12.8', 'NV_LIBCUSPARSE_DEV_VERSION': '12.5.8.93-1', 'NV_LIBNCCL_DEV_PACKAGE_NAME': 'libnccl-dev', 'REMOTE_CONTAINERS_SOCKETS': '["/tmp/vscode-ssh-auth-9596d55e-bac2-414a-a399-570bd1f92112.sock","/home/neo/.gnupg/S.gpg-agent"]', 'CLAUDE_EFFORT': 'high', '__NV_PRIME_RENDER_OFFLOAD': '1', 'NVIDIA_PRODUCT_NAME': 'CUDA', 'LANG': 'en_US.UTF-8', 'RMW_IMPLEMENTATION': 'rmw_fastrtps_cpp', 'ZENOH_SESSION_CONFIG_URI': '/etc/zenoh/rmw/DEFAULT_RMW_ZENOH_SESSION_CONFIG.json5', 'VSCODE_DEBUGPY_ADAPTER_ENDPOINTS': '/home/neo/.vscode-server/extensions/ms-python.debugpy-2026.6.0-linux-x64/.noConfigDebugAdapterEndpoints/endpoint-8e3ed801e65f79d8.txt', 'PYTHONSTARTUP': '/home/neo/.vscode-server/data/User/workspaceStorage/fd7723ac4137deb6c92ebb67d00b6ccf/ms-python.python/pythonrc.py', 'VSCODE_INJECTION': '1', 'VIRTUAL_ENV_PROMPT': '(dua-venv)', 'NoDefaultCurrentDirectoryInExePath': '1', 'NV_CUDA_CUDART_DEV_VERSION': '12.8.90-1', 'ZSH_PLUGINS': '/home/neo/.oh-my-zsh/custom/plugins', 'LS_COLORS': 'rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=00:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.avif=01;35:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.webp=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.m4a=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.oga=00;36:*.opus=00;36:*.spx=00;36:*.xspf=00;36:*~=00;90:*#=00;90:*.bak=00;90:*.crdownload=00;90:*.dpkg-dist=00;90:*.dpkg-new=00;90:*.dpkg-old=00;90:*.dpkg-tmp=00;90:*.old=00;90:*.orig=00;90:*.part=00;90:*.rej=00;90:*.rpmnew=00;90:*.rpmorig=00;90:*.rpmsave=00;90:*.swp=00;90:*.tmp=00;90:*.ucf-dist=00;90:*.ucf-new=00;90:*.ucf-old=00;90:', 'TERM_PROGRAM': 'vscode', 'VSCODE_GIT_IPC_HANDLE': '/tmp/vscode-git-a8178ba6a1.sock', 'DEBIAN_FRONTEND': 'dialog', 'ROS_DOMAIN_ID': '0', 'AMENT_PREFIX_PATH': '/home/neo/workspace/install/v4l2_camera_driver:/home/neo/workspace/install/evo:/home/neo/workspace/install/sophus_vendor:/home/neo/workspace/install/prophesee_evk4_driver:/home/neo/workspace/install/event_camera_tools:/home/neo/workspace/install/prophesee_event_msgs:/home/neo/workspace/install/evo_utils:/home/neo/workspace/install/minkindr:/home/neo/workspace/install/event_detector_cpp:/home/neo/workspace/install/event_detector:/home/neo/workspace/install/event_camera_renderer:/home/neo/workspace/install/event_camera_codecs:/home/neo/workspace/install/dsec_publisher:/home/neo/workspace/install/event_camera_msgs:/home/neo/workspace/install/dvs_slam_msgs:/home/neo/workspace/install/dvs_msgs:/opt/ros/dua-utils/install:/opt/ros/zenoh/install:/opt/ros/jazzy', 'SSH_AUTH_SOCK': '/tmp/vscode-ssh-auth-9596d55e-bac2-414a-a399-570bd1f92112.sock', 'SHELL': '/usr/bin/zsh', 'NV_LIBCUBLAS_DEV_PACKAGE': 'libcublas-dev-12-8=12.8.4.1-1', 'NV_CUDA_NSIGHT_COMPUTE_DEV_PACKAGE': 'cuda-nsight-compute-12-8=12.8.1-1', 'NV_LIBNCCL_DEV_PACKAGE': 'libnccl-dev=2.25.1-1+cuda12.8', 'HDF5_PLUGIN_PATH': '/opt/dagr-venv/lib/python3.12/site-packages/hdf5plugin/plugins', 'CLAUDE_CODE_SESSION_ID': '77a95708-4f5e-4e8f-8925-fde8af269b2c', 'MEDIAMTX_ARCH': 'amd64', 'CLAUDECODE': '1', 'NV_NVTX_VERSION': '12.8.90-1', 'NV_LIBNPP_VERSION': '12.3.3.100-1', 'P9K_SSH': '0', 'NV_CUDNN_VERSION': '9.8.0.87-1', 'ZSH_CUSTOM': '/home/neo/.oh-my-zsh/custom', 'ROS_AUTOMATIC_DISCOVERY_RANGE': 'SUBNET', 'VSCODE_GIT_ASKPASS_EXTRA_ARGS': '', 'VSCODE_NONCE': 'f2df570e-5b2c-4238-9a13-119e5930fb46', 'VIRTUAL_ENV': '/opt/dua-venv', 'CUDA_HOME': '/usr/local/cuda', 'PWD': '/home/neo/workspace/src/event_detector_cpp/test/build/event_detector_cpp', 'CARGO_HOME': '/opt/rust', 'FORCE_CUDA': '1', 'COPILOT_DEBUG_NONCE': 'eee3575dd35641b089636de52c033ba0', 'ZDOTDIR': '/home/neo', '_P9K_TTY': '/dev/pts/0', 'CLAUDE_CODE_EXECPATH': '/home/neo/.local/share/claude/versions/2.1.162', 'PYTHONPATH': '/home/neo/workspace/install/prophesee_event_msgs/lib/python3.12/site-packages:/home/neo/workspace/build/event_detector:/home/neo/workspace/install/event_detector/lib/python3.12/site-packages:/home/neo/workspace/build/dsec_publisher:/home/neo/workspace/install/dsec_publisher/lib/python3.12/site-packages:/home/neo/workspace/install/event_camera_msgs/lib/python3.12/site-packages:/home/neo/workspace/install/dvs_slam_msgs/lib/python3.12/site-packages:/home/neo/workspace/install/dvs_msgs/lib/python3.12/site-packages:/opt/ros/dua-utils/install/lib/python3.12/site-packages:/opt/ros/zenoh/install/lib/python3.12/site-packages:/opt/ros/jazzy/lib/python3.12/site-packages:/opt/dua-venv/lib/python3.12/site-packages:/usr/lib/python3/dist-packages', 'ZENOH_ROUTER_CONFIG_URI': '/etc/zenoh/rmw/DEFAULT_RMW_ZENOH_ROUTER_CONFIG.json5', 'NVIDIA_VISIBLE_DEVICES': 'all', 'NCCL_VERSION': '2.25.1-1', 'HISTFILE': '/home/neo/zsh_history/.zsh_history', 'COLCON': '1', 'NV_LIBNPP_DEV_VERSION': '12.3.3.100-1', 'CMAKE_PREFIX_PATH': '/home/neo/workspace/install/v4l2_camera_driver:/home/neo/workspace/install/evo:/home/neo/workspace/install/sophus_vendor:/home/neo/workspace/install/prophesee_evk4_driver:/home/neo/workspace/install/event_camera_tools:/home/neo/workspace/install/prophesee_event_msgs:/home/neo/workspace/install/evo_utils:/home/neo/workspace/install/minkindr:/home/neo/workspace/install/event_detector_cpp:/home/neo/workspace/install/event_camera_renderer:/home/neo/workspace/install/event_camera_codecs:/home/neo/workspace/install/event_camera_msgs:/home/neo/workspace/install/dvs_slam_msgs:/home/neo/workspace/install/dvs_msgs:/opt/ros/dua-utils/install:/opt/ros/zenoh/install:/opt/ros/jazzy/opt/gz_sim_vendor:/opt/ros/jazzy/opt/gz_sensors_vendor:/opt/ros/jazzy/opt/gz_physics_vendor:/opt/ros/jazzy/opt/sdformat_vendor:/opt/ros/jazzy/opt/openeb_vendor:/opt/ros/jazzy/opt/gz_gui_vendor:/opt/ros/jazzy/opt/gz_transport_vendor:/opt/ros/jazzy/opt/gz_rendering_vendor:/opt/ros/jazzy/opt/gz_plugin_vendor:/opt/ros/jazzy/opt/gz_fuel_tools_vendor:/opt/ros/jazzy/opt/gz_msgs_vendor:/opt/ros/jazzy/opt/gz_common_vendor:/opt/ros/jazzy/opt/gz_math_vendor:/opt/ros/jazzy/opt/gz_utils_vendor:/opt/ros/jazzy/opt/gz_tools_vendor:/opt/ros/jazzy/opt/gz_ogre_next_vendor:/opt/ros/jazzy/opt/gz_dartsim_vendor:/opt/ros/jazzy/opt/gz_cmake_vendor:/usr/local:/home/neo/workspace/install/event_detector:/home/neo/workspace/install/dsec_publisher:/opt/ros/jazzy', 'EDITOR': 'nano'}), 'shell': False}
+[0.070828] (event_detector_cpp) StdoutLine: {'line': b'-- The C compiler identification is GNU 13.3.0\n'}
+[0.099830] (-) TimerEvent: {}
+[0.105832] (event_detector_cpp) StdoutLine: {'line': b'-- The CXX compiler identification is GNU 13.3.0\n'}
+[0.119604] (event_detector_cpp) StdoutLine: {'line': b'-- Detecting C compiler ABI info\n'}
+[0.178211] (event_detector_cpp) StdoutLine: {'line': b'-- Detecting C compiler ABI info - done\n'}
+[0.183884] (event_detector_cpp) StdoutLine: {'line': b'-- Check for working C compiler: /usr/bin/cc - skipped\n'}
+[0.184248] (event_detector_cpp) StdoutLine: {'line': b'-- Detecting C compile features\n'}
+[0.184429] (event_detector_cpp) StdoutLine: {'line': b'-- Detecting C compile features - done\n'}
+[0.190954] (event_detector_cpp) StdoutLine: {'line': b'-- Detecting CXX compiler ABI info\n'}
+[0.199906] (-) TimerEvent: {}
+[0.253621] (event_detector_cpp) StdoutLine: {'line': b'-- Detecting CXX compiler ABI info - done\n'}
+[0.259381] (event_detector_cpp) StdoutLine: {'line': b'-- Check for working CXX compiler: /usr/bin/c++ - skipped\n'}
+[0.259552] (event_detector_cpp) StdoutLine: {'line': b'-- Detecting CXX compile features\n'}
+[0.259895] (event_detector_cpp) StdoutLine: {'line': b'-- Detecting CXX compile features - done\n'}
+[0.260320] (event_detector_cpp) StderrLine: {'line': b'CMake Deprecation Warning at CMakeLists.txt:22 (cmake_policy):\n'}
+[0.260402] (event_detector_cpp) StderrLine: {'line': b'  The OLD behavior for policy CMP0074 will be removed from a future version\n'}
+[0.260446] (event_detector_cpp) StderrLine: {'line': b'  of CMake.\n'}
+[0.260488] (event_detector_cpp) StderrLine: {'line': b'\n'}
+[0.260524] (event_detector_cpp) StderrLine: {'line': b'  The cmake-policies(7) manual explains that the OLD behaviors of all\n'}
+[0.260559] (event_detector_cpp) StderrLine: {'line': b'  policies are deprecated and that a policy should be set to OLD only under\n'}
+[0.260594] (event_detector_cpp) StderrLine: {'line': b'  specific short-term circumstances.  Projects should be ported to the NEW\n'}
+[0.260628] (event_detector_cpp) StderrLine: {'line': b'  behavior and not rely on setting a policy to OLD.\n'}
+[0.260663] (event_detector_cpp) StderrLine: {'line': b'\n'}
+[0.260702] (event_detector_cpp) StderrLine: {'line': b'\n'}
+[0.262055] (event_detector_cpp) StdoutLine: {'line': b'-- Found ament_cmake: 2.5.6 (/opt/ros/zenoh/install/share/ament_cmake/cmake)\n'}
+[0.299988] (-) TimerEvent: {}
+[0.357861] (event_detector_cpp) StdoutLine: {'line': b'-- Found Python3: /opt/dua-venv/bin/python3 (found version "3.12.3") found components: Interpreter \n'}
+[0.400083] (-) TimerEvent: {}
+[0.407423] (event_detector_cpp) StdoutLine: {'line': b'-- Override CMake install command with custom implementation using symlinks instead of copying resources\n'}
+[0.431124] (event_detector_cpp) StdoutLine: {'line': b'-- Found dua_app_management: 1.0.2 (/opt/ros/dua-utils/install/share/dua_app_management/cmake)\n'}
+[0.490571] (event_detector_cpp) StdoutLine: {'line': b'-- Found rosidl_generator_c: 4.6.7 (/opt/ros/jazzy/share/rosidl_generator_c/cmake)\n'}
+[0.500164] (-) TimerEvent: {}
+[0.507037] (event_detector_cpp) StdoutLine: {'line': b'-- Found rosidl_generator_cpp: 4.6.7 (/opt/ros/jazzy/share/rosidl_generator_cpp/cmake)\n'}
+[0.526496] (event_detector_cpp) StdoutLine: {'line': b'-- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c\n'}
+[0.541903] (event_detector_cpp) StdoutLine: {'line': b'-- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp\n'}
+[0.600260] (-) TimerEvent: {}
+[0.604573] (event_detector_cpp) StdoutLine: {'line': b'-- Found rmw_implementation_cmake: 7.3.3 (/opt/ros/jazzy/share/rmw_implementation_cmake/cmake)\n'}
+[0.608234] (event_detector_cpp) StdoutLine: {'line': b'-- Found rmw_fastrtps_cpp: 8.4.3 (/opt/ros/jazzy/share/rmw_fastrtps_cpp/cmake)\n'}
+[0.679523] (event_detector_cpp) StdoutLine: {'line': b'-- Found OpenSSL: /usr/lib/x86_64-linux-gnu/libcrypto.so (found version "3.0.13")  \n'}
+[0.694941] (event_detector_cpp) StdoutLine: {'line': b'-- Found FastRTPS: /opt/ros/jazzy/include (Required is at least version "2.13") \n'}
+[0.700345] (-) TimerEvent: {}
+[0.708446] (event_detector_cpp) StdoutLine: {'line': b"-- Using RMW implementation 'rmw_fastrtps_cpp' as default\n"}
+[0.794603] (event_detector_cpp) StdoutLine: {'line': b'-- Found dua_common_interfaces: 1.0.2 (/opt/ros/dua-utils/install/share/dua_common_interfaces/cmake)\n'}
+[0.800412] (-) TimerEvent: {}
+[0.817129] (event_detector_cpp) StdoutLine: {'line': b'-- Found dua_cv_bridge: 1.1.1 (/opt/ros/dua-utils/install/share/dua_cv_bridge/cmake)\n'}
+[0.847740] (event_detector_cpp) StdoutLine: {'line': b'-- Found dua_geometry_interfaces: 1.2.0 (/opt/ros/dua-utils/install/share/dua_geometry_interfaces/cmake)\n'}
+[0.870583] (event_detector_cpp) StdoutLine: {'line': b'-- Found dua_hardware_interfaces: 1.7.0 (/opt/ros/dua-utils/install/share/dua_hardware_interfaces/cmake)\n'}
+[0.900499] (-) TimerEvent: {}
+[0.911579] (event_detector_cpp) StdoutLine: {'line': b'-- Found dua_node_cpp: 1.2.0 (/opt/ros/dua-utils/install/share/dua_node_cpp/cmake)\n'}
+[0.948459] (event_detector_cpp) StdoutLine: {'line': b'-- Found PkgConfig: /usr/bin/pkg-config (found version "1.8.1") \n'}
+[0.962656] (event_detector_cpp) StdoutLine: {'line': b'-- Found Boost: /usr/lib/x86_64-linux-gnu/cmake/Boost-1.83.0/BoostConfig.cmake (found suitable version "1.83.0", minimum required is "1.80") found components: nowide \n'}
+[0.990547] (event_detector_cpp) StdoutLine: {'line': b'-- Performing Test CMAKE_HAVE_LIBC_PTHREAD\n'}
+[1.000566] (-) TimerEvent: {}
+[1.048542] (event_detector_cpp) StdoutLine: {'line': b'-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success\n'}
+[1.049532] (event_detector_cpp) StdoutLine: {'line': b'-- Found Threads: TRUE  \n'}
+[1.056087] (event_detector_cpp) StdoutLine: {'line': b'-- Found CUDA: /usr/local/cuda (found suitable exact version "12.8") \n'}
+[1.064380] (event_detector_cpp) StdoutLine: {'line': b'-- Found OpenCV: /usr/local (found version "4.11.0") \n'}
+[1.069835] (event_detector_cpp) StdoutLine: {'line': b"-- Checking for module 'libusb-1.0>=1.0.23'\n"}
+[1.081418] (event_detector_cpp) StdoutLine: {'line': b'--   Found libusb-1.0, version 1.0.27\n'}
+[1.100677] (-) TimerEvent: {}
+[1.115693] (event_detector_cpp) StdoutLine: {'line': b"-- Checking for module 'liblz4'\n"}
+[1.125788] (event_detector_cpp) StdoutLine: {'line': b'--   Found liblz4, version 1.9.4\n'}
+[1.149815] (event_detector_cpp) StdoutLine: {'line': b"-- Checking for module 'libbacktrace'\n"}
+[1.200822] (-) TimerEvent: {}
+[1.227526] (event_detector_cpp) StdoutLine: {'line': b"--   Package 'libbacktrace', required by 'virtual:world', not found\n"}
+[1.231711] (event_detector_cpp) StdoutLine: {'line': b'-- Compiler cache enabled: /usr/bin/ccache\n'}
+[1.232806] (event_detector_cpp) StdoutLine: {'line': b'-- Looking for sys/types.h\n'}
+[1.285157] (event_detector_cpp) StdoutLine: {'line': b'-- Looking for sys/types.h - found\n'}
+[1.285362] (event_detector_cpp) StdoutLine: {'line': b'-- Looking for stdint.h\n'}
+[1.300973] (-) TimerEvent: {}
+[1.338306] (event_detector_cpp) StdoutLine: {'line': b'-- Looking for stdint.h - found\n'}
+[1.338512] (event_detector_cpp) StdoutLine: {'line': b'-- Looking for stddef.h\n'}
+[1.389738] (event_detector_cpp) StdoutLine: {'line': b'-- Looking for stddef.h - found\n'}
+[1.389934] (event_detector_cpp) StdoutLine: {'line': b'-- Check size of size_t\n'}
+[1.401052] (-) TimerEvent: {}
+[1.443378] (event_detector_cpp) StdoutLine: {'line': b'-- Check size of size_t - done\n'}
+[1.443551] (event_detector_cpp) StdoutLine: {'line': b'-- Check size of void *\n'}
+[1.499208] (event_detector_cpp) StdoutLine: {'line': b'-- Check size of void * - done\n'}
+[1.500250] (event_detector_cpp) StdoutLine: {'line': b'-- Linker flag --as-needed enabled\n'}
+[1.500288] (event_detector_cpp) StdoutLine: {'line': b'-- Project name is: event_detector_cpp\n'}
+[1.500317] (event_detector_cpp) StdoutLine: {'line': b'-- Project version is: \n'}
+[1.500342] (event_detector_cpp) StdoutLine: {'line': b'-- Build type is: RelWithDebInfo\n'}
+[1.500367] (event_detector_cpp) StdoutLine: {'line': b'-- Compiler is Clang: FALSE\n'}
+[1.500391] (event_detector_cpp) StdoutLine: {'line': b'-- Compiler is GCC: TRUE\n'}
+[1.500415] (event_detector_cpp) StdoutLine: {'line': b'-- Compiler is IntelCC: FALSE\n'}
+[1.500439] (event_detector_cpp) StdoutLine: {'line': b'-- Compiler is MS VisualC: FALSE\n'}
+[1.500461] (event_detector_cpp) StdoutLine: {'line': b'-- OS is Unix: TRUE\n'}
+[1.500486] (event_detector_cpp) StdoutLine: {'line': b'-- OS is Linux: TRUE\n'}
+[1.500509] (event_detector_cpp) StdoutLine: {'line': b'-- OS is MacOS: FALSE\n'}
+[1.500532] (event_detector_cpp) StdoutLine: {'line': b'-- OS is Windows: FALSE\n'}
+[1.500553] (event_detector_cpp) StdoutLine: {'line': b'-- System is big-endian: 0\n'}
+[1.500575] (event_detector_cpp) StdoutLine: {'line': b'-- Thread support is PThreads: TRUE\n'}
+[1.500597] (event_detector_cpp) StdoutLine: {'line': b'-- Thread support is Win32 Threads: FALSE\n'}
+[1.500617] (event_detector_cpp) StdoutLine: {'line': b'-- Thread support libraries: \n'}
+[1.500643] (event_detector_cpp) StdoutLine: {'line': b'-- Current C flags are: \n'}
+[1.500663] (event_detector_cpp) StdoutLine: {'line': b'-- Current CXX flags are: \n'}
+[1.500683] (event_detector_cpp) StdoutLine: {'line': b'-- Final install bindir is: /home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/bin\n'}
+[1.500703] (event_detector_cpp) StdoutLine: {'line': b'-- Final install libdir is: /home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/lib\n'}
+[1.500723] (event_detector_cpp) StdoutLine: {'line': b'-- Final install includedir is: /home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/include\n'}
+[1.501101] (-) TimerEvent: {}
+[1.504957] (event_detector_cpp) StdoutLine: {'line': b'-- Found eigen3_cmake_module: 0.3.0 (/opt/ros/jazzy/share/eigen3_cmake_module/cmake)\n'}
+[1.506162] (event_detector_cpp) StdoutLine: {'line': b'-- Found event_camera_codecs: 1.0.0 (/home/neo/workspace/install/event_camera_codecs/share/event_camera_codecs/cmake)\n'}
+[1.601287] (-) TimerEvent: {}
+[1.701527] (-) TimerEvent: {}
+[1.710982] (event_detector_cpp) StdoutLine: {'line': b'-- Found OpenMP_C: -fopenmp (found version "4.5") \n'}
+[1.774081] (event_detector_cpp) StdoutLine: {'line': b'-- Found OpenMP_CXX: -fopenmp (found version "4.5") \n'}
+[1.774325] (event_detector_cpp) StdoutLine: {'line': b'-- Found OpenMP: TRUE (found version "4.5")  \n'}
+[1.779128] (event_detector_cpp) StdoutLine: {'line': b'-- Found std_srvs: 5.3.7 (/opt/ros/jazzy/share/std_srvs/cmake)\n'}
+[1.801746] (-) TimerEvent: {}
+[1.900139] (event_detector_cpp) StdoutLine: {'line': b'-- Found ament_lint_auto: 0.17.5 (/opt/ros/jazzy/share/ament_lint_auto/cmake)\n'}
+[1.901824] (-) TimerEvent: {}
+[2.001777] (event_detector_cpp) StdoutLine: {'line': b"-- Added test 'copyright' to check source files copyright and LICENSE\n"}
+[2.001968] (-) TimerEvent: {}
+[2.005630] (event_detector_cpp) StdoutLine: {'line': b"-- Added test 'cppcheck' to perform static code analysis on C / C++ code\n"}
+[2.006021] (event_detector_cpp) StdoutLine: {'line': b'-- Configured cppcheck include dirs: /home/neo/workspace/src/event_detector_cpp/include;$<BUILD_INTERFACE:/home/neo/workspace/src/event_detector_cpp/include>;$<BUILD_INTERFACE:/home/neo/workspace/src/event_detector_cpp/src/event_detector_cpp>\n'}
+[2.006117] (event_detector_cpp) StdoutLine: {'line': b'-- Configured cppcheck exclude dirs and/or files: \n'}
+[2.009465] (event_detector_cpp) StdoutLine: {'line': b"-- Added test 'cpplint' to check C / C++ code against the Google style\n"}
+[2.009568] (event_detector_cpp) StdoutLine: {'line': b'-- Configured cpplint exclude dirs and/or files: \n'}
+[2.010548] (event_detector_cpp) StdoutLine: {'line': b"-- Added test 'flake8' to check Python code syntax and style conventions\n"}
+[2.010691] (event_detector_cpp) StdoutLine: {'line': b"-- Configured 'flake8' exclude dirs and/or files: \n"}
+[2.011986] (event_detector_cpp) StdoutLine: {'line': b"-- Added test 'lint_cmake' to check CMake code style\n"}
+[2.013061] (event_detector_cpp) StdoutLine: {'line': b"-- Added test 'pep257' to check Python code against some of the docstring style conventions in PEP 257\n"}
+[2.016705] (event_detector_cpp) StdoutLine: {'line': b"-- Added test 'uncrustify' to check C / C++ code style\n"}
+[2.016843] (event_detector_cpp) StdoutLine: {'line': b'-- Configured uncrustify additional arguments: \n'}
+[2.017830] (event_detector_cpp) StdoutLine: {'line': b"-- Added test 'xmllint' to check XML markup files\n"}
+[2.019623] (event_detector_cpp) StdoutLine: {'line': b'-- Configuring done (2.0s)\n'}
+[2.056035] (event_detector_cpp) StdoutLine: {'line': b'-- Generating done (0.0s)\n'}
+[2.060296] (event_detector_cpp) StdoutLine: {'line': b'-- Build files have been written to: /home/neo/workspace/src/event_detector_cpp/test/build/event_detector_cpp\n'}
+[2.069142] (event_detector_cpp) CommandEnded: {'returncode': 0}
+[2.069405] (event_detector_cpp) JobProgress: {'identifier': 'event_detector_cpp', 'progress': 'build'}
+[2.069414] (event_detector_cpp) Command: {'cmd': ['/usr/bin/cmake', '--build', '/home/neo/workspace/src/event_detector_cpp/test/build/event_detector_cpp', '--', '-j24', '-l24'], 'cwd': '/home/neo/workspace/src/event_detector_cpp/test/build/event_detector_cpp', 'env': OrderedDict({'LIBRARY_PATH': '/usr/local/cuda/lib64/stubs', 'PYTHON_BASIC_REPL': '1', 'NV_LIBCUBLAS_VERSION': '12.8.4.1-1', 'NV_NVPROF_DEV_PACKAGE': 'cuda-nvprof-12-8=12.8.90-1', 'NV_CUDA_NSIGHT_COMPUTE_VERSION': '12.8.1-1', 'GZ_SIM_RESOURCE_PATH': '/opt/ros/jazzy/share', 'AI_AGENT': 'claude-code_2-1-162_agent', 'CLAUDE_CODE_ENTRYPOINT': 'cli', 'GZ_CONFIG_PATH': '/opt/ros/jazzy/opt/gz_sim_vendor/share/gz:/opt/ros/jazzy/opt/sdformat_vendor/share/gz:/opt/ros/jazzy/opt/gz_gui_vendor/share/gz:/opt/ros/jazzy/opt/gz_transport_vendor/share/gz:/opt/ros/jazzy/opt/gz_rendering_vendor/share/gz:/opt/ros/jazzy/opt/gz_plugin_vendor/share/gz:/opt/ros/jazzy/opt/gz_fuel_tools_vendor/share/gz:/opt/ros/jazzy/opt/gz_msgs_vendor/share/gz:/opt/ros/jazzy/opt/gz_common_vendor/share/gz', 'GIT_EDITOR': 'true', 'HOSTNAME': 'legolas', '__GLX_VENDOR_LIBRARY_NAME': 'nvidia', 'GIT_ASKPASS': '/vscode/vscode-server/bin/linux-x64/6a44c352bd24569c417e530095901b649960f9f8/extensions/git/dist/askpass.sh', 'LD_LIBRARY_PATH': '/home/neo/workspace/install/v4l2_camera_driver/lib:/home/neo/workspace/install/evo/lib:/home/neo/workspace/install/sophus_vendor/lib:/home/neo/workspace/install/event_camera_tools/lib:/home/neo/workspace/install/prophesee_event_msgs/lib:/home/neo/workspace/install/evo_utils/lib:/home/neo/workspace/install/minkindr/lib:/home/neo/workspace/install/event_detector_cpp/lib:/home/neo/workspace/install/event_camera_renderer/lib:/home/neo/workspace/install/event_camera_codecs/lib:/home/neo/workspace/install/event_camera_msgs/lib:/home/neo/workspace/install/dvs_slam_msgs/lib:/home/neo/workspace/install/dvs_msgs/lib:/opt/ros/dua-utils/install/lib:/opt/ros/zenoh/install/lib:/opt/ros/zenoh/install/opt/zenoh_cpp_vendor/lib:/opt/ros/jazzy/opt/gz_sim_vendor/lib:/opt/ros/jazzy/opt/gz_sensors_vendor/lib:/opt/ros/jazzy/opt/gz_physics_vendor/lib:/opt/ros/jazzy/opt/sdformat_vendor/lib:/opt/ros/jazzy/opt/rviz_ogre_vendor/lib:/opt/ros/jazzy/lib/x86_64-linux-gnu:/opt/ros/jazzy/opt/gz_gui_vendor/lib:/opt/ros/jazzy/opt/gz_transport_vendor/lib:/opt/ros/jazzy/opt/gz_rendering_vendor/lib:/opt/ros/jazzy/opt/gz_plugin_vendor/lib:/opt/ros/jazzy/opt/gz_fuel_tools_vendor/lib:/opt/ros/jazzy/opt/gz_msgs_vendor/lib:/opt/ros/jazzy/opt/gz_common_vendor/lib:/opt/ros/jazzy/opt/gz_math_vendor/lib:/opt/ros/jazzy/opt/gz_utils_vendor/lib:/opt/ros/jazzy/opt/gz_tools_vendor/lib:/opt/ros/jazzy/opt/gz_ogre_next_vendor/lib:/opt/ros/jazzy/opt/gz_dartsim_vendor/lib:/opt/ros/jazzy/opt/gz_cmake_vendor/lib:/opt/ros/jazzy/lib:/opt/ros/jazzy/opt/openeb_vendor/lib:/usr/local/cuda/lib64', 'NV_LIBNCCL_PACKAGE_VERSION': '2.25.1-1', 'SHLVL': '3', 'BROWSER': '/vscode/vscode-server/bin/linux-x64/6a44c352bd24569c417e530095901b649960f9f8/bin/helpers/browser.sh', 'HOME': '/home/neo', 'OLDPWD': '/home/neo/workspace/src/event_detector_cpp/test', 'LESS': '-R', 'NV_LIBCUBLAS_DEV_VERSION': '12.8.4.1-1', 'NV_CUDNN_PACKAGE_NAME': 'libcudnn9-cuda-12', 'TERM_PROGRAM_VERSION': '1.123.0', 'VSCODE_IPC_HOOK_CLI': '/tmp/vscode-ipc-e4b75da5-70b6-43b7-bd92-e91d62f1db41.sock', 'ZSH': '/home/neo/.oh-my-zsh', 'LSCOLORS': 'Gxfxcxdxbxegedabagacad', 'PAGER': 'less', 'ROS_PYTHON_VERSION': '3', 'VSCODE_GIT_ASKPASS_MAIN': '/vscode/vscode-server/bin/linux-x64/6a44c352bd24569c417e530095901b649960f9f8/extensions/git/dist/askpass-main.js', 'PS1': '(dua-venv) %m%#', 'VSCODE_GIT_ASKPASS_NODE': '/vscode/vscode-server/bin/linux-x64/6a44c352bd24569c417e530095901b649960f9f8/node', 'NV_LIBNCCL_DEV_PACKAGE_VERSION': '2.25.1-1', 'ZSH_THEMES': '/home/neo/.oh-my-zsh/custom/themes', 'ROS_LOG_DIR': '/home/neo/workspace/logs/ros', 'ROS_STATIC_PEERS': '', 'PYDEVD_DISABLE_FILE_VALIDATION': '1', 'BUNDLED_DEBUGPY_PATH': '/home/neo/.vscode-server/extensions/ms-python.debugpy-2026.6.0-linux-x64/bundled/libs/debugpy', 'VSCODE_PYTHON_AUTOACTIVATE_GUARD': '1', 'P9K_TTY': 'old', 'NV_LIBNPP_PACKAGE': 'libnpp-12-8=12.3.3.100-1', 'REMOTE_CONTAINERS': 'true', 'COLORTERM': 'truecolor', 'CUDA_VERSION': '12.8.1', 'NV_CUDNN_PACKAGE': 'libcudnn9-cuda-12=9.8.0.87-1', 'NV_NVPROF_VERSION': '12.8.90-1', 'TORCH_CUDA_ARCH_LIST': '12.0', 'ROS_DISTRO': 'jazzy', 'COLCON_PREFIX_PATH': '/home/neo/workspace/install:/opt/ros/dua-utils/install:/opt/ros/zenoh/install', 'TMPDIR': '/tmp/claude-1000', 'NV_LIBCUBLAS_PACKAGE_NAME': 'libcublas-12-8', 'DAGR_DIR': '/opt/dagr', 'REMOTE_CONTAINERS_IPC': '/tmp/vscode-remote-containers-ipc-9596d55e-bac2-414a-a399-570bd1f92112.sock', 'LOGNAME': 'neo', 'NVIDIA_REQUIRE_CUDA': 'cuda>=12.8 brand=unknown,driver>=470,driver<471 brand=grid,driver>=470,driver<471 brand=tesla,driver>=470,driver<471 brand=nvidia,driver>=470,driver<471 brand=quadro,driver>=470,driver<471 brand=quadrortx,driver>=470,driver<471 brand=nvidiartx,driver>=470,driver<471 brand=vapps,driver>=470,driver<471 brand=vpc,driver>=470,driver<471 brand=vcs,driver>=470,driver<471 brand=vws,driver>=470,driver<471 brand=cloudgaming,driver>=470,driver<471 brand=unknown,driver>=535,driver<536 brand=grid,driver>=535,driver<536 brand=tesla,driver>=535,driver<536 brand=nvidia,driver>=535,driver<536 brand=quadro,driver>=535,driver<536 brand=quadrortx,driver>=535,driver<536 brand=nvidiartx,driver>=535,driver<536 brand=vapps,driver>=535,driver<536 brand=vpc,driver>=535,driver<536 brand=vcs,driver>=535,driver<536 brand=vws,driver>=535,driver<536 brand=cloudgaming,driver>=535,driver<536 brand=unknown,driver>=550,driver<551 brand=grid,driver>=550,driver<551 brand=tesla,driver>=550,driver<551 brand=nvidia,driver>=550,driver<551 brand=quadro,driver>=550,driver<551 brand=quadrortx,driver>=550,driver<551 brand=nvidiartx,driver>=550,driver<551 brand=vapps,driver>=550,driver<551 brand=vpc,driver>=550,driver<551 brand=vcs,driver>=550,driver<551 brand=vws,driver>=550,driver<551 brand=cloudgaming,driver>=550,driver<551 brand=unknown,driver>=560,driver<561 brand=grid,driver>=560,driver<561 brand=tesla,driver>=560,driver<561 brand=nvidia,driver>=560,driver<561 brand=quadro,driver>=560,driver<561 brand=quadrortx,driver>=560,driver<561 brand=nvidiartx,driver>=560,driver<561 brand=vapps,driver>=560,driver<561 brand=vpc,driver>=560,driver<561 brand=vcs,driver>=560,driver<561 brand=vws,driver>=560,driver<561 brand=cloudgaming,driver>=560,driver<561 brand=unknown,driver>=565,driver<566 brand=grid,driver>=565,driver<566 brand=tesla,driver>=565,driver<566 brand=nvidia,driver>=565,driver<566 brand=quadro,driver>=565,driver<566 brand=quadrortx,driver>=565,driver<566 brand=nvidiartx,driver>=565,driver<566 brand=vapps,driver>=565,driver<566 brand=vpc,driver>=565,driver<566 brand=vcs,driver>=565,driver<566 brand=vws,driver>=565,driver<566 brand=cloudgaming,driver>=565,driver<566', '_P9K_SSH_TTY': '/dev/pts/0', '_': '/usr/bin/colcon', 'NVIDIA_DRIVER_CAPABILITIES': 'all', 'NV_CUDA_LIB_VERSION': '12.8.1-1', 'NV_LIBCUSPARSE_VERSION': '12.5.8.93-1', 'NV_LIBNCCL_PACKAGE_NAME': 'libnccl2', 'TENSORRT_VERSION': '10.9.0.34-1+cuda12.8', 'ULTRALYTICS_UPDATE_CHECK': 'False', 'ROS_VERSION': '2', 'RUST_LOG': 'zenoh=info', 'CLAUDE_CODE_SSE_PORT': '55161', 'USER_ZDOTDIR': '/home/neo', 'TERM': 'xterm-256color', 'NV_NVML_DEV_VERSION': '12.8.90-1', 'NV_LIBNPP_DEV_PACKAGE': 'libnpp-dev-12-8=12.3.3.100-1', 'NV_CUDA_CUDART_VERSION': '12.8.90-1', 'NV_CUDNN_PACKAGE_DEV': 'libcudnn9-dev-cuda-12=9.8.0.87-1', 'RUSTUP_HOME': '/opt/rust', 'TMPPREFIX': '/tmp/claude-1000/zsh', 'PATH': '/home/neo/.local/bin:/opt/dua-venv/bin:/home/neo/.vscode-server/data/User/globalStorage/github.copilot-chat/debugCommand:/home/neo/.vscode-server/data/User/globalStorage/github.copilot-chat/copilotCli:/vscode/vscode-server/bin/linux-x64/6a44c352bd24569c417e530095901b649960f9f8/bin/remote-cli:/home/neo/.local/bin:/opt/ros/jazzy/opt/openeb_vendor/bin:/opt/ros/jazzy/opt/gz_msgs_vendor/bin:/opt/ros/jazzy/opt/gz_tools_vendor/bin:/opt/ros/jazzy/opt/gz_ogre_next_vendor/bin:/opt/ros/jazzy/bin:/opt/dua-venv/bin:/opt/dds/Fast-DDS/src/fastddsgen/scripts:/opt/dds/cyclonedds/install/bin:/usr/src/tensorrt/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/neo/.vscode-server/extensions/ms-python.debugpy-2026.6.0-linux-x64/bundled/scripts/noConfigScripts:/home/neo/.claude/plugins/cache/claude-plugins-official/feature-dev/unknown/bin:/home/neo/.claude/plugins/cache/claude-plugins-official/ralph-loop/1.0.0/bin:/home/neo/.claude/plugins/cache/claude-plugins-official/superpowers/5.1.0/bin', 'NVARCH': 'x86_64', 'NV_LIBCUBLAS_PACKAGE': 'libcublas-12-8=12.8.4.1-1', 'NV_LIBCUBLAS_DEV_PACKAGE_NAME': 'libcublas-dev-12-8', 'MEDIAMTX_VERSION': 'v1.15.6', 'ZENOH_ROUTER_CHECK_ATTEMPTS': '1', 'CLAUDE_CODE_TMPDIR': '/tmp/claude-1000', 'COREPACK_ENABLE_AUTO_PIN': '0', 'DISPLAY': ':1', 'NV_LIBNCCL_PACKAGE': 'libnccl2=2.25.1-1+cuda12.8', 'NV_LIBCUSPARSE_DEV_VERSION': '12.5.8.93-1', 'NV_LIBNCCL_DEV_PACKAGE_NAME': 'libnccl-dev', 'REMOTE_CONTAINERS_SOCKETS': '["/tmp/vscode-ssh-auth-9596d55e-bac2-414a-a399-570bd1f92112.sock","/home/neo/.gnupg/S.gpg-agent"]', 'CLAUDE_EFFORT': 'high', '__NV_PRIME_RENDER_OFFLOAD': '1', 'NVIDIA_PRODUCT_NAME': 'CUDA', 'LANG': 'en_US.UTF-8', 'RMW_IMPLEMENTATION': 'rmw_fastrtps_cpp', 'ZENOH_SESSION_CONFIG_URI': '/etc/zenoh/rmw/DEFAULT_RMW_ZENOH_SESSION_CONFIG.json5', 'VSCODE_DEBUGPY_ADAPTER_ENDPOINTS': '/home/neo/.vscode-server/extensions/ms-python.debugpy-2026.6.0-linux-x64/.noConfigDebugAdapterEndpoints/endpoint-8e3ed801e65f79d8.txt', 'PYTHONSTARTUP': '/home/neo/.vscode-server/data/User/workspaceStorage/fd7723ac4137deb6c92ebb67d00b6ccf/ms-python.python/pythonrc.py', 'VSCODE_INJECTION': '1', 'VIRTUAL_ENV_PROMPT': '(dua-venv)', 'NoDefaultCurrentDirectoryInExePath': '1', 'NV_CUDA_CUDART_DEV_VERSION': '12.8.90-1', 'ZSH_PLUGINS': '/home/neo/.oh-my-zsh/custom/plugins', 'LS_COLORS': 'rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=00:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.avif=01;35:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.webp=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.m4a=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.oga=00;36:*.opus=00;36:*.spx=00;36:*.xspf=00;36:*~=00;90:*#=00;90:*.bak=00;90:*.crdownload=00;90:*.dpkg-dist=00;90:*.dpkg-new=00;90:*.dpkg-old=00;90:*.dpkg-tmp=00;90:*.old=00;90:*.orig=00;90:*.part=00;90:*.rej=00;90:*.rpmnew=00;90:*.rpmorig=00;90:*.rpmsave=00;90:*.swp=00;90:*.tmp=00;90:*.ucf-dist=00;90:*.ucf-new=00;90:*.ucf-old=00;90:', 'TERM_PROGRAM': 'vscode', 'VSCODE_GIT_IPC_HANDLE': '/tmp/vscode-git-a8178ba6a1.sock', 'DEBIAN_FRONTEND': 'dialog', 'ROS_DOMAIN_ID': '0', 'AMENT_PREFIX_PATH': '/home/neo/workspace/install/v4l2_camera_driver:/home/neo/workspace/install/evo:/home/neo/workspace/install/sophus_vendor:/home/neo/workspace/install/prophesee_evk4_driver:/home/neo/workspace/install/event_camera_tools:/home/neo/workspace/install/prophesee_event_msgs:/home/neo/workspace/install/evo_utils:/home/neo/workspace/install/minkindr:/home/neo/workspace/install/event_detector_cpp:/home/neo/workspace/install/event_detector:/home/neo/workspace/install/event_camera_renderer:/home/neo/workspace/install/event_camera_codecs:/home/neo/workspace/install/dsec_publisher:/home/neo/workspace/install/event_camera_msgs:/home/neo/workspace/install/dvs_slam_msgs:/home/neo/workspace/install/dvs_msgs:/opt/ros/dua-utils/install:/opt/ros/zenoh/install:/opt/ros/jazzy', 'SSH_AUTH_SOCK': '/tmp/vscode-ssh-auth-9596d55e-bac2-414a-a399-570bd1f92112.sock', 'SHELL': '/usr/bin/zsh', 'NV_LIBCUBLAS_DEV_PACKAGE': 'libcublas-dev-12-8=12.8.4.1-1', 'NV_CUDA_NSIGHT_COMPUTE_DEV_PACKAGE': 'cuda-nsight-compute-12-8=12.8.1-1', 'NV_LIBNCCL_DEV_PACKAGE': 'libnccl-dev=2.25.1-1+cuda12.8', 'HDF5_PLUGIN_PATH': '/opt/dagr-venv/lib/python3.12/site-packages/hdf5plugin/plugins', 'CLAUDE_CODE_SESSION_ID': '77a95708-4f5e-4e8f-8925-fde8af269b2c', 'MEDIAMTX_ARCH': 'amd64', 'CLAUDECODE': '1', 'NV_NVTX_VERSION': '12.8.90-1', 'NV_LIBNPP_VERSION': '12.3.3.100-1', 'P9K_SSH': '0', 'NV_CUDNN_VERSION': '9.8.0.87-1', 'ZSH_CUSTOM': '/home/neo/.oh-my-zsh/custom', 'ROS_AUTOMATIC_DISCOVERY_RANGE': 'SUBNET', 'VSCODE_GIT_ASKPASS_EXTRA_ARGS': '', 'VSCODE_NONCE': 'f2df570e-5b2c-4238-9a13-119e5930fb46', 'VIRTUAL_ENV': '/opt/dua-venv', 'CUDA_HOME': '/usr/local/cuda', 'PWD': '/home/neo/workspace/src/event_detector_cpp/test/build/event_detector_cpp', 'CARGO_HOME': '/opt/rust', 'FORCE_CUDA': '1', 'COPILOT_DEBUG_NONCE': 'eee3575dd35641b089636de52c033ba0', 'ZDOTDIR': '/home/neo', '_P9K_TTY': '/dev/pts/0', 'CLAUDE_CODE_EXECPATH': '/home/neo/.local/share/claude/versions/2.1.162', 'PYTHONPATH': '/home/neo/workspace/install/prophesee_event_msgs/lib/python3.12/site-packages:/home/neo/workspace/build/event_detector:/home/neo/workspace/install/event_detector/lib/python3.12/site-packages:/home/neo/workspace/build/dsec_publisher:/home/neo/workspace/install/dsec_publisher/lib/python3.12/site-packages:/home/neo/workspace/install/event_camera_msgs/lib/python3.12/site-packages:/home/neo/workspace/install/dvs_slam_msgs/lib/python3.12/site-packages:/home/neo/workspace/install/dvs_msgs/lib/python3.12/site-packages:/opt/ros/dua-utils/install/lib/python3.12/site-packages:/opt/ros/zenoh/install/lib/python3.12/site-packages:/opt/ros/jazzy/lib/python3.12/site-packages:/opt/dua-venv/lib/python3.12/site-packages:/usr/lib/python3/dist-packages', 'ZENOH_ROUTER_CONFIG_URI': '/etc/zenoh/rmw/DEFAULT_RMW_ZENOH_ROUTER_CONFIG.json5', 'NVIDIA_VISIBLE_DEVICES': 'all', 'NCCL_VERSION': '2.25.1-1', 'HISTFILE': '/home/neo/zsh_history/.zsh_history', 'COLCON': '1', 'NV_LIBNPP_DEV_VERSION': '12.3.3.100-1', 'CMAKE_PREFIX_PATH': '/home/neo/workspace/install/v4l2_camera_driver:/home/neo/workspace/install/evo:/home/neo/workspace/install/sophus_vendor:/home/neo/workspace/install/prophesee_evk4_driver:/home/neo/workspace/install/event_camera_tools:/home/neo/workspace/install/prophesee_event_msgs:/home/neo/workspace/install/evo_utils:/home/neo/workspace/install/minkindr:/home/neo/workspace/install/event_detector_cpp:/home/neo/workspace/install/event_camera_renderer:/home/neo/workspace/install/event_camera_codecs:/home/neo/workspace/install/event_camera_msgs:/home/neo/workspace/install/dvs_slam_msgs:/home/neo/workspace/install/dvs_msgs:/opt/ros/dua-utils/install:/opt/ros/zenoh/install:/opt/ros/jazzy/opt/gz_sim_vendor:/opt/ros/jazzy/opt/gz_sensors_vendor:/opt/ros/jazzy/opt/gz_physics_vendor:/opt/ros/jazzy/opt/sdformat_vendor:/opt/ros/jazzy/opt/openeb_vendor:/opt/ros/jazzy/opt/gz_gui_vendor:/opt/ros/jazzy/opt/gz_transport_vendor:/opt/ros/jazzy/opt/gz_rendering_vendor:/opt/ros/jazzy/opt/gz_plugin_vendor:/opt/ros/jazzy/opt/gz_fuel_tools_vendor:/opt/ros/jazzy/opt/gz_msgs_vendor:/opt/ros/jazzy/opt/gz_common_vendor:/opt/ros/jazzy/opt/gz_math_vendor:/opt/ros/jazzy/opt/gz_utils_vendor:/opt/ros/jazzy/opt/gz_tools_vendor:/opt/ros/jazzy/opt/gz_ogre_next_vendor:/opt/ros/jazzy/opt/gz_dartsim_vendor:/opt/ros/jazzy/opt/gz_cmake_vendor:/usr/local:/home/neo/workspace/install/event_detector:/home/neo/workspace/install/dsec_publisher:/opt/ros/jazzy', 'EDITOR': 'nano'}), 'shell': False}
+[2.100122] (event_detector_cpp) StdoutLine: {'line': b'[  7%] Generating parameters declaration source file init_parameters.cpp from /home/neo/workspace/src/event_detector_cpp/src/event_detector_cpp/params.yaml\n'}
+[2.102033] (-) TimerEvent: {}
+[2.151949] (event_detector_cpp) StdoutLine: {'line': b'[ 42%] Building CXX object CMakeFiles/event_detector_cpp.dir/src/event_detector_cpp/background_activity.cpp.o\n'}
+[2.152135] (event_detector_cpp) StdoutLine: {'line': b'[ 42%] Building CXX object CMakeFiles/event_detector_cpp.dir/src/event_detector_cpp/flow_objective.cpp.o\n'}
+[2.152170] (event_detector_cpp) StdoutLine: {'line': b'[ 42%] Building CXX object CMakeFiles/event_detector_cpp.dir/src/event_detector_cpp/flow_propagation.cpp.o\n'}
+[2.152200] (event_detector_cpp) StdoutLine: {'line': b'[ 42%] Building CXX object CMakeFiles/event_detector_cpp.dir/src/event_detector_cpp/optical_flow.cpp.o\n'}
+[2.152250] (event_detector_cpp) StdoutLine: {'line': b'[ 42%] Building CXX object CMakeFiles/event_detector_cpp.dir/src/event_detector_cpp/event_detector_cpp.cpp.o\n'}
+[2.152275] (event_detector_cpp) StdoutLine: {'line': b'[ 57%] Building CXX object CMakeFiles/event_detector_cpp.dir/src/event_detector_cpp/subscriptions.cpp.o\n'}
+[2.152344] (event_detector_cpp) StdoutLine: {'line': b'[ 57%] Building CXX object CMakeFiles/event_detector_cpp.dir/src/event_detector_cpp/sae.cpp.o\n'}
+[2.152369] (event_detector_cpp) StdoutLine: {'line': b'[ 64%] Building CXX object CMakeFiles/event_detector_cpp.dir/src/event_detector_cpp/workers.cpp.o\n'}
+[2.152392] (event_detector_cpp) StdoutLine: {'line': b'[ 71%] Building CXX object CMakeFiles/event_detector_cpp.dir/init_parameters.cpp.o\n'}
+[2.152415] (event_detector_cpp) StdoutLine: {'line': b'[ 78%] Building CXX object CMakeFiles/event_detector_cpp.dir/src/event_detector_cpp/utils.cpp.o\n'}
+[2.202209] (-) TimerEvent: {}
+[2.302374] (-) TimerEvent: {}
+[2.402534] (-) TimerEvent: {}
+[2.502704] (-) TimerEvent: {}
+[2.602878] (-) TimerEvent: {}
+[2.703045] (-) TimerEvent: {}
+[2.803215] (-) TimerEvent: {}
+[2.903381] (-) TimerEvent: {}
+[3.003573] (-) TimerEvent: {}
+[3.103767] (-) TimerEvent: {}
+[3.203946] (-) TimerEvent: {}
+[3.304157] (-) TimerEvent: {}
+[3.404337] (-) TimerEvent: {}
+[3.504510] (-) TimerEvent: {}
+[3.604674] (-) TimerEvent: {}
+[3.704842] (-) TimerEvent: {}
+[3.805014] (-) TimerEvent: {}
+[3.905225] (-) TimerEvent: {}
+[4.005419] (-) TimerEvent: {}
+[4.105598] (-) TimerEvent: {}
+[4.205769] (-) TimerEvent: {}
+[4.305981] (-) TimerEvent: {}
+[4.406188] (-) TimerEvent: {}
+[4.506401] (-) TimerEvent: {}
+[4.606564] (-) TimerEvent: {}
+[4.706754] (-) TimerEvent: {}
+[4.806953] (-) TimerEvent: {}
+[4.907121] (-) TimerEvent: {}
+[5.007307] (-) TimerEvent: {}
+[5.107548] (-) TimerEvent: {}
+[5.207710] (-) TimerEvent: {}
+[5.307873] (-) TimerEvent: {}
+[5.408044] (-) TimerEvent: {}
+[5.508226] (-) TimerEvent: {}
+[5.608373] (-) TimerEvent: {}
+[5.708582] (-) TimerEvent: {}
+[5.808733] (-) TimerEvent: {}
+[5.908902] (-) TimerEvent: {}
+[6.009064] (-) TimerEvent: {}
+[6.109235] (-) TimerEvent: {}
+[6.209422] (-) TimerEvent: {}
+[6.309684] (-) TimerEvent: {}
+[6.409878] (-) TimerEvent: {}
+[6.510052] (-) TimerEvent: {}
+[6.610225] (-) TimerEvent: {}
+[6.710466] (-) TimerEvent: {}
+[6.810752] (-) TimerEvent: {}
+[6.910926] (-) TimerEvent: {}
+[7.011098] (-) TimerEvent: {}
+[7.111388] (-) TimerEvent: {}
+[7.211530] (-) TimerEvent: {}
+[7.311682] (-) TimerEvent: {}
+[7.411854] (-) TimerEvent: {}
+[7.512078] (-) TimerEvent: {}
+[7.612253] (-) TimerEvent: {}
+[7.712420] (-) TimerEvent: {}
+[7.812635] (-) TimerEvent: {}
+[7.912798] (-) TimerEvent: {}
+[8.012958] (-) TimerEvent: {}
+[8.113098] (-) TimerEvent: {}
+[8.213292] (-) TimerEvent: {}
+[8.313518] (-) TimerEvent: {}
+[8.413746] (-) TimerEvent: {}
+[8.513910] (-) TimerEvent: {}
+[8.614072] (-) TimerEvent: {}
+[8.714237] (-) TimerEvent: {}
+[8.814401] (-) TimerEvent: {}
+[8.914575] (-) TimerEvent: {}
+[9.014818] (-) TimerEvent: {}
+[9.115016] (-) TimerEvent: {}
+[9.215170] (-) TimerEvent: {}
+[9.315373] (-) TimerEvent: {}
+[9.415584] (-) TimerEvent: {}
+[9.515900] (-) TimerEvent: {}
+[9.616088] (-) TimerEvent: {}
+[9.716278] (-) TimerEvent: {}
+[9.816613] (-) TimerEvent: {}
+[9.916901] (-) TimerEvent: {}
+[10.017166] (-) TimerEvent: {}
+[10.117369] (-) TimerEvent: {}
+[10.217683] (-) TimerEvent: {}
+[10.317864] (-) TimerEvent: {}
+[10.418036] (-) TimerEvent: {}
+[10.518304] (-) TimerEvent: {}
+[10.618557] (-) TimerEvent: {}
+[10.718716] (-) TimerEvent: {}
+[10.818882] (-) TimerEvent: {}
+[10.919034] (-) TimerEvent: {}
+[11.019264] (-) TimerEvent: {}
+[11.119511] (-) TimerEvent: {}
+[11.219665] (-) TimerEvent: {}
+[11.319884] (-) TimerEvent: {}
+[11.420064] (-) TimerEvent: {}
+[11.520252] (-) TimerEvent: {}
+[11.620449] (-) TimerEvent: {}
+[11.720595] (-) TimerEvent: {}
+[11.820729] (-) TimerEvent: {}
+[11.920872] (-) TimerEvent: {}
+[12.021078] (-) TimerEvent: {}
+[12.121355] (-) TimerEvent: {}
+[12.221682] (-) TimerEvent: {}
+[12.321863] (-) TimerEvent: {}
+[12.422151] (-) TimerEvent: {}
+[12.522445] (-) TimerEvent: {}
+[12.622790] (-) TimerEvent: {}
+[12.723162] (-) TimerEvent: {}
+[12.823363] (-) TimerEvent: {}
+[12.923570] (-) TimerEvent: {}
+[13.023842] (-) TimerEvent: {}
+[13.124073] (-) TimerEvent: {}
+[13.224265] (-) TimerEvent: {}
+[13.324423] (-) TimerEvent: {}
+[13.424514] (-) TimerEvent: {}
+[13.524671] (-) TimerEvent: {}
+[13.624871] (-) TimerEvent: {}
+[13.725075] (-) TimerEvent: {}
+[13.825240] (-) TimerEvent: {}
+[13.925431] (-) TimerEvent: {}
+[14.025639] (-) TimerEvent: {}
+[14.125788] (-) TimerEvent: {}
+[14.225951] (-) TimerEvent: {}
+[14.326135] (-) TimerEvent: {}
+[14.426311] (-) TimerEvent: {}
+[14.526538] (-) TimerEvent: {}
+[14.626707] (-) TimerEvent: {}
+[14.726891] (-) TimerEvent: {}
+[14.827071] (-) TimerEvent: {}
+[14.927258] (-) TimerEvent: {}
+[15.027564] (-) TimerEvent: {}
+[15.127737] (-) TimerEvent: {}
+[15.227911] (-) TimerEvent: {}
+[15.328195] (-) TimerEvent: {}
+[15.428385] (-) TimerEvent: {}
+[15.528522] (-) TimerEvent: {}
+[15.628693] (-) TimerEvent: {}
+[15.728896] (-) TimerEvent: {}
+[15.829219] (-) TimerEvent: {}
+[15.929444] (-) TimerEvent: {}
+[16.029650] (-) TimerEvent: {}
+[16.087269] (event_detector_cpp) StdoutLine: {'line': b'[ 85%] Linking CXX shared library libevent_detector_cpp.so\n'}
+[16.129776] (-) TimerEvent: {}
+[16.229962] (-) TimerEvent: {}
+[16.330211] (-) TimerEvent: {}
+[16.403179] (event_detector_cpp) StdoutLine: {'line': b'[ 85%] Built target event_detector_cpp\n'}
+[16.417278] (event_detector_cpp) StdoutLine: {'line': b'[ 92%] Building CXX object CMakeFiles/event_detector_cpp_app.dir/src/event_detector_cpp_app.cpp.o\n'}
+[16.430286] (-) TimerEvent: {}
+[16.530598] (-) TimerEvent: {}
+[16.630881] (-) TimerEvent: {}
+[16.731137] (-) TimerEvent: {}
+[16.831391] (-) TimerEvent: {}
+[16.931568] (-) TimerEvent: {}
+[17.031808] (-) TimerEvent: {}
+[17.131970] (-) TimerEvent: {}
+[17.232266] (-) TimerEvent: {}
+[17.332492] (-) TimerEvent: {}
+[17.432665] (-) TimerEvent: {}
+[17.532917] (-) TimerEvent: {}
+[17.633196] (-) TimerEvent: {}
+[17.733403] (-) TimerEvent: {}
+[17.833637] (-) TimerEvent: {}
+[17.933845] (-) TimerEvent: {}
+[18.034144] (-) TimerEvent: {}
+[18.134493] (-) TimerEvent: {}
+[18.234828] (-) TimerEvent: {}
+[18.335015] (-) TimerEvent: {}
+[18.435239] (-) TimerEvent: {}
+[18.535538] (-) TimerEvent: {}
+[18.635764] (-) TimerEvent: {}
+[18.736062] (-) TimerEvent: {}
+[18.836309] (-) TimerEvent: {}
+[18.936527] (-) TimerEvent: {}
+[19.036834] (-) TimerEvent: {}
+[19.137039] (-) TimerEvent: {}
+[19.237258] (-) TimerEvent: {}
+[19.337442] (-) TimerEvent: {}
+[19.437669] (-) TimerEvent: {}
+[19.537880] (-) TimerEvent: {}
+[19.638059] (-) TimerEvent: {}
+[19.738197] (-) TimerEvent: {}
+[19.838328] (-) TimerEvent: {}
+[19.938486] (-) TimerEvent: {}
+[20.038651] (-) TimerEvent: {}
+[20.138853] (-) TimerEvent: {}
+[20.239037] (-) TimerEvent: {}
+[20.339231] (-) TimerEvent: {}
+[20.439413] (-) TimerEvent: {}
+[20.539649] (-) TimerEvent: {}
+[20.639839] (-) TimerEvent: {}
+[20.740045] (-) TimerEvent: {}
+[20.840262] (-) TimerEvent: {}
+[20.940460] (-) TimerEvent: {}
+[21.040635] (-) TimerEvent: {}
+[21.140821] (-) TimerEvent: {}
+[21.240980] (-) TimerEvent: {}
+[21.341132] (-) TimerEvent: {}
+[21.441291] (-) TimerEvent: {}
+[21.541450] (-) TimerEvent: {}
+[21.641645] (-) TimerEvent: {}
+[21.741874] (-) TimerEvent: {}
+[21.842084] (-) TimerEvent: {}
+[21.942248] (-) TimerEvent: {}
+[22.042524] (-) TimerEvent: {}
+[22.142718] (-) TimerEvent: {}
+[22.242906] (-) TimerEvent: {}
+[22.343125] (-) TimerEvent: {}
+[22.443336] (-) TimerEvent: {}
+[22.543533] (-) TimerEvent: {}
+[22.643722] (-) TimerEvent: {}
+[22.743908] (-) TimerEvent: {}
+[22.844060] (-) TimerEvent: {}
+[22.944243] (-) TimerEvent: {}
+[23.044467] (-) TimerEvent: {}
+[23.144646] (-) TimerEvent: {}
+[23.244922] (-) TimerEvent: {}
+[23.309282] (event_detector_cpp) StdoutLine: {'line': b'[100%] Linking CXX executable event_detector_cpp_app\n'}
+[23.345071] (-) TimerEvent: {}
+[23.445311] (-) TimerEvent: {}
+[23.470387] (event_detector_cpp) StdoutLine: {'line': b'[100%] Built target event_detector_cpp_app\n'}
+[23.478140] (event_detector_cpp) CommandEnded: {'returncode': 0}
+[23.478606] (event_detector_cpp) JobProgress: {'identifier': 'event_detector_cpp', 'progress': 'install'}
+[23.485314] (event_detector_cpp) Command: {'cmd': ['/usr/bin/cmake', '--install', '/home/neo/workspace/src/event_detector_cpp/test/build/event_detector_cpp'], 'cwd': '/home/neo/workspace/src/event_detector_cpp/test/build/event_detector_cpp', 'env': OrderedDict({'LIBRARY_PATH': '/usr/local/cuda/lib64/stubs', 'PYTHON_BASIC_REPL': '1', 'NV_LIBCUBLAS_VERSION': '12.8.4.1-1', 'NV_NVPROF_DEV_PACKAGE': 'cuda-nvprof-12-8=12.8.90-1', 'NV_CUDA_NSIGHT_COMPUTE_VERSION': '12.8.1-1', 'GZ_SIM_RESOURCE_PATH': '/opt/ros/jazzy/share', 'AI_AGENT': 'claude-code_2-1-162_agent', 'CLAUDE_CODE_ENTRYPOINT': 'cli', 'GZ_CONFIG_PATH': '/opt/ros/jazzy/opt/gz_sim_vendor/share/gz:/opt/ros/jazzy/opt/sdformat_vendor/share/gz:/opt/ros/jazzy/opt/gz_gui_vendor/share/gz:/opt/ros/jazzy/opt/gz_transport_vendor/share/gz:/opt/ros/jazzy/opt/gz_rendering_vendor/share/gz:/opt/ros/jazzy/opt/gz_plugin_vendor/share/gz:/opt/ros/jazzy/opt/gz_fuel_tools_vendor/share/gz:/opt/ros/jazzy/opt/gz_msgs_vendor/share/gz:/opt/ros/jazzy/opt/gz_common_vendor/share/gz', 'GIT_EDITOR': 'true', 'HOSTNAME': 'legolas', '__GLX_VENDOR_LIBRARY_NAME': 'nvidia', 'GIT_ASKPASS': '/vscode/vscode-server/bin/linux-x64/6a44c352bd24569c417e530095901b649960f9f8/extensions/git/dist/askpass.sh', 'LD_LIBRARY_PATH': '/home/neo/workspace/install/v4l2_camera_driver/lib:/home/neo/workspace/install/evo/lib:/home/neo/workspace/install/sophus_vendor/lib:/home/neo/workspace/install/event_camera_tools/lib:/home/neo/workspace/install/prophesee_event_msgs/lib:/home/neo/workspace/install/evo_utils/lib:/home/neo/workspace/install/minkindr/lib:/home/neo/workspace/install/event_detector_cpp/lib:/home/neo/workspace/install/event_camera_renderer/lib:/home/neo/workspace/install/event_camera_codecs/lib:/home/neo/workspace/install/event_camera_msgs/lib:/home/neo/workspace/install/dvs_slam_msgs/lib:/home/neo/workspace/install/dvs_msgs/lib:/opt/ros/dua-utils/install/lib:/opt/ros/zenoh/install/lib:/opt/ros/zenoh/install/opt/zenoh_cpp_vendor/lib:/opt/ros/jazzy/opt/gz_sim_vendor/lib:/opt/ros/jazzy/opt/gz_sensors_vendor/lib:/opt/ros/jazzy/opt/gz_physics_vendor/lib:/opt/ros/jazzy/opt/sdformat_vendor/lib:/opt/ros/jazzy/opt/rviz_ogre_vendor/lib:/opt/ros/jazzy/lib/x86_64-linux-gnu:/opt/ros/jazzy/opt/gz_gui_vendor/lib:/opt/ros/jazzy/opt/gz_transport_vendor/lib:/opt/ros/jazzy/opt/gz_rendering_vendor/lib:/opt/ros/jazzy/opt/gz_plugin_vendor/lib:/opt/ros/jazzy/opt/gz_fuel_tools_vendor/lib:/opt/ros/jazzy/opt/gz_msgs_vendor/lib:/opt/ros/jazzy/opt/gz_common_vendor/lib:/opt/ros/jazzy/opt/gz_math_vendor/lib:/opt/ros/jazzy/opt/gz_utils_vendor/lib:/opt/ros/jazzy/opt/gz_tools_vendor/lib:/opt/ros/jazzy/opt/gz_ogre_next_vendor/lib:/opt/ros/jazzy/opt/gz_dartsim_vendor/lib:/opt/ros/jazzy/opt/gz_cmake_vendor/lib:/opt/ros/jazzy/lib:/opt/ros/jazzy/opt/openeb_vendor/lib:/usr/local/cuda/lib64', 'NV_LIBNCCL_PACKAGE_VERSION': '2.25.1-1', 'SHLVL': '3', 'BROWSER': '/vscode/vscode-server/bin/linux-x64/6a44c352bd24569c417e530095901b649960f9f8/bin/helpers/browser.sh', 'HOME': '/home/neo', 'OLDPWD': '/home/neo/workspace/src/event_detector_cpp/test', 'LESS': '-R', 'NV_LIBCUBLAS_DEV_VERSION': '12.8.4.1-1', 'NV_CUDNN_PACKAGE_NAME': 'libcudnn9-cuda-12', 'TERM_PROGRAM_VERSION': '1.123.0', 'VSCODE_IPC_HOOK_CLI': '/tmp/vscode-ipc-e4b75da5-70b6-43b7-bd92-e91d62f1db41.sock', 'ZSH': '/home/neo/.oh-my-zsh', 'LSCOLORS': 'Gxfxcxdxbxegedabagacad', 'PAGER': 'less', 'ROS_PYTHON_VERSION': '3', 'VSCODE_GIT_ASKPASS_MAIN': '/vscode/vscode-server/bin/linux-x64/6a44c352bd24569c417e530095901b649960f9f8/extensions/git/dist/askpass-main.js', 'PS1': '(dua-venv) %m%#', 'VSCODE_GIT_ASKPASS_NODE': '/vscode/vscode-server/bin/linux-x64/6a44c352bd24569c417e530095901b649960f9f8/node', 'NV_LIBNCCL_DEV_PACKAGE_VERSION': '2.25.1-1', 'ZSH_THEMES': '/home/neo/.oh-my-zsh/custom/themes', 'ROS_LOG_DIR': '/home/neo/workspace/logs/ros', 'ROS_STATIC_PEERS': '', 'PYDEVD_DISABLE_FILE_VALIDATION': '1', 'BUNDLED_DEBUGPY_PATH': '/home/neo/.vscode-server/extensions/ms-python.debugpy-2026.6.0-linux-x64/bundled/libs/debugpy', 'VSCODE_PYTHON_AUTOACTIVATE_GUARD': '1', 'P9K_TTY': 'old', 'NV_LIBNPP_PACKAGE': 'libnpp-12-8=12.3.3.100-1', 'REMOTE_CONTAINERS': 'true', 'COLORTERM': 'truecolor', 'CUDA_VERSION': '12.8.1', 'NV_CUDNN_PACKAGE': 'libcudnn9-cuda-12=9.8.0.87-1', 'NV_NVPROF_VERSION': '12.8.90-1', 'TORCH_CUDA_ARCH_LIST': '12.0', 'ROS_DISTRO': 'jazzy', 'COLCON_PREFIX_PATH': '/home/neo/workspace/install:/opt/ros/dua-utils/install:/opt/ros/zenoh/install', 'TMPDIR': '/tmp/claude-1000', 'NV_LIBCUBLAS_PACKAGE_NAME': 'libcublas-12-8', 'DAGR_DIR': '/opt/dagr', 'REMOTE_CONTAINERS_IPC': '/tmp/vscode-remote-containers-ipc-9596d55e-bac2-414a-a399-570bd1f92112.sock', 'LOGNAME': 'neo', 'NVIDIA_REQUIRE_CUDA': 'cuda>=12.8 brand=unknown,driver>=470,driver<471 brand=grid,driver>=470,driver<471 brand=tesla,driver>=470,driver<471 brand=nvidia,driver>=470,driver<471 brand=quadro,driver>=470,driver<471 brand=quadrortx,driver>=470,driver<471 brand=nvidiartx,driver>=470,driver<471 brand=vapps,driver>=470,driver<471 brand=vpc,driver>=470,driver<471 brand=vcs,driver>=470,driver<471 brand=vws,driver>=470,driver<471 brand=cloudgaming,driver>=470,driver<471 brand=unknown,driver>=535,driver<536 brand=grid,driver>=535,driver<536 brand=tesla,driver>=535,driver<536 brand=nvidia,driver>=535,driver<536 brand=quadro,driver>=535,driver<536 brand=quadrortx,driver>=535,driver<536 brand=nvidiartx,driver>=535,driver<536 brand=vapps,driver>=535,driver<536 brand=vpc,driver>=535,driver<536 brand=vcs,driver>=535,driver<536 brand=vws,driver>=535,driver<536 brand=cloudgaming,driver>=535,driver<536 brand=unknown,driver>=550,driver<551 brand=grid,driver>=550,driver<551 brand=tesla,driver>=550,driver<551 brand=nvidia,driver>=550,driver<551 brand=quadro,driver>=550,driver<551 brand=quadrortx,driver>=550,driver<551 brand=nvidiartx,driver>=550,driver<551 brand=vapps,driver>=550,driver<551 brand=vpc,driver>=550,driver<551 brand=vcs,driver>=550,driver<551 brand=vws,driver>=550,driver<551 brand=cloudgaming,driver>=550,driver<551 brand=unknown,driver>=560,driver<561 brand=grid,driver>=560,driver<561 brand=tesla,driver>=560,driver<561 brand=nvidia,driver>=560,driver<561 brand=quadro,driver>=560,driver<561 brand=quadrortx,driver>=560,driver<561 brand=nvidiartx,driver>=560,driver<561 brand=vapps,driver>=560,driver<561 brand=vpc,driver>=560,driver<561 brand=vcs,driver>=560,driver<561 brand=vws,driver>=560,driver<561 brand=cloudgaming,driver>=560,driver<561 brand=unknown,driver>=565,driver<566 brand=grid,driver>=565,driver<566 brand=tesla,driver>=565,driver<566 brand=nvidia,driver>=565,driver<566 brand=quadro,driver>=565,driver<566 brand=quadrortx,driver>=565,driver<566 brand=nvidiartx,driver>=565,driver<566 brand=vapps,driver>=565,driver<566 brand=vpc,driver>=565,driver<566 brand=vcs,driver>=565,driver<566 brand=vws,driver>=565,driver<566 brand=cloudgaming,driver>=565,driver<566', '_P9K_SSH_TTY': '/dev/pts/0', '_': '/usr/bin/colcon', 'NVIDIA_DRIVER_CAPABILITIES': 'all', 'NV_CUDA_LIB_VERSION': '12.8.1-1', 'NV_LIBCUSPARSE_VERSION': '12.5.8.93-1', 'NV_LIBNCCL_PACKAGE_NAME': 'libnccl2', 'TENSORRT_VERSION': '10.9.0.34-1+cuda12.8', 'ULTRALYTICS_UPDATE_CHECK': 'False', 'ROS_VERSION': '2', 'RUST_LOG': 'zenoh=info', 'CLAUDE_CODE_SSE_PORT': '55161', 'USER_ZDOTDIR': '/home/neo', 'TERM': 'xterm-256color', 'NV_NVML_DEV_VERSION': '12.8.90-1', 'NV_LIBNPP_DEV_PACKAGE': 'libnpp-dev-12-8=12.3.3.100-1', 'NV_CUDA_CUDART_VERSION': '12.8.90-1', 'NV_CUDNN_PACKAGE_DEV': 'libcudnn9-dev-cuda-12=9.8.0.87-1', 'RUSTUP_HOME': '/opt/rust', 'TMPPREFIX': '/tmp/claude-1000/zsh', 'PATH': '/home/neo/.local/bin:/opt/dua-venv/bin:/home/neo/.vscode-server/data/User/globalStorage/github.copilot-chat/debugCommand:/home/neo/.vscode-server/data/User/globalStorage/github.copilot-chat/copilotCli:/vscode/vscode-server/bin/linux-x64/6a44c352bd24569c417e530095901b649960f9f8/bin/remote-cli:/home/neo/.local/bin:/opt/ros/jazzy/opt/openeb_vendor/bin:/opt/ros/jazzy/opt/gz_msgs_vendor/bin:/opt/ros/jazzy/opt/gz_tools_vendor/bin:/opt/ros/jazzy/opt/gz_ogre_next_vendor/bin:/opt/ros/jazzy/bin:/opt/dua-venv/bin:/opt/dds/Fast-DDS/src/fastddsgen/scripts:/opt/dds/cyclonedds/install/bin:/usr/src/tensorrt/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/neo/.vscode-server/extensions/ms-python.debugpy-2026.6.0-linux-x64/bundled/scripts/noConfigScripts:/home/neo/.claude/plugins/cache/claude-plugins-official/feature-dev/unknown/bin:/home/neo/.claude/plugins/cache/claude-plugins-official/ralph-loop/1.0.0/bin:/home/neo/.claude/plugins/cache/claude-plugins-official/superpowers/5.1.0/bin', 'NVARCH': 'x86_64', 'NV_LIBCUBLAS_PACKAGE': 'libcublas-12-8=12.8.4.1-1', 'NV_LIBCUBLAS_DEV_PACKAGE_NAME': 'libcublas-dev-12-8', 'MEDIAMTX_VERSION': 'v1.15.6', 'ZENOH_ROUTER_CHECK_ATTEMPTS': '1', 'CLAUDE_CODE_TMPDIR': '/tmp/claude-1000', 'COREPACK_ENABLE_AUTO_PIN': '0', 'DISPLAY': ':1', 'NV_LIBNCCL_PACKAGE': 'libnccl2=2.25.1-1+cuda12.8', 'NV_LIBCUSPARSE_DEV_VERSION': '12.5.8.93-1', 'NV_LIBNCCL_DEV_PACKAGE_NAME': 'libnccl-dev', 'REMOTE_CONTAINERS_SOCKETS': '["/tmp/vscode-ssh-auth-9596d55e-bac2-414a-a399-570bd1f92112.sock","/home/neo/.gnupg/S.gpg-agent"]', 'CLAUDE_EFFORT': 'high', '__NV_PRIME_RENDER_OFFLOAD': '1', 'NVIDIA_PRODUCT_NAME': 'CUDA', 'LANG': 'en_US.UTF-8', 'RMW_IMPLEMENTATION': 'rmw_fastrtps_cpp', 'ZENOH_SESSION_CONFIG_URI': '/etc/zenoh/rmw/DEFAULT_RMW_ZENOH_SESSION_CONFIG.json5', 'VSCODE_DEBUGPY_ADAPTER_ENDPOINTS': '/home/neo/.vscode-server/extensions/ms-python.debugpy-2026.6.0-linux-x64/.noConfigDebugAdapterEndpoints/endpoint-8e3ed801e65f79d8.txt', 'PYTHONSTARTUP': '/home/neo/.vscode-server/data/User/workspaceStorage/fd7723ac4137deb6c92ebb67d00b6ccf/ms-python.python/pythonrc.py', 'VSCODE_INJECTION': '1', 'VIRTUAL_ENV_PROMPT': '(dua-venv)', 'NoDefaultCurrentDirectoryInExePath': '1', 'NV_CUDA_CUDART_DEV_VERSION': '12.8.90-1', 'ZSH_PLUGINS': '/home/neo/.oh-my-zsh/custom/plugins', 'LS_COLORS': 'rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=00:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.avif=01;35:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.webp=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.m4a=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.oga=00;36:*.opus=00;36:*.spx=00;36:*.xspf=00;36:*~=00;90:*#=00;90:*.bak=00;90:*.crdownload=00;90:*.dpkg-dist=00;90:*.dpkg-new=00;90:*.dpkg-old=00;90:*.dpkg-tmp=00;90:*.old=00;90:*.orig=00;90:*.part=00;90:*.rej=00;90:*.rpmnew=00;90:*.rpmorig=00;90:*.rpmsave=00;90:*.swp=00;90:*.tmp=00;90:*.ucf-dist=00;90:*.ucf-new=00;90:*.ucf-old=00;90:', 'TERM_PROGRAM': 'vscode', 'VSCODE_GIT_IPC_HANDLE': '/tmp/vscode-git-a8178ba6a1.sock', 'DEBIAN_FRONTEND': 'dialog', 'ROS_DOMAIN_ID': '0', 'AMENT_PREFIX_PATH': '/home/neo/workspace/install/v4l2_camera_driver:/home/neo/workspace/install/evo:/home/neo/workspace/install/sophus_vendor:/home/neo/workspace/install/prophesee_evk4_driver:/home/neo/workspace/install/event_camera_tools:/home/neo/workspace/install/prophesee_event_msgs:/home/neo/workspace/install/evo_utils:/home/neo/workspace/install/minkindr:/home/neo/workspace/install/event_detector_cpp:/home/neo/workspace/install/event_detector:/home/neo/workspace/install/event_camera_renderer:/home/neo/workspace/install/event_camera_codecs:/home/neo/workspace/install/dsec_publisher:/home/neo/workspace/install/event_camera_msgs:/home/neo/workspace/install/dvs_slam_msgs:/home/neo/workspace/install/dvs_msgs:/opt/ros/dua-utils/install:/opt/ros/zenoh/install:/opt/ros/jazzy', 'SSH_AUTH_SOCK': '/tmp/vscode-ssh-auth-9596d55e-bac2-414a-a399-570bd1f92112.sock', 'SHELL': '/usr/bin/zsh', 'NV_LIBCUBLAS_DEV_PACKAGE': 'libcublas-dev-12-8=12.8.4.1-1', 'NV_CUDA_NSIGHT_COMPUTE_DEV_PACKAGE': 'cuda-nsight-compute-12-8=12.8.1-1', 'NV_LIBNCCL_DEV_PACKAGE': 'libnccl-dev=2.25.1-1+cuda12.8', 'HDF5_PLUGIN_PATH': '/opt/dagr-venv/lib/python3.12/site-packages/hdf5plugin/plugins', 'CLAUDE_CODE_SESSION_ID': '77a95708-4f5e-4e8f-8925-fde8af269b2c', 'MEDIAMTX_ARCH': 'amd64', 'CLAUDECODE': '1', 'NV_NVTX_VERSION': '12.8.90-1', 'NV_LIBNPP_VERSION': '12.3.3.100-1', 'P9K_SSH': '0', 'NV_CUDNN_VERSION': '9.8.0.87-1', 'ZSH_CUSTOM': '/home/neo/.oh-my-zsh/custom', 'ROS_AUTOMATIC_DISCOVERY_RANGE': 'SUBNET', 'VSCODE_GIT_ASKPASS_EXTRA_ARGS': '', 'VSCODE_NONCE': 'f2df570e-5b2c-4238-9a13-119e5930fb46', 'VIRTUAL_ENV': '/opt/dua-venv', 'CUDA_HOME': '/usr/local/cuda', 'PWD': '/home/neo/workspace/src/event_detector_cpp/test/build/event_detector_cpp', 'CARGO_HOME': '/opt/rust', 'FORCE_CUDA': '1', 'COPILOT_DEBUG_NONCE': 'eee3575dd35641b089636de52c033ba0', 'ZDOTDIR': '/home/neo', '_P9K_TTY': '/dev/pts/0', 'CLAUDE_CODE_EXECPATH': '/home/neo/.local/share/claude/versions/2.1.162', 'PYTHONPATH': '/home/neo/workspace/install/prophesee_event_msgs/lib/python3.12/site-packages:/home/neo/workspace/build/event_detector:/home/neo/workspace/install/event_detector/lib/python3.12/site-packages:/home/neo/workspace/build/dsec_publisher:/home/neo/workspace/install/dsec_publisher/lib/python3.12/site-packages:/home/neo/workspace/install/event_camera_msgs/lib/python3.12/site-packages:/home/neo/workspace/install/dvs_slam_msgs/lib/python3.12/site-packages:/home/neo/workspace/install/dvs_msgs/lib/python3.12/site-packages:/opt/ros/dua-utils/install/lib/python3.12/site-packages:/opt/ros/zenoh/install/lib/python3.12/site-packages:/opt/ros/jazzy/lib/python3.12/site-packages:/opt/dua-venv/lib/python3.12/site-packages:/usr/lib/python3/dist-packages', 'ZENOH_ROUTER_CONFIG_URI': '/etc/zenoh/rmw/DEFAULT_RMW_ZENOH_ROUTER_CONFIG.json5', 'NVIDIA_VISIBLE_DEVICES': 'all', 'NCCL_VERSION': '2.25.1-1', 'HISTFILE': '/home/neo/zsh_history/.zsh_history', 'COLCON': '1', 'NV_LIBNPP_DEV_VERSION': '12.3.3.100-1', 'CMAKE_PREFIX_PATH': '/home/neo/workspace/install/v4l2_camera_driver:/home/neo/workspace/install/evo:/home/neo/workspace/install/sophus_vendor:/home/neo/workspace/install/prophesee_evk4_driver:/home/neo/workspace/install/event_camera_tools:/home/neo/workspace/install/prophesee_event_msgs:/home/neo/workspace/install/evo_utils:/home/neo/workspace/install/minkindr:/home/neo/workspace/install/event_detector_cpp:/home/neo/workspace/install/event_camera_renderer:/home/neo/workspace/install/event_camera_codecs:/home/neo/workspace/install/event_camera_msgs:/home/neo/workspace/install/dvs_slam_msgs:/home/neo/workspace/install/dvs_msgs:/opt/ros/dua-utils/install:/opt/ros/zenoh/install:/opt/ros/jazzy/opt/gz_sim_vendor:/opt/ros/jazzy/opt/gz_sensors_vendor:/opt/ros/jazzy/opt/gz_physics_vendor:/opt/ros/jazzy/opt/sdformat_vendor:/opt/ros/jazzy/opt/openeb_vendor:/opt/ros/jazzy/opt/gz_gui_vendor:/opt/ros/jazzy/opt/gz_transport_vendor:/opt/ros/jazzy/opt/gz_rendering_vendor:/opt/ros/jazzy/opt/gz_plugin_vendor:/opt/ros/jazzy/opt/gz_fuel_tools_vendor:/opt/ros/jazzy/opt/gz_msgs_vendor:/opt/ros/jazzy/opt/gz_common_vendor:/opt/ros/jazzy/opt/gz_math_vendor:/opt/ros/jazzy/opt/gz_utils_vendor:/opt/ros/jazzy/opt/gz_tools_vendor:/opt/ros/jazzy/opt/gz_ogre_next_vendor:/opt/ros/jazzy/opt/gz_dartsim_vendor:/opt/ros/jazzy/opt/gz_cmake_vendor:/usr/local:/home/neo/workspace/install/event_detector:/home/neo/workspace/install/dsec_publisher:/opt/ros/jazzy', 'EDITOR': 'nano'}), 'shell': False}
+[23.491020] (event_detector_cpp) StdoutLine: {'line': b'-- Install configuration: "RelWithDebInfo"\n'}
+[23.491169] (event_detector_cpp) StdoutLine: {'line': b'-- Execute custom install script\n'}
+[23.491339] (event_detector_cpp) StdoutLine: {'line': b'-- Symlinking: /home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/lib/libevent_detector_cpp.so\n'}
+[23.497429] (event_detector_cpp) StdoutLine: {'line': b'-- Symlinking: /home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/lib/event_detector_cpp/event_detector_cpp_app\n'}
+[23.503289] (event_detector_cpp) StdoutLine: {'line': b'-- Symlinking: /home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/config/event_detector_cpp.yaml\n'}
+[23.509042] (event_detector_cpp) StdoutLine: {'line': b'-- Symlinking: /home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/launch/event_detector_cpp.launch.py\n'}
+[23.514692] (event_detector_cpp) StdoutLine: {'line': b'-- Symlinking: /home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/ament_index/resource_index/package_run_dependencies/event_detector_cpp\n'}
+[23.520203] (event_detector_cpp) StdoutLine: {'line': b'-- Symlinking: /home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/ament_index/resource_index/parent_prefix_path/event_detector_cpp\n'}
+[23.525952] (event_detector_cpp) StdoutLine: {'line': b'-- Symlinking: /home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/environment/ament_prefix_path.sh\n'}
+[23.531720] (event_detector_cpp) StdoutLine: {'line': b'-- Symlinking: /home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/environment/ament_prefix_path.dsv\n'}
+[23.537346] (event_detector_cpp) StdoutLine: {'line': b'-- Symlinking: /home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/environment/path.sh\n'}
+[23.543906] (event_detector_cpp) StdoutLine: {'line': b'-- Symlinking: /home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/environment/path.dsv\n'}
+[23.545363] (-) TimerEvent: {}
+[23.549689] (event_detector_cpp) StdoutLine: {'line': b'-- Symlinking: /home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/local_setup.bash\n'}
+[23.555235] (event_detector_cpp) StdoutLine: {'line': b'-- Symlinking: /home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/local_setup.sh\n'}
+[23.561171] (event_detector_cpp) StdoutLine: {'line': b'-- Symlinking: /home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/local_setup.zsh\n'}
+[23.566968] (event_detector_cpp) StdoutLine: {'line': b'-- Symlinking: /home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/local_setup.dsv\n'}
+[23.572640] (event_detector_cpp) StdoutLine: {'line': b'-- Symlinking: /home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/package.dsv\n'}
+[23.578128] (event_detector_cpp) StdoutLine: {'line': b'-- Symlinking: /home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/ament_index/resource_index/packages/event_detector_cpp\n'}
+[23.583563] (event_detector_cpp) StdoutLine: {'line': b'-- Symlinking: /home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/ament_index/resource_index/rclcpp_components/event_detector_cpp\n'}
+[23.589097] (event_detector_cpp) StdoutLine: {'line': b'-- Symlinking: /home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/cmake/event_detector_cppConfig.cmake\n'}
+[23.594471] (event_detector_cpp) StdoutLine: {'line': b'-- Symlinking: /home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/cmake/event_detector_cppConfig-version.cmake\n'}
+[23.599704] (event_detector_cpp) StdoutLine: {'line': b'-- Symlinking: /home/neo/workspace/src/event_detector_cpp/test/install/event_detector_cpp/share/event_detector_cpp/package.xml\n'}
+[23.606004] (event_detector_cpp) CommandEnded: {'returncode': 0}
+[23.617422] (event_detector_cpp) JobEnded: {'identifier': 'event_detector_cpp', 'rc': 0}
+[23.617718] (-) EventReactorShutdown: {}

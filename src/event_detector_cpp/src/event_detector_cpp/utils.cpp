@@ -73,9 +73,8 @@ void EventDetector::reset_state()
   }
   filter_high_us_ = std::numeric_limits<int64_t>::lowest();
   flow_accum_ = dv::EventStore();
-  flow_window_start_us_ = std::numeric_limits<int64_t>::lowest();
-  prev_flow_.release();
-  prev_global_v_ = cv::Vec2f(0.0f, 0.0f);
+  prev_flow_field_ = Eigen::VectorXf();
+  prev_flow_tiles_ = 0;
 }
 
 void EventDetector::publish_image(
