@@ -54,7 +54,7 @@ params:
   flow_enabled:
     type: bool
     default_value: true
-    description: "Enable dense optical-flow estimation via contrast maximization."
+    description: "Enable dense optical-flow estimation via moment-based incremental alignment."
     constraints: "Cannot be changed at runtime."
     read_only: true
     var_name: flow_enabled_
@@ -74,101 +74,124 @@ params:
     min_value: 1
     max_value: 8
     step: 1
-    description: "Tile-pyramid scales; scale l uses 2^(l-1) tiles per side (Sec. III-D)."
+    description: "Tile-pyramid scales; scale l uses 2^(l-1) tiles per side."
     constraints: "Cannot be changed at runtime."
     read_only: true
     var_name: flow_num_scales_
-  flow_contrast_l2:
-    type: bool
-    default_value: false
-    description: "Use squared-L2 IWE gradient focus instead of the L1 default (Eq. 6)."
-    constraints: "Cannot be changed at runtime."
-    read_only: true
-    var_name: flow_contrast_l2_
-  flow_tv_weight:
-    type: double
-    default_value: 0.0025
-    min_value: 0.0
-    max_value: 10.0
-    step: 0.0
-    description: "Total-variation regularizer weight lambda (Eq. 9)."
-    constraints: "Must be non-negative."
-    read_only: false
-    var_name: flow_tv_weight_
-  flow_tv_charbonnier_eps:
-    type: double
-    default_value: 0.001
-    min_value: 0.000001
-    max_value: 1.0
-    step: 0.0
-    description: "Charbonnier epsilon smoothing the isotropic TV norm (Sec. III-E)."
-    constraints: "Must be positive."
-    read_only: false
-    var_name: flow_tv_charbonnier_eps_
-  flow_time_aware:
-    type: bool
-    default_value: true
-    description: "Enable time-aware flow propagation (Sec. III-C) when supported by the objective."
-    constraints: "Cannot be changed at runtime."
-    read_only: true
-    var_name: flow_time_aware_
-  flow_pde_burgers:
-    type: bool
-    default_value: false
-    description: "Use the Burgers flux scheme for time-aware propagation instead of upwind."
-    constraints: "Cannot be changed at runtime."
-    read_only: true
-    var_name: flow_pde_burgers_
-  flow_time_bins:
+  flow_cell_size_px:
     type: integer
-    default_value: 5
+    default_value: 16
     min_value: 1
-    max_value: 200
-    step: 1
-    description: "Number of temporal bins for time-aware propagation (5 MVSEC / 40 DSEC)."
-    constraints: "Must be positive."
-    read_only: false
-    var_name: flow_time_bins_
-  flow_prop_grid:
-    type: integer
-    default_value: 32
-    min_value: 4
     max_value: 256
     step: 1
-    description: "Side length of the square propagation grid for time-aware flow."
-    constraints: "Must be positive."
-    read_only: false
-    var_name: flow_prop_grid_
-  flow_newton_max_iter:
+    description: "Moment-grid cell size [px]."
+    constraints: "Cannot be changed at runtime."
+    read_only: true
+    var_name: flow_cell_size_px_
+  flow_decay_tau_us:
     type: integer
-    default_value: 30
+    default_value: 30000
     min_value: 1
-    max_value: 500
+    max_value: 1000000
     step: 1
-    description: "Maximum outer Newton iterations per scale for the truncated-Newton solver."
+    description: "Exponential decay time constant for cell moments [us]."
     constraints: "Must be positive."
     read_only: false
-    var_name: flow_newton_max_iter_
-  flow_cg_max_iter:
-    type: integer
-    default_value: 20
-    min_value: 1
-    max_value: 500
-    step: 1
-    description: "Maximum inner conjugate-gradient iterations per Newton step."
-    constraints: "Must be positive."
+    var_name: flow_decay_tau_us_
+  flow_tau_adaptive:
+    type: bool
+    default_value: false
+    description: "Enable adaptive per-cell decay time constants."
+    constraints: "Reserved; currently behaves as disabled."
     read_only: false
-    var_name: flow_cg_max_iter_
-  flow_cg_tol:
+    var_name: flow_tau_adaptive_
+  flow_cell_min_mass:
     type: double
-    default_value: 0.1
-    min_value: 0.000001
+    default_value: 3.0
+    min_value: 0.0
+    max_value: 1000000.0
+    step: 0.0
+    description: "Minimum decayed event mass required for a cell plane fit."
+    constraints: "Must be non-negative."
+    read_only: false
+    var_name: flow_cell_min_mass_
+  flow_cell_min_lambda:
+    type: double
+    default_value: 0.001
+    min_value: 0.0
+    max_value: 1000000.0
+    step: 0.0
+    description: "Minimum spatial covariance eigenvalue required for a cell plane fit."
+    constraints: "Must be non-negative."
+    read_only: false
+    var_name: flow_cell_min_lambda_
+  flow_aperture_ratio:
+    type: double
+    default_value: 0.05
+    min_value: 0.0
     max_value: 1.0
     step: 0.0
-    description: "Forcing-tolerance factor for the inner CG solve (truncated Newton)."
+    description: "Minimum tile tensor eigenvalue ratio required for full 2D flow."
+    constraints: "Must be in [0, 1]."
+    read_only: false
+    var_name: flow_aperture_ratio_
+  flow_tikhonov_eps:
+    type: double
+    default_value: 0.001
+    min_value: 0.000000000001
+    max_value: 1000.0
+    step: 0.0
+    description: "Tikhonov regularization added to cell and tile 2x2 solves."
     constraints: "Must be positive."
     read_only: false
-    var_name: flow_cg_tol_
+    var_name: flow_tikhonov_eps_
+  flow_smooth_iters:
+    type: integer
+    default_value: 1
+    min_value: 0
+    max_value: 16
+    step: 1
+    description: "Tile-field smoothing passes after each moment-flow scale."
+    constraints: "Set to 0 to disable."
+    read_only: false
+    var_name: flow_smooth_iters_
+  flow_smooth_alpha:
+    type: double
+    default_value: 0.35
+    min_value: 0.0
+    max_value: 1.0
+    step: 0.0
+    description: "Blend factor for each tile-field smoothing pass."
+    constraints: "Must be in [0, 1]."
+    read_only: false
+    var_name: flow_smooth_alpha_
+  flow_refine_enabled:
+    type: bool
+    default_value: false
+    description: "Enable robust iterative refinement of the moment-flow estimate."
+    constraints: "Reserved; currently behaves as disabled."
+    read_only: false
+    var_name: flow_refine_enabled_
+  flow_refine_iters:
+    type: integer
+    default_value: 2
+    min_value: 0
+    max_value: 20
+    step: 1
+    description: "Robust refinement iterations."
+    constraints: "Reserved until robust refinement is implemented."
+    read_only: false
+    var_name: flow_refine_iters_
+  flow_refine_huber_delta:
+    type: double
+    default_value: 0.01
+    min_value: 0.000000001
+    max_value: 1000000.0
+    step: 0.0
+    description: "Huber delta for robust refinement residual weighting."
+    constraints: "Reserved until robust refinement is implemented."
+    read_only: false
+    var_name: flow_refine_huber_delta_
   flow_iwe_scale:
     type: integer
     default_value: 1

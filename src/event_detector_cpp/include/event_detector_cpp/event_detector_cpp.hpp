@@ -37,6 +37,8 @@
 #include <dua_qos_cpp/dua_qos.hpp>
 #include <rclcpp/rclcpp.hpp>
 
+#include <Eigen/Core>
+
 #include <dua_common_interfaces/msg/command_result_stamped.hpp>
 
 #include <dua_cv_bridge/dua_cv_bridge.hpp>
@@ -53,7 +55,7 @@
 #include <sensor_msgs/msg/image.hpp>
 #include <std_msgs/msg/header.hpp>
 
-#include <event_detector_cpp/flow/objective.hpp>
+#include <event_detector_cpp/flow/moment_flow.hpp>
 
 using namespace event_camera_msgs::msg;
 
@@ -132,7 +134,7 @@ private:
    */
   cv::Mat compute_sae(const dv::EventStore & events);
 
-  /* Outputs of one contrast-maximization flow solve over a window. */
+  /* Outputs of one dense optical-flow solve over a window. */
   struct FlowResult
   {
     cv::Mat flow;  // dense flow field, BGR8 (hue = direction, value = speed)
@@ -140,21 +142,18 @@ private:
   };
 
   /**
-   * @brief Estimates dense optical flow from a window of events by contrast
-   * maximization, following Shiba-Gallego "Secrets of Event-Based Optical Flow".
+   * @brief Estimates dense optical flow from decayed spatio-temporal moments.
    *
-   * Minimizes the composite energy E(F) = 1/f(F) + lambda*TV(F) (Eq. 9) over a
-   * tile-grid flow field, coarse-to-fine across a tile pyramid (2^(l-1) tiles
-   * per side), each scale solved with a Hessian-free Newton-CG optimizer and
-   * warm-started from the previous (coarser) scale. Renders both the dense flow
-   * field (HSV) and the Image of Warped Events at the window midpoint.
+   * Solves a coarse-to-fine tile-field surrogate of CMax from per-cell plane fits
+   * and renders both the dense flow field (HSV) and the Image of Warped Events at
+   * the window midpoint.
    *
    * Runs on the worker thread.
    *
    * @param window The window of events to estimate the flow from.
    * @return The rendered flow (BGR8) and IWE (MONO8) images.
    */
-  FlowResult solve_flow_cmax(const dv::EventStore & window);
+  FlowResult solve_flow_moment(const dv::EventStore & window);
 
   /**
    * @brief Allocates the resolution-dependent processors on the first packet.
@@ -256,14 +255,15 @@ private:
   int64_t filter_high_us_{std::numeric_limits<int64_t>::lowest()};
 
   /* Optical-flow state. Events accumulate here until the window reaches
-   * flow_num_events_, at which point a contrast-maximization solve is run on
-   * the whole batch (event-count windowing, the paper's sets E_i of N events). */
+   * flow_num_events_, at which point the moment-flow estimator solves the whole
+   * batch. */
   dv::EventStore flow_accum_;
   /* Previous window's finest-scale tile flow field and its per-side tile count,
-   * used to warm-start the next window (Sec. III-D cross-window initialization).
-   * Empty (prev_flow_tiles_ == 0) until the first window has been solved. */
+   * used to warm-start the next window. Empty (prev_flow_tiles_ == 0) until the
+   * first window has been solved. */
   Eigen::VectorXf prev_flow_field_;
   int prev_flow_tiles_{0};
+  std::optional<flow::MomentFlow> moment_flow_;
 
   /* Node parameters. */
   bool    autostart_;
@@ -275,16 +275,18 @@ private:
   bool    flow_enabled_;
   int64_t flow_num_events_;
   int64_t flow_num_scales_;
-  bool    flow_contrast_l2_;
-  double  flow_tv_weight_;
-  double  flow_tv_charbonnier_eps_;
-  bool    flow_time_aware_;
-  bool    flow_pde_burgers_;
-  int64_t flow_time_bins_;
-  int64_t flow_prop_grid_;
-  int64_t flow_newton_max_iter_;
-  int64_t flow_cg_max_iter_;
-  double  flow_cg_tol_;
+  int64_t flow_cell_size_px_;
+  int64_t flow_decay_tau_us_;
+  bool    flow_tau_adaptive_;
+  double  flow_cell_min_mass_;
+  double  flow_cell_min_lambda_;
+  double  flow_aperture_ratio_;
+  double  flow_tikhonov_eps_;
+  int64_t flow_smooth_iters_;
+  double  flow_smooth_alpha_;
+  bool    flow_refine_enabled_;
+  int64_t flow_refine_iters_;
+  double  flow_refine_huber_delta_;
   int64_t flow_iwe_scale_;
   double  flow_max_speed_px_s_;
 

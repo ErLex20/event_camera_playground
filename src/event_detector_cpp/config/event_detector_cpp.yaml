@@ -14,15 +14,17 @@
     flow_enabled: true
     flow_num_events: 1500000
     flow_num_scales: 5
-    flow_contrast_l2: false
-    flow_tv_weight: 0.0025
-    flow_tv_charbonnier_eps: 0.001
-    flow_time_aware: true
-    flow_pde_burgers: false
-    flow_time_bins: 40
-    flow_prop_grid: 32
-    flow_newton_max_iter: 30
-    flow_cg_max_iter: 20
-    flow_cg_tol: 0.1
+    flow_cell_size_px: 4
+    flow_decay_tau_us: 30000
+    flow_tau_adaptive: true
+    flow_cell_min_mass: 50.0
+    flow_cell_min_lambda: 0.01
+    flow_aperture_ratio: 0.05
+    flow_tikhonov_eps: 0.01
+    flow_smooth_iters: 2
+    flow_smooth_alpha: 0.0
+    flow_refine_enabled: false
+    flow_refine_iters: 2
+    flow_refine_huber_delta: 0.01
     flow_iwe_scale: 1
     flow_max_speed_px_s: 3000.0

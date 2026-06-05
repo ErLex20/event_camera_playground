@@ -75,6 +75,7 @@ void EventDetector::reset_state()
   flow_accum_ = dv::EventStore();
   prev_flow_field_ = Eigen::VectorXf();
   prev_flow_tiles_ = 0;
+  moment_flow_.reset();
 }
 
 void EventDetector::publish_image(

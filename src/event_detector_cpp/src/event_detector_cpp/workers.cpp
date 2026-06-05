@@ -90,11 +90,11 @@ void EventDetector::worker_thread_routine()
         flow_accum_ = dv::EventStore();
 
         auto t_flow = std::chrono::high_resolution_clock::now();
-        FlowResult res = solve_flow_cmax(window);
+        FlowResult res = solve_flow_moment(window);
         auto dt_flow = std::chrono::duration_cast<std::chrono::milliseconds>(
           std::chrono::high_resolution_clock::now() - t_flow).count();
         RCLCPP_INFO_THROTTLE(
-          this->get_logger(), *get_clock(), 1000, "Flow CMax: %ld ms", dt_flow);
+          this->get_logger(), *get_clock(), 1000, "Flow moment: %ld ms", dt_flow);
 
         if (iwe_enabled_) {
           publish_image(

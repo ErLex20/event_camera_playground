@@ -7,20 +7,19 @@ PKG="$(cd "$HERE/.." && pwd)"
 OUT="$HERE/.build"
 mkdir -p "$OUT"
 
-SRCS=(
-  "$PKG/src/event_detector_cpp/flow_propagation.cpp"
-  "$PKG/src/event_detector_cpp/flow_objective.cpp"
-)
 TESTS=(
-  "$HERE/test_propagation.cpp"
-  "$HERE/test_objective.cpp"
-  "$HERE/test_solver.cpp"
+  "$HERE/test_moment_flow.cpp"
 )
 
-g++ -std=c++17 -O2 -Wall -Wextra -fopenmp \
+g++ -std=c++17 -O2 -Wall -Wextra \
   -I"$PKG/include" -I/usr/include/eigen3 \
-  "${SRCS[@]}" "${TESTS[@]}" \
+  "${TESTS[@]}" \
   -lgtest -lgtest_main -lpthread \
   -o "$OUT/flow_tests"
 
 "$OUT/flow_tests" "$@"
+
+g++ -std=c++17 -O2 -Wall -Wextra \
+  -I"$PKG/include" -I/usr/include/eigen3 \
+  "$HERE/bench_moment_flow.cpp" \
+  -o "$OUT/moment_flow_bench"

@@ -141,21 +141,25 @@ if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
 
   ament_add_gtest(flow_core_tests
-    test/test_propagation.cpp
-    test/test_objective.cpp
-    test/test_solver.cpp
-    src/event_detector_cpp/flow_propagation.cpp
-    src/event_detector_cpp/flow_objective.cpp)
+    test/test_moment_flow.cpp)
   if(TARGET flow_core_tests)
     target_include_directories(flow_core_tests PRIVATE
       include
       ${EIGEN3_INCLUDE_DIR})
     target_link_libraries(flow_core_tests
-      Eigen3::Eigen
-      OpenMP::OpenMP_CXX
-      Threads::Threads)
-    set_tests_properties(flow_core_tests PROPERTIES
-      ENVIRONMENT "OMP_NUM_THREADS=4")
+      Eigen3::Eigen)
+  endif()
+
+  add_executable(moment_flow_bench
+    test/bench_moment_flow.cpp)
+  target_include_directories(moment_flow_bench PRIVATE
+    include
+    ${EIGEN3_INCLUDE_DIR})
+  target_link_libraries(moment_flow_bench
+    Eigen3::Eigen)
+  if(TARGET moment_flow_bench)
+    set_target_properties(moment_flow_bench PROPERTIES
+      RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
   endif()
 
   # the following line skips the linter which checks for copyrights
