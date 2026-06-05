@@ -92,14 +92,15 @@ int main()
   const int cell = 16;
   const Events ev = make_events(W, H, cell, 8);
 
-  std::cout << "Tile,Variables,Events,Ingest_us,Decay_us,StageA_us,StageB_us,"
+  std::cout << "Tile,Variables,Events,DecayEnabled,Ingest_us,Decay_us,StageA_us,StageB_us,"
                "Smooth_us,TotalSolve_us,Total_us,Hz,ActiveCells,ValidCells,FullRankTiles,"
-               "ApertureTiles,FallbackTiles\n";
+               "ApertureTiles,FallbackTiles,PriorTiles,ResidualRejectCells,SpeedRejectCells\n";
 
   for (int scales = 1; scales <= 5; ++scales) {
     MomentFlowParams p;
     p.num_scales = scales;
     p.cell_size_px = cell;
+    p.decay_enabled = false;
     p.decay_tau_us = 30000;
     p.cell_min_mass = 3.0f;
     p.cell_min_lambda = 1e-4f;
@@ -125,6 +126,7 @@ int main()
     std::cout << tiles << "x" << tiles << ","
               << flow.num_vars() << ","
               << ev.size() << ","
+              << (p.decay_enabled ? 1 : 0) << ","
               << prof.ingest_ms * 1000.0 << ","
               << prof.decay_ms * 1000.0 << ","
               << prof.stage_a_ms * 1000.0 << ","
@@ -137,7 +139,10 @@ int main()
               << prof.valid_cells << ","
               << prof.full_rank_tiles << ","
               << prof.aperture_tiles << ","
-              << prof.fallback_tiles << "\n";
+              << prof.fallback_tiles << ","
+              << prof.prior_tiles << ","
+              << prof.residual_reject_cells << ","
+              << prof.speed_reject_cells << "\n";
   }
 
   return 0;

@@ -24,6 +24,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <algorithm>
 #include <random>
 
 #include <Eigen/Core>
@@ -73,6 +74,23 @@ Events make_plane_events(
         }
       }
     }
+  }
+  return ev;
+}
+
+Events make_incoherent_events(int w, int h, int n_events, unsigned seed)
+{
+  std::mt19937 rng(seed);
+  std::uniform_real_distribution<float> ux(4.0f, static_cast<float>(w) - 4.0f);
+  std::uniform_real_distribution<float> uy(4.0f, static_cast<float>(h) - 4.0f);
+  std::uniform_real_distribution<float> ut(-0.005f, 0.005f);
+
+  Events ev;
+  ev.t_ref_us = 1000000;
+  for (int k = 0; k < n_events; ++k) {
+    ev.x.push_back(ux(rng));
+    ev.y.push_back(uy(rng));
+    ev.t.push_back(ut(rng));
   }
   return ev;
 }
@@ -150,6 +168,88 @@ TEST(MomentFlow, RecoversWarpSignConvention)
   EXPECT_GT(flow.profile().valid_cells, 0);
 }
 
+TEST(MomentFlow, TileTikhonovIsScaleAwareForFastMotion)
+{
+  const int W = 256;
+  const int H = 256;
+  const float Fx = 2600.0f;
+  const float Fy = -700.0f;
+
+  MomentFlowParams p = test_params(1);
+  p.cell_size_px = 256;
+  p.tile_min_mass = 0.0f;
+  p.tile_min_cells = 1;
+  p.tile_min_lambda = 0.0f;
+  p.tikhonov_eps = 0.01f;
+  p.max_speed_px_s = 5000.0f;
+
+  MomentFlow flow(W, H, p);
+  flow.ingest(make_plane_events(W, H, p.cell_size_px, Fx, Fy, 1000, 29, 0.0f, W));
+
+  Eigen::VectorXf warm;
+  Eigen::VectorXf F(flow.num_vars());
+  flow.solve(warm, F);
+
+  ASSERT_EQ(F.size(), 2);
+  EXPECT_NEAR(F[0], Fx, 250.0f);
+  EXPECT_NEAR(F[1], Fy, 100.0f);
+}
+
+TEST(MomentFlow, ReversedEventOrderKeepsCellTimeMonotonic)
+{
+  const int W = 128;
+  const int H = 96;
+  const float Fx = 500.0f;
+  const float Fy = -120.0f;
+
+  MomentFlowParams p = test_params(1);
+  p.decay_enabled = true;
+  Events ev = make_plane_events(W, H, p.cell_size_px, Fx, Fy, 40, 31, 0.0f, W);
+  std::reverse(ev.x.begin(), ev.x.end());
+  std::reverse(ev.y.begin(), ev.y.end());
+  std::reverse(ev.t.begin(), ev.t.end());
+
+  MomentFlow flow(W, H, p);
+  flow.ingest(ev);
+
+  Eigen::VectorXf warm;
+  Eigen::VectorXf F(flow.num_vars());
+  flow.solve(warm, F);
+
+  ASSERT_EQ(F.size(), 2);
+  EXPECT_NEAR(F[0], Fx, 60.0f);
+  EXPECT_NEAR(F[1], Fy, 35.0f);
+}
+
+TEST(MomentFlow, RejectsIncoherentCellMoments)
+{
+  const int W = 64;
+  const int H = 64;
+
+  MomentFlowParams p = test_params(1);
+  p.cell_size_px = 64;
+  p.cell_min_mass = 20.0f;
+  p.cell_min_lambda = 0.01f;
+  p.cell_max_residual_ratio = 0.6f;
+  p.tile_min_mass = 0.0f;
+  p.tile_min_cells = 1;
+  p.tile_min_lambda = 0.0f;
+
+  MomentFlow flow(W, H, p);
+  flow.ingest(make_incoherent_events(W, H, 200, 37));
+
+  Eigen::VectorXf warm(flow.num_vars());
+  warm << 12.0f, -8.0f;
+  Eigen::VectorXf F(flow.num_vars());
+  flow.solve(warm, F);
+
+  EXPECT_EQ(flow.profile().valid_cells, 0);
+  EXPECT_GT(flow.profile().residual_reject_cells + flow.profile().speed_reject_cells, 0);
+  ASSERT_EQ(F.size(), warm.size());
+  EXPECT_FLOAT_EQ(F[0], warm[0]);
+  EXPECT_FLOAT_EQ(F[1], warm[1]);
+}
+
 TEST(MomentFlow, EmptyWindowKeepsWarmStart)
 {
   const int W = 128;
@@ -188,6 +288,29 @@ TEST(MomentFlow, ApertureTilesKeepFallbackTangentialComponent)
   EXPECT_NEAR(F[0], Fx, 35.0f);
   EXPECT_NEAR(F[1], FallbackTangential, 1e-3f);
   EXPECT_GT(flow.profile().aperture_tiles, 0);
+}
+
+TEST(MomentFlow, EdgeCellsSurviveApertureAtStageA)
+{
+  const int W = 128;
+  const int H = 96;
+  const float Fx = 360.0f;
+
+  MomentFlowParams p = test_params(1);
+  p.cell_min_lambda = 0.01f;
+
+  MomentFlow flow(W, H, p);
+  flow.ingest(make_plane_events(W, H, p.cell_size_px, Fx, 0.0f, 30, 41, 0.0f, W));
+
+  Eigen::VectorXf warm(flow.num_vars());
+  warm << 0.0f, 80.0f;
+  Eigen::VectorXf F(flow.num_vars());
+  flow.solve(warm, F);
+
+  EXPECT_GT(flow.profile().valid_cells, 10);
+  EXPECT_GT(flow.profile().aperture_tiles, 0);
+  EXPECT_NEAR(F[0], Fx, 40.0f);
+  EXPECT_NEAR(F[1], 80.0f, 1e-3f);
 }
 
 TEST(MomentFlow, ProducesNonUniformTileField)

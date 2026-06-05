@@ -73,6 +73,8 @@ void EventDetector::reset_state()
   }
   filter_high_us_ = std::numeric_limits<int64_t>::lowest();
   flow_accum_ = dv::EventStore();
+  flow_accum_first_us_ = std::numeric_limits<int64_t>::max();
+  flow_accum_last_us_ = std::numeric_limits<int64_t>::lowest();
   prev_flow_field_ = Eigen::VectorXf();
   prev_flow_tiles_ = 0;
   moment_flow_.reset();

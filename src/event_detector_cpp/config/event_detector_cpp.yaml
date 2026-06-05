@@ -12,16 +12,22 @@
     sae_enabled: true
     iwe_enabled: true
     flow_enabled: true
-    flow_num_events: 1500000
+    flow_max_window_ms: 10.0
     flow_num_scales: 5
     flow_cell_size_px: 4
+    flow_decay_enabled: false
     flow_decay_tau_us: 30000
-    flow_tau_adaptive: true
+    flow_tau_adaptive: false
     flow_cell_min_mass: 50.0
     flow_cell_min_lambda: 0.01
+    flow_cell_max_residual_ratio: 0.6
+    flow_tile_min_mass: 100.0
+    flow_tile_min_cells: 3
+    flow_tile_min_lambda: 0.000001
     flow_aperture_ratio: 0.05
     flow_tikhonov_eps: 0.01
-    flow_smooth_iters: 2
+    flow_prior_lambda: 0.08
+    flow_smooth_iters: 0
     flow_smooth_alpha: 0.0
     flow_refine_enabled: false
     flow_refine_iters: 2

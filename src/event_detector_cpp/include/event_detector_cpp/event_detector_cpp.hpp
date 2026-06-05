@@ -142,7 +142,7 @@ private:
   };
 
   /**
-   * @brief Estimates dense optical flow from decayed spatio-temporal moments.
+   * @brief Estimates dense optical flow from spatio-temporal moments.
    *
    * Solves a coarse-to-fine tile-field surrogate of CMax from per-cell plane fits
    * and renders both the dense flow field (HSV) and the Image of Warped Events at
@@ -254,10 +254,12 @@ private:
    * packet stream monotonic before accept() (which throws on out-of-order input). */
   int64_t filter_high_us_{std::numeric_limits<int64_t>::lowest()};
 
-  /* Optical-flow state. Events accumulate here until the window reaches
-   * flow_num_events_, at which point the moment-flow estimator solves the whole
-   * batch. */
+  /* Optical-flow state. Events accumulate here until the time span reaches
+   * flow_max_window_ms_, at which point the moment-flow estimator solves the
+   * whole batch. */
   dv::EventStore flow_accum_;
+  int64_t flow_accum_first_us_{std::numeric_limits<int64_t>::max()};
+  int64_t flow_accum_last_us_{std::numeric_limits<int64_t>::lowest()};
   /* Previous window's finest-scale tile flow field and its per-side tile count,
    * used to warm-start the next window. Empty (prev_flow_tiles_ == 0) until the
    * first window has been solved. */
@@ -273,15 +275,21 @@ private:
   bool    sae_enabled_;
   bool    iwe_enabled_;
   bool    flow_enabled_;
-  int64_t flow_num_events_;
+  double  flow_max_window_ms_;
   int64_t flow_num_scales_;
   int64_t flow_cell_size_px_;
+  bool    flow_decay_enabled_;
   int64_t flow_decay_tau_us_;
   bool    flow_tau_adaptive_;
   double  flow_cell_min_mass_;
   double  flow_cell_min_lambda_;
+  double  flow_cell_max_residual_ratio_;
+  double  flow_tile_min_mass_;
+  int64_t flow_tile_min_cells_;
+  double  flow_tile_min_lambda_;
   double  flow_aperture_ratio_;
   double  flow_tikhonov_eps_;
+  double  flow_prior_lambda_;
   int64_t flow_smooth_iters_;
   double  flow_smooth_alpha_;
   bool    flow_refine_enabled_;

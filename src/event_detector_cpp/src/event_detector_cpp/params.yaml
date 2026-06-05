@@ -58,16 +58,16 @@ params:
     constraints: "Cannot be changed at runtime."
     read_only: true
     var_name: flow_enabled_
-  flow_num_events:
-    type: integer
-    default_value: 30000
-    min_value: 100
-    max_value: 5000000
-    step: 1
-    description: "Events accumulated per flow estimate (the paper's set E_i of N events)."
+  flow_max_window_ms:
+    type: double
+    default_value: 10.0
+    min_value: 0.1
+    max_value: 1000.0
+    step: 0.0
+    description: "Temporal span accumulated per flow estimate [ms]."
     constraints: "Must be positive."
     read_only: false
-    var_name: flow_num_events_
+    var_name: flow_max_window_ms_
   flow_num_scales:
     type: integer
     default_value: 5
@@ -88,6 +88,13 @@ params:
     constraints: "Cannot be changed at runtime."
     read_only: true
     var_name: flow_cell_size_px_
+  flow_decay_enabled:
+    type: bool
+    default_value: false
+    description: "Apply causal exponential decay inside each moment-flow window."
+    constraints: "Disable for uniform CMax-like window alignment; enable for streaming recent-tail estimates."
+    read_only: false
+    var_name: flow_decay_enabled_
   flow_decay_tau_us:
     type: integer
     default_value: 30000
@@ -121,10 +128,50 @@ params:
     min_value: 0.0
     max_value: 1000000.0
     step: 0.0
-    description: "Minimum spatial covariance eigenvalue required for a cell plane fit."
+    description: "Minimum dominant spatial covariance eigenvalue required for a cell plane fit."
     constraints: "Must be non-negative."
     read_only: false
     var_name: flow_cell_min_lambda_
+  flow_cell_max_residual_ratio:
+    type: double
+    default_value: 0.6
+    min_value: 0.0
+    max_value: 1.0
+    step: 0.0
+    description: "Maximum unexplained time-variance ratio accepted for each cell plane fit."
+    constraints: "Cells above this ratio are rejected before tile aggregation."
+    read_only: false
+    var_name: flow_cell_max_residual_ratio_
+  flow_tile_min_mass:
+    type: double
+    default_value: 10.0
+    min_value: 0.0
+    max_value: 1000000000.0
+    step: 0.0
+    description: "Minimum summed cell confidence required before solving a tile."
+    constraints: "Must be non-negative."
+    read_only: false
+    var_name: flow_tile_min_mass_
+  flow_tile_min_cells:
+    type: integer
+    default_value: 3
+    min_value: 0
+    max_value: 1000000
+    step: 1
+    description: "Minimum valid cells required before solving a tile."
+    constraints: "Must be non-negative."
+    read_only: false
+    var_name: flow_tile_min_cells_
+  flow_tile_min_lambda:
+    type: double
+    default_value: 0.000001
+    min_value: 0.0
+    max_value: 1000000000.0
+    step: 0.0
+    description: "Minimum tile structure-tensor eigenvalue required before solving a tile."
+    constraints: "Must be non-negative."
+    read_only: false
+    var_name: flow_tile_min_lambda_
   flow_aperture_ratio:
     type: double
     default_value: 0.05
@@ -145,19 +192,29 @@ params:
     constraints: "Must be positive."
     read_only: false
     var_name: flow_tikhonov_eps_
+  flow_prior_lambda:
+    type: double
+    default_value: 0.05
+    min_value: 0.0
+    max_value: 1000.0
+    step: 0.0
+    description: "Relative fallback prior strength in each tile solve."
+    constraints: "Must be non-negative."
+    read_only: false
+    var_name: flow_prior_lambda_
   flow_smooth_iters:
     type: integer
-    default_value: 1
+    default_value: 0
     min_value: 0
     max_value: 16
     step: 1
-    description: "Tile-field smoothing passes after each moment-flow scale."
+    description: "Optional tile-field smoothing passes after each moment-flow scale."
     constraints: "Set to 0 to disable."
     read_only: false
     var_name: flow_smooth_iters_
   flow_smooth_alpha:
     type: double
-    default_value: 0.35
+    default_value: 0.0
     min_value: 0.0
     max_value: 1.0
     step: 0.0

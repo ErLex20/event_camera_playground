@@ -1,9 +1,10 @@
 /**
  * Moment-based incremental optical-flow estimator.
  *
- * Maintains decayed spatio-temporal moments per sensor cell and solves small
- * closed-form structure-tensor systems on the tile pyramid. The output field
- * uses the same convention as the previous dense-flow publisher:
+ * Maintains spatio-temporal moments per sensor cell, optionally with causal
+ * exponential decay, and solves small closed-form structure-tensor systems on
+ * the tile pyramid. The output field uses the same convention as the previous
+ * dense-flow publisher:
  * F[2*k], F[2*k+1] are warp parameters in x' = x + t * F.
  *
  * dotX Automation s.r.l. <info@dotxautomation.com>
@@ -36,6 +37,7 @@
 #include <vector>
 
 #include <Eigen/Core>
+#include <Eigen/Eigenvalues>
 
 namespace event_detector_cpp::flow
 {
@@ -55,14 +57,20 @@ struct MomentFlowParams
 {
   int num_scales = 1;
   int cell_size_px = 16;
+  bool decay_enabled = false;
   int decay_tau_us = 30000;
   bool tau_adaptive = false;
   float cell_min_mass = 3.0f;
   float cell_min_lambda = 1e-3f;
+  float cell_max_residual_ratio = 0.6f;
+  float tile_min_mass = 10.0f;
+  int tile_min_cells = 3;
+  float tile_min_lambda = 1e-6f;
   float aperture_ratio = 0.05f;
   float tikhonov_eps = 1e-3f;
-  int smooth_iters = 1;
-  float smooth_alpha = 0.35f;
+  float prior_lambda = 0.05f;
+  int smooth_iters = 0;
+  float smooth_alpha = 0.0f;
   bool refine_enabled = false;
   int refine_iters = 2;
   float refine_huber_delta = 0.01f;
@@ -73,12 +81,18 @@ inline bool operator==(const MomentFlowParams & a, const MomentFlowParams & b)
 {
   return a.num_scales == b.num_scales &&
          a.cell_size_px == b.cell_size_px &&
+         a.decay_enabled == b.decay_enabled &&
          a.decay_tau_us == b.decay_tau_us &&
          a.tau_adaptive == b.tau_adaptive &&
          a.cell_min_mass == b.cell_min_mass &&
          a.cell_min_lambda == b.cell_min_lambda &&
+         a.cell_max_residual_ratio == b.cell_max_residual_ratio &&
+         a.tile_min_mass == b.tile_min_mass &&
+         a.tile_min_cells == b.tile_min_cells &&
+         a.tile_min_lambda == b.tile_min_lambda &&
          a.aperture_ratio == b.aperture_ratio &&
          a.tikhonov_eps == b.tikhonov_eps &&
+         a.prior_lambda == b.prior_lambda &&
          a.smooth_iters == b.smooth_iters &&
          a.smooth_alpha == b.smooth_alpha &&
          a.refine_enabled == b.refine_enabled &&
@@ -97,9 +111,12 @@ struct MomentFlowProfile
   int events_ingested = 0;
   int active_cells = 0;
   int valid_cells = 0;
+  int residual_reject_cells = 0;
+  int speed_reject_cells = 0;
   int full_rank_tiles = 0;
   int aperture_tiles = 0;
   int fallback_tiles = 0;
+  int prior_tiles = 0;
   double ingest_ms = 0.0;
   double decay_ms = 0.0;
   double stage_a_ms = 0.0;
@@ -174,6 +191,17 @@ public:
   int num_vars() const { return final_vars_; }
   const MomentFlowProfile & profile() const { return profile_; }
 
+  void reset()
+  {
+    for (CellMoments & c : cells_) {
+      clear_cell(c);
+    }
+    time_origin_us_ = 0;
+    last_event_us_ = 0;
+    has_time_origin_ = false;
+    profile_ = MomentFlowProfile{};
+  }
+
   void ingest(const Events & events)
   {
     using Clock = std::chrono::steady_clock;
@@ -208,23 +236,33 @@ public:
       if (std::llabs(t_us - time_origin_us_) > kRebaseThresholdUs) {
         rebase_time_origin(t_us);
       }
-      decay_cell_to(c, t_us, tau_s);
+      float a = 1.0f;
+      if (params_.decay_enabled) {
+        if (c.w > 0.0f && c.t_last_us > 0 && t_us < c.t_last_us) {
+          a = std::exp(-static_cast<float>(c.t_last_us - t_us) * 1e-6f / tau_s);
+          if (a < 1e-6f) {
+            continue;
+          }
+        } else {
+          decay_cell_to(c, t_us, tau_s);
+        }
+      }
 
       const float dx = x - cell_center_x_[cell_index(cx, cy)];
       const float dy = y - cell_center_y_[cell_index(cx, cy)];
       const float dt = static_cast<float>(t_us - time_origin_us_) * 1e-6f;
 
-      c.w += 1.0f;
-      c.sx += dx;
-      c.sy += dy;
-      c.st += dt;
-      c.sxx += dx * dx;
-      c.sxy += dx * dy;
-      c.syy += dy * dy;
-      c.sxt += dx * dt;
-      c.syt += dy * dt;
-      c.stt += dt * dt;
-      c.t_last_us = t_us;
+      c.w += a;
+      c.sx += a * dx;
+      c.sy += a * dy;
+      c.st += a * dt;
+      c.sxx += a * dx * dx;
+      c.sxy += a * dx * dy;
+      c.syy += a * dy * dy;
+      c.sxt += a * dx * dt;
+      c.syt += a * dy * dt;
+      c.stt += a * dt * dt;
+      c.t_last_us = std::max(c.t_last_us, t_us);
       last_event_us_ = std::max(last_event_us_, t_us);
       profile_.events_ingested += 1;
     }
@@ -243,16 +281,19 @@ public:
     profile_.total_solve_ms = 0.0;
     profile_.active_cells = 0;
     profile_.valid_cells = 0;
+    profile_.residual_reject_cells = 0;
+    profile_.speed_reject_cells = 0;
     profile_.full_rank_tiles = 0;
     profile_.aperture_tiles = 0;
     profile_.fallback_tiles = 0;
+    profile_.prior_tiles = 0;
 
     if (F_out.size() != final_vars_) {
       return;
     }
 
     const auto t_decay = Clock::now();
-    if (last_event_us_ > 0) {
+    if (params_.decay_enabled && last_event_us_ > 0) {
       decay_all_to(last_event_us_);
     }
     profile_.decay_ms = elapsed_ms(t_decay, Clock::now());
@@ -323,10 +364,14 @@ private:
     float myy = 0.0f;
     float bx = 0.0f;
     float by = 0.0f;
+    float rho = 0.0f;
+    int count = 0;
   };
 
   static constexpr int64_t kRebaseThresholdUs = 250000;
   static constexpr float kPruneMass = 1e-4f;
+  static constexpr float kMinTimeVariance = 1e-12f;
+  static constexpr float kMinPlaneTimeNormal = 1e-3f;
 
   int img_w_;
   int img_h_;
@@ -355,8 +400,13 @@ private:
     p.decay_tau_us = std::max(1, p.decay_tau_us);
     p.cell_min_mass = std::max(0.0f, p.cell_min_mass);
     p.cell_min_lambda = std::max(0.0f, p.cell_min_lambda);
+    p.cell_max_residual_ratio = std::clamp(p.cell_max_residual_ratio, 1e-6f, 1.0f);
+    p.tile_min_mass = std::max(0.0f, p.tile_min_mass);
+    p.tile_min_cells = std::max(0, p.tile_min_cells);
+    p.tile_min_lambda = std::max(0.0f, p.tile_min_lambda);
     p.aperture_ratio = std::clamp(p.aperture_ratio, 0.0f, 1.0f);
     p.tikhonov_eps = std::max(1e-12f, p.tikhonov_eps);
+    p.prior_lambda = std::max(0.0f, p.prior_lambda);
     p.smooth_iters = std::clamp(p.smooth_iters, 0, 16);
     p.smooth_alpha = std::clamp(p.smooth_alpha, 0.0f, 1.0f);
     p.refine_iters = std::max(0, p.refine_iters);
@@ -535,24 +585,55 @@ private:
       const float dx = c.sxt * inv_w - mx * mt;
       const float dy = c.syt * inv_w - my * mt;
       const float sc = std::max(0.0f, c.stt * inv_w - mt * mt);
-
-      float lmin, lmax;
-      eig2(cxx, cxy, cyy, lmin, lmax);
-      if (!(lmin >= params_.cell_min_lambda) || !(lmax > 0.0f)) {
+      if (!(sc > kMinTimeVariance)) {
         continue;
       }
 
-      float gx, gy;
-      if (!solve2(
-          cxx + params_.tikhonov_eps, cxy,
-          cyy + params_.tikhonov_eps, dx, dy, gx, gy))
-      {
+      float spatial_lmin, spatial_lmax;
+      eig2(cxx, cxy, cyy, spatial_lmin, spatial_lmax);
+      if (!(spatial_lmax >= params_.cell_min_lambda)) {
         continue;
       }
-      const float residual = std::max(0.0f, sc - (gx * dx + gy * dy));
-      const float residual_conf = 1.0f / (1.0f + residual / (sc + params_.tikhonov_eps));
-      const float spatial_conf = lmin / (lmin + params_.tikhonov_eps);
-      const float rho = c.w * spatial_conf * residual_conf;
+
+      Eigen::Matrix3f cov;
+      cov << cxx, cxy, dx,
+             cxy, cyy, dy,
+             dx,  dy,  sc;
+      Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> eig(cov);
+      if (eig.info() != Eigen::Success) {
+        continue;
+      }
+      const Eigen::Vector3f normal = eig.eigenvectors().col(0);
+      const float nt = normal.z();
+      if (!(std::abs(nt) >= kMinPlaneTimeNormal)) {
+        profile_.speed_reject_cells += 1;
+        continue;
+      }
+      const float gx = -normal.x() / nt;
+      const float gy = -normal.y() / nt;
+      if (!std::isfinite(gx) || !std::isfinite(gy)) {
+        continue;
+      }
+
+      const float residual = std::max(
+        0.0f,
+        sc - 2.0f * (gx * dx + gy * dy) +
+        gx * (cxx * gx + cxy * gy) +
+        gy * (cxy * gx + cyy * gy));
+      const float residual_ratio = residual / std::max(sc, kMinTimeVariance);
+      if (!(residual_ratio <= params_.cell_max_residual_ratio)) {
+        profile_.residual_reject_cells += 1;
+        continue;
+      }
+      const float g2 = gx * gx + gy * gy;
+      const float min_g2 = 1.0f / (params_.max_speed_px_s * params_.max_speed_px_s);
+      if (!(g2 >= min_g2)) {
+        profile_.speed_reject_cells += 1;
+        continue;
+      }
+      const float residual_conf = std::max(0.0f, 1.0f - residual_ratio);
+      const float spatial_conf = spatial_lmax / (spatial_lmax + params_.tikhonov_eps);
+      const float rho = c.w * spatial_conf * residual_conf * residual_conf;
       if (!(rho > 0.0f) || !std::isfinite(rho)) {
         continue;
       }
@@ -592,6 +673,8 @@ private:
       a.myy += f.rho * f.gy * f.gy;
       a.bx += f.rho * f.gx;
       a.by += f.rho * f.gy;
+      a.rho += f.rho;
+      a.count += 1;
     }
 
     for (int ty = 0; ty < tiles; ++ty) {
@@ -605,7 +688,10 @@ private:
 
         float lmin, lmax;
         eig2(a.mxx, a.mxy, a.myy, lmin, lmax);
-        if (!(lmax > 0.0f)) {
+        if (a.count < params_.tile_min_cells ||
+            a.rho < params_.tile_min_mass ||
+            !(lmax >= params_.tile_min_lambda))
+        {
           out_F[2 * k] = fb_Fx;
           out_F[2 * k + 1] = fb_Fy;
           profile_.fallback_tiles += 1;
@@ -614,9 +700,19 @@ private:
 
         float vx_phys = 0.0f;
         float vy_phys = 0.0f;
-        solve2(
-          a.mxx + params_.tikhonov_eps, a.mxy,
-          a.myy + params_.tikhonov_eps, a.bx, a.by, vx_phys, vy_phys);
+        const float tile_eps = params_.tikhonov_eps * std::max(lmax, 1e-12f);
+        const float prior = params_.prior_lambda * std::max(lmax, 1e-12f);
+        const bool solved = solve2(
+          a.mxx + tile_eps + prior, a.mxy,
+          a.myy + tile_eps + prior,
+          a.bx + prior * fb_px, a.by + prior * fb_py,
+          vx_phys, vy_phys);
+        if (!solved) {
+          out_F[2 * k] = fb_Fx;
+          out_F[2 * k + 1] = fb_Fy;
+          profile_.fallback_tiles += 1;
+          continue;
+        }
 
         if (lmin / std::max(lmax, 1e-12f) < params_.aperture_ratio) {
           float ex, ey;
@@ -630,6 +726,9 @@ private:
           profile_.aperture_tiles += 1;
         } else {
           profile_.full_rank_tiles += 1;
+        }
+        if (prior > 0.0f) {
+          profile_.prior_tiles += 1;
         }
 
         clamp_speed(vx_phys, vy_phys);

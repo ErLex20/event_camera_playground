@@ -1,10 +1,9 @@
 /**
  * Event Detector dense optical-flow estimation via moment-flow alignment.
  *
- * Maintains decayed spatio-temporal moments on a cell grid and solves a
- * coarse-to-fine tile-field surrogate of contrast maximization. The dense flow
- * and the Image of Warped Events at the window midpoint are rendered for
- * publishing.
+ * Maintains spatio-temporal moments on a cell grid and solves a coarse-to-fine
+ * tile-field surrogate of contrast maximization. The dense flow and the Image
+ * of Warped Events at the window midpoint are rendered for publishing.
  *
  * dotX Automation s.r.l. <info@dotxautomation.com>
  *
@@ -58,6 +57,13 @@ struct EventSample
   float x;
   float y;
   int64_t t_us;
+};
+
+struct IweRenderStats
+{
+  size_t input = 0;
+  size_t accepted = 0;
+  size_t dropped = 0;
 };
 
 using ProfileClock = std::chrono::steady_clock;
@@ -145,7 +151,7 @@ double iwe_contrast(const cv::Mat & iwe)
   return acc / static_cast<double>((iwe.rows - 1) * (iwe.cols - 1));
 }
 
-void render_iwe_bilinear(
+IweRenderStats render_iwe_bilinear(
   const Events & events,
   const Eigen::VectorXf & F,
   int tiles,
@@ -155,6 +161,8 @@ void render_iwe_bilinear(
   bool warp,
   cv::Mat & iwe)
 {
+  IweRenderStats stats;
+  stats.input = events.size();
   const int iw = (img_w + scale - 1) / scale;
   const int ih = (img_h + scale - 1) / scale;
   const float inv_scale = 1.0f / static_cast<float>(scale);
@@ -175,6 +183,7 @@ void render_iwe_bilinear(
     const int x0 = static_cast<int>(std::floor(wx));
     const int y0 = static_cast<int>(std::floor(wy));
     if (x0 < 0 || y0 < 0 || x0 + 1 >= iw || y0 + 1 >= ih) {
+      stats.dropped += 1;
       continue;
     }
     const float fx = wx - x0;
@@ -185,7 +194,9 @@ void render_iwe_bilinear(
     r0[x0 + 1] += fx * (1.0f - fy);
     r1[x0]     += (1.0f - fx) * fy;
     r1[x0 + 1] += fx * fy;
+    stats.accepted += 1;
   }
+  return stats;
 }
 
 }  // namespace
@@ -257,12 +268,18 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(const dv::EventStore 
   MomentFlowParams params;
   params.num_scales = n_scales;
   params.cell_size_px = static_cast<int>(flow_cell_size_px_);
+  params.decay_enabled = flow_decay_enabled_;
   params.decay_tau_us = static_cast<int>(flow_decay_tau_us_);
   params.tau_adaptive = false;
   params.cell_min_mass = static_cast<float>(flow_cell_min_mass_);
   params.cell_min_lambda = static_cast<float>(flow_cell_min_lambda_);
+  params.cell_max_residual_ratio = static_cast<float>(flow_cell_max_residual_ratio_);
+  params.tile_min_mass = static_cast<float>(flow_tile_min_mass_);
+  params.tile_min_cells = static_cast<int>(flow_tile_min_cells_);
+  params.tile_min_lambda = static_cast<float>(flow_tile_min_lambda_);
   params.aperture_ratio = static_cast<float>(flow_aperture_ratio_);
   params.tikhonov_eps = static_cast<float>(flow_tikhonov_eps_);
+  params.prior_lambda = static_cast<float>(flow_prior_lambda_);
   params.smooth_iters = static_cast<int>(flow_smooth_iters_);
   params.smooth_alpha = static_cast<float>(flow_smooth_alpha_);
   params.refine_enabled = false;
@@ -297,6 +314,7 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(const dv::EventStore 
   }
 
   const auto t_moment = ProfileClock::now();
+  moment_flow_->reset();
   moment_flow_->ingest(ev);
   Eigen::VectorXf F(moment_flow_->num_vars());
   moment_flow_->solve(warm_start, F);
@@ -415,8 +433,10 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(const dv::EventStore 
   const int scale = std::max<int>(1, static_cast<int>(flow_iwe_scale_));
   cv::Mat identity_iwe;
   cv::Mat warped_iwe;
-  render_iwe_bilinear(render_ev, F, final_tiles, w, h, scale, false, identity_iwe);
-  render_iwe_bilinear(render_ev, F, final_tiles, w, h, scale, true, warped_iwe);
+  const IweRenderStats identity_stats =
+    render_iwe_bilinear(render_ev, F, final_tiles, w, h, scale, false, identity_iwe);
+  const IweRenderStats warped_stats =
+    render_iwe_bilinear(render_ev, F, final_tiles, w, h, scale, true, warped_iwe);
   const double identity_contrast = iwe_contrast(identity_iwe);
   const double warped_contrast = iwe_contrast(warped_iwe);
   const double sharpen_ratio = (identity_contrast > 1e-12)
@@ -429,26 +449,32 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(const dv::EventStore 
     get_logger(),
     "Flow profile MomentFlow: ingest=%.3f ms decay=%.3f ms stage_a=%.3f ms "
     "stage_b=%.3f ms smooth=%.3f ms solve_total=%.3f ms total=%.3f ms events=%d "
-    "active_cells=%d valid_cells=%d tiles(full/aperture/fallback)=%d/%d/%d",
+    "active_cells=%d valid_cells=%d reject(residual/speed)=%d/%d "
+    "tiles(full/aperture/fallback/prior)=%d/%d/%d/%d",
     profile.ingest_ms, profile.decay_ms, profile.stage_a_ms,
     profile.stage_b_ms, profile.smooth_ms, profile.total_solve_ms, moment_ms,
     profile.events_ingested, profile.active_cells, profile.valid_cells,
-    profile.full_rank_tiles, profile.aperture_tiles, profile.fallback_tiles);
+    profile.residual_reject_cells, profile.speed_reject_cells,
+    profile.full_rank_tiles, profile.aperture_tiles, profile.fallback_tiles,
+    profile.prior_tiles);
 
   RCLCPP_INFO(
     get_logger(),
     "Flow profile IWE: render_events=%zu event_pack=%.3f ms flow_image=%.3f ms "
-    "iwe_render_norm=%.3f ms identity_contrast=%.6f warped_contrast=%.6f "
-    "sharpen_ratio=%.6f",
+    "iwe_render_norm=%.3f ms identity_accept=%zu/%zu warped_accept=%zu/%zu "
+    "warped_drop=%zu identity_contrast=%.6f warped_contrast=%.6f sharpen_ratio=%.6f",
     render_ev.size(), render_events_ms, flow_image_ms, iwe_ms,
+    identity_stats.accepted, identity_stats.input,
+    warped_stats.accepted, warped_stats.input, warped_stats.dropped,
     identity_contrast, warped_contrast, sharpen_ratio);
 
   RCLCPP_INFO(
     get_logger(),
     "Flow profile summary: raw_events=%zu solve_events=%zu stride=%zu span=%.3f ms "
-    "setup_select=%.3f ms setup_pack=%.3f ms moment=%.3f ms render=%.3f ms "
-    "total=%.3f ms achieved_hz=%.3f",
+    "decay_enabled=%d decay_tau=%.3f ms setup_select=%.3f ms setup_pack=%.3f ms "
+    "moment=%.3f ms render=%.3f ms total=%.3f ms achieved_hz=%.3f",
     total, solve_samples.size(), stride, static_cast<double>(t_hi_us - t_lo_us) * 1e-3,
+    flow_decay_enabled_ ? 1 : 0, static_cast<double>(flow_decay_tau_us_) * 1e-3,
     select_ms, pack_ms, moment_ms, render_events_ms + flow_image_ms + iwe_ms,
     elapsed_ms(t_total), 1000.0 / std::max(1e-9, elapsed_ms(t_total)));
 
