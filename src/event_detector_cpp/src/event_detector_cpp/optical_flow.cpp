@@ -492,7 +492,7 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(const dv::EventStore 
     "active_cells=%d valid_cells=%d reject(residual/speed)=%d/%d "
     "tiles_total(full/aperture/fallback/prior)=%d/%d/%d/%d "
     "tiles_final(full/aperture/fallback)=%d/%d/%d "
-    "timeaware_fallback(support/reject)=%d/%d",
+    "timeaware_fallback(support/reject)=%d/%d final=%d/%d",
     profile.ingest_ms, profile.decay_ms, profile.stage_a_ms,
     profile.stage_b_ms, profile.smooth_ms, profile.total_solve_ms, moment_ms,
     profile.events_ingested, profile.active_cells, profile.valid_cells,
@@ -500,7 +500,30 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(const dv::EventStore 
     profile.full_rank_tiles, profile.aperture_tiles, profile.fallback_tiles,
     profile.prior_tiles,
     profile.final_full_rank_tiles, profile.final_aperture_tiles, profile.final_fallback_tiles,
-    profile.timeaware_support_fallback_tiles, profile.timeaware_reject_fallback_tiles);
+    profile.timeaware_support_fallback_tiles, profile.timeaware_reject_fallback_tiles,
+    profile.final_timeaware_support_fallback_tiles,
+    profile.final_timeaware_reject_fallback_tiles);
+
+  RCLCPP_INFO(
+    get_logger(),
+    "Flow profile fallback detail: "
+    "support_causes(all cells/mass/time/lambda/solve)=%d/%d/%d/%d/%d "
+    "final=%d/%d/%d/%d/%d "
+    "reject_causes(all no_improve/no_focus)=%d/%d final=%d/%d",
+    profile.timeaware_low_cells_fallback_tiles,
+    profile.timeaware_low_mass_fallback_tiles,
+    profile.timeaware_no_time_fallback_tiles,
+    profile.timeaware_low_lambda_fallback_tiles,
+    profile.timeaware_solve_fail_fallback_tiles,
+    profile.final_timeaware_low_cells_fallback_tiles,
+    profile.final_timeaware_low_mass_fallback_tiles,
+    profile.final_timeaware_no_time_fallback_tiles,
+    profile.final_timeaware_low_lambda_fallback_tiles,
+    profile.final_timeaware_solve_fail_fallback_tiles,
+    profile.timeaware_no_improve_fallback_tiles,
+    profile.timeaware_no_focus_fallback_tiles,
+    profile.final_timeaware_no_improve_fallback_tiles,
+    profile.final_timeaware_no_focus_fallback_tiles);
 
   RCLCPP_INFO(
     get_logger(),

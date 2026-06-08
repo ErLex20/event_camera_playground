@@ -123,6 +123,22 @@ struct MomentFlowProfile
   int final_fallback_tiles = 0;
   int timeaware_support_fallback_tiles = 0;
   int timeaware_reject_fallback_tiles = 0;
+  int final_timeaware_support_fallback_tiles = 0;
+  int final_timeaware_reject_fallback_tiles = 0;
+  int timeaware_low_cells_fallback_tiles = 0;
+  int timeaware_low_mass_fallback_tiles = 0;
+  int timeaware_no_time_fallback_tiles = 0;
+  int timeaware_low_lambda_fallback_tiles = 0;
+  int timeaware_solve_fail_fallback_tiles = 0;
+  int timeaware_no_improve_fallback_tiles = 0;
+  int timeaware_no_focus_fallback_tiles = 0;
+  int final_timeaware_low_cells_fallback_tiles = 0;
+  int final_timeaware_low_mass_fallback_tiles = 0;
+  int final_timeaware_no_time_fallback_tiles = 0;
+  int final_timeaware_low_lambda_fallback_tiles = 0;
+  int final_timeaware_solve_fail_fallback_tiles = 0;
+  int final_timeaware_no_improve_fallback_tiles = 0;
+  int final_timeaware_no_focus_fallback_tiles = 0;
   double ingest_ms = 0.0;
   double decay_ms = 0.0;
   double stage_a_ms = 0.0;
@@ -332,6 +348,22 @@ public:
     profile_.final_fallback_tiles = 0;
     profile_.timeaware_support_fallback_tiles = 0;
     profile_.timeaware_reject_fallback_tiles = 0;
+    profile_.final_timeaware_support_fallback_tiles = 0;
+    profile_.final_timeaware_reject_fallback_tiles = 0;
+    profile_.timeaware_low_cells_fallback_tiles = 0;
+    profile_.timeaware_low_mass_fallback_tiles = 0;
+    profile_.timeaware_no_time_fallback_tiles = 0;
+    profile_.timeaware_low_lambda_fallback_tiles = 0;
+    profile_.timeaware_solve_fail_fallback_tiles = 0;
+    profile_.timeaware_no_improve_fallback_tiles = 0;
+    profile_.timeaware_no_focus_fallback_tiles = 0;
+    profile_.final_timeaware_low_cells_fallback_tiles = 0;
+    profile_.final_timeaware_low_mass_fallback_tiles = 0;
+    profile_.final_timeaware_no_time_fallback_tiles = 0;
+    profile_.final_timeaware_low_lambda_fallback_tiles = 0;
+    profile_.final_timeaware_solve_fail_fallback_tiles = 0;
+    profile_.final_timeaware_no_improve_fallback_tiles = 0;
+    profile_.final_timeaware_no_focus_fallback_tiles = 0;
 
     if (F_out.size() != final_vars_) {
       return;
@@ -417,6 +449,17 @@ public:
   }
 
 private:
+  enum class TimeAwareFallbackReason
+  {
+    LowCells,
+    LowMass,
+    NoTimeVariance,
+    LowLambda,
+    SolveFail,
+    NoImprove,
+    NoFocus
+  };
+
   struct CellFit
   {
     float gx = 0.0f;
@@ -897,24 +940,72 @@ private:
         const double fb_px = -fb_Fx;
         const double fb_py = -fb_Fy;
 
-        auto fall_back = [&](bool candidate_rejected) {
+        auto fall_back = [&](TimeAwareFallbackReason reason) {
+          const bool candidate_rejected =
+            reason == TimeAwareFallbackReason::NoImprove ||
+            reason == TimeAwareFallbackReason::NoFocus;
           out_F[2 * k] = fb_Fx;
           out_F[2 * k + 1] = fb_Fy;
           if (out_A) { (*out_A)[2 * k] = 0.0f; (*out_A)[2 * k + 1] = 0.0f; }
           profile_.fallback_tiles += 1;
+          const bool final_scale = tiles == final_tiles_;
           if (candidate_rejected) {
             profile_.timeaware_reject_fallback_tiles += 1;
+            if (final_scale) {
+              profile_.final_timeaware_reject_fallback_tiles += 1;
+            }
           } else {
             profile_.timeaware_support_fallback_tiles += 1;
+            if (final_scale) {
+              profile_.final_timeaware_support_fallback_tiles += 1;
+            }
           }
-          if (tiles == final_tiles_) {
+          if (final_scale) {
             profile_.final_fallback_tiles += 1;
+          }
+
+          switch (reason) {
+            case TimeAwareFallbackReason::LowCells:
+              profile_.timeaware_low_cells_fallback_tiles += 1;
+              if (final_scale) { profile_.final_timeaware_low_cells_fallback_tiles += 1; }
+              break;
+            case TimeAwareFallbackReason::LowMass:
+              profile_.timeaware_low_mass_fallback_tiles += 1;
+              if (final_scale) { profile_.final_timeaware_low_mass_fallback_tiles += 1; }
+              break;
+            case TimeAwareFallbackReason::NoTimeVariance:
+              profile_.timeaware_no_time_fallback_tiles += 1;
+              if (final_scale) { profile_.final_timeaware_no_time_fallback_tiles += 1; }
+              break;
+            case TimeAwareFallbackReason::LowLambda:
+              profile_.timeaware_low_lambda_fallback_tiles += 1;
+              if (final_scale) { profile_.final_timeaware_low_lambda_fallback_tiles += 1; }
+              break;
+            case TimeAwareFallbackReason::SolveFail:
+              profile_.timeaware_solve_fail_fallback_tiles += 1;
+              if (final_scale) { profile_.final_timeaware_solve_fail_fallback_tiles += 1; }
+              break;
+            case TimeAwareFallbackReason::NoImprove:
+              profile_.timeaware_no_improve_fallback_tiles += 1;
+              if (final_scale) { profile_.final_timeaware_no_improve_fallback_tiles += 1; }
+              break;
+            case TimeAwareFallbackReason::NoFocus:
+              profile_.timeaware_no_focus_fallback_tiles += 1;
+              if (final_scale) { profile_.final_timeaware_no_focus_fallback_tiles += 1; }
+              break;
           }
         };
 
-        if (a.count < std::max(1, params_.tile_min_cells) ||
-            a.P0 < params_.tile_min_mass || !(a.P2 > 0.0)) {
-          fall_back(false);
+        if (a.count < std::max(1, params_.tile_min_cells)) {
+          fall_back(TimeAwareFallbackReason::LowCells);
+          continue;
+        }
+        if (a.P0 < params_.tile_min_mass) {
+          fall_back(TimeAwareFallbackReason::LowMass);
+          continue;
+        }
+        if (!(a.P2 > 0.0)) {
+          fall_back(TimeAwareFallbackReason::NoTimeVariance);
           continue;
         }
 
@@ -928,7 +1019,7 @@ private:
           static_cast<float>(cxx), static_cast<float>(cxy), static_cast<float>(cyy),
           spatial_lmin, spatial_lmax);
         if (!(spatial_lmax >= params_.tile_min_lambda)) {
-          fall_back(false);
+          fall_back(TimeAwareFallbackReason::LowLambda);
           continue;
         }
 
@@ -945,6 +1036,9 @@ private:
           vy_phys = (a.Qy1 - a.Qy0 * a.P1 / a.P0 + prior_mass * fb_py) /
                     (denom_v + prior_mass);
           ok = std::isfinite(vx_phys) && std::isfinite(vy_phys);
+        } else {
+          fall_back(TimeAwareFallbackReason::NoTimeVariance);
+          continue;
         }
 
         if (ok && order >= 2 && have_t) {
@@ -976,7 +1070,10 @@ private:
             ay_phys *= sc;
           }
         }
-        if (!ok) { fall_back(false); continue; }
+        if (!ok) {
+          fall_back(TimeAwareFallbackReason::SolveFail);
+          continue;
+        }
 
         // Moment-domain multi-reference focus phi = Var_id / Var_warp. phi <= 1
         // means the warp does not sharpen -> reject (analogue of the paper's f<=1).
@@ -1038,12 +1135,15 @@ private:
           fb_px, fb_py, 0.0, 0.0,
           fallback_var_w, fallback_lmin, fallback_lmax, fallback_tx, fallback_ty);
         if (fallback_var_w > 1e-12 && var_w > 0.98 * fallback_var_w) {
-          fall_back(true);
+          fall_back(TimeAwareFallbackReason::NoImprove);
           continue;
         }
 
         const double phi = (var_w > 1e-12) ? var_id / var_w : 0.0;
-        if (!(phi > 1.0) || !std::isfinite(phi)) { fall_back(true); continue; }
+        if (!(phi > 1.0) || !std::isfinite(phi)) {
+          fall_back(TimeAwareFallbackReason::NoFocus);
+          continue;
+        }
 
         if (aperture_limited) {
           profile_.aperture_tiles += 1;
