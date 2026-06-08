@@ -37,7 +37,6 @@
 #include <vector>
 
 #include <Eigen/Core>
-#include <Eigen/Cholesky>
 
 namespace event_detector_cpp::flow
 {
@@ -119,6 +118,11 @@ struct MomentFlowProfile
   int aperture_tiles = 0;
   int fallback_tiles = 0;
   int prior_tiles = 0;
+  int final_full_rank_tiles = 0;
+  int final_aperture_tiles = 0;
+  int final_fallback_tiles = 0;
+  int timeaware_support_fallback_tiles = 0;
+  int timeaware_reject_fallback_tiles = 0;
   double ingest_ms = 0.0;
   double decay_ms = 0.0;
   double stage_a_ms = 0.0;
@@ -323,6 +327,11 @@ public:
     profile_.aperture_tiles = 0;
     profile_.fallback_tiles = 0;
     profile_.prior_tiles = 0;
+    profile_.final_full_rank_tiles = 0;
+    profile_.final_aperture_tiles = 0;
+    profile_.final_fallback_tiles = 0;
+    profile_.timeaware_support_fallback_tiles = 0;
+    profile_.timeaware_reject_fallback_tiles = 0;
 
     if (F_out.size() != final_vars_) {
       return;
@@ -347,6 +356,7 @@ public:
         set_zero(F_out);
       }
       profile_.fallback_tiles += final_tiles_ * final_tiles_;
+      profile_.final_fallback_tiles += final_tiles_ * final_tiles_;
       profile_.total_solve_ms = elapsed_ms(t_total, Clock::now());
       return;
     }
@@ -379,11 +389,17 @@ public:
         const int saved_aperture = profile_.aperture_tiles;
         const int saved_fallback = profile_.fallback_tiles;
         const int saved_prior = profile_.prior_tiles;
+        const int saved_final_full_rank = profile_.final_full_rank_tiles;
+        const int saved_final_aperture = profile_.final_aperture_tiles;
+        const int saved_final_fallback = profile_.final_fallback_tiles;
         solve_scale(tiles, fallback, stable_fallback);
         profile_.full_rank_tiles = saved_full_rank;
         profile_.aperture_tiles = saved_aperture;
         profile_.fallback_tiles = saved_fallback;
         profile_.prior_tiles = saved_prior;
+        profile_.final_full_rank_tiles = saved_final_full_rank;
+        profile_.final_aperture_tiles = saved_final_aperture;
+        profile_.final_fallback_tiles = saved_final_fallback;
         Eigen::VectorXf * accel_out =
           (l == params_.num_scales - 1 && params_.time_aware_order >= 2)
             ? &accel_final_ : nullptr;
@@ -760,6 +776,9 @@ private:
           out_F[2 * k] = fb_Fx;
           out_F[2 * k + 1] = fb_Fy;
           profile_.fallback_tiles += 1;
+          if (tiles == final_tiles_) {
+            profile_.final_fallback_tiles += 1;
+          }
           continue;
         }
 
@@ -776,6 +795,9 @@ private:
           out_F[2 * k] = fb_Fx;
           out_F[2 * k + 1] = fb_Fy;
           profile_.fallback_tiles += 1;
+          if (tiles == final_tiles_) {
+            profile_.final_fallback_tiles += 1;
+          }
           continue;
         }
 
@@ -789,8 +811,14 @@ private:
           vx_phys = normal * ex + tangent * tx_tan;
           vy_phys = normal * ey + tangent * ty_tan;
           profile_.aperture_tiles += 1;
+          if (tiles == final_tiles_) {
+            profile_.final_aperture_tiles += 1;
+          }
         } else {
           profile_.full_rank_tiles += 1;
+          if (tiles == final_tiles_) {
+            profile_.final_full_rank_tiles += 1;
+          }
         }
         if (prior > 0.0f) {
           profile_.prior_tiles += 1;
@@ -869,16 +897,24 @@ private:
         const double fb_px = -fb_Fx;
         const double fb_py = -fb_Fy;
 
-        auto fall_back = [&]() {
+        auto fall_back = [&](bool candidate_rejected) {
           out_F[2 * k] = fb_Fx;
           out_F[2 * k + 1] = fb_Fy;
           if (out_A) { (*out_A)[2 * k] = 0.0f; (*out_A)[2 * k + 1] = 0.0f; }
           profile_.fallback_tiles += 1;
+          if (candidate_rejected) {
+            profile_.timeaware_reject_fallback_tiles += 1;
+          } else {
+            profile_.timeaware_support_fallback_tiles += 1;
+          }
+          if (tiles == final_tiles_) {
+            profile_.final_fallback_tiles += 1;
+          }
         };
 
         if (a.count < std::max(1, params_.tile_min_cells) ||
             a.P0 < params_.tile_min_mass || !(a.P2 > 0.0)) {
-          fall_back();
+          fall_back(false);
           continue;
         }
 
@@ -892,7 +928,7 @@ private:
           static_cast<float>(cxx), static_cast<float>(cxy), static_cast<float>(cyy),
           spatial_lmin, spatial_lmax);
         if (!(spatial_lmax >= params_.tile_min_lambda)) {
-          fall_back();
+          fall_back(false);
           continue;
         }
 
@@ -940,7 +976,7 @@ private:
             ay_phys *= sc;
           }
         }
-        if (!ok) { fall_back(); continue; }
+        if (!ok) { fall_back(false); continue; }
 
         // Moment-domain multi-reference focus phi = Var_id / Var_warp. phi <= 1
         // means the warp does not sharpen -> reject (analogue of the paper's f<=1).
@@ -1002,17 +1038,23 @@ private:
           fb_px, fb_py, 0.0, 0.0,
           fallback_var_w, fallback_lmin, fallback_lmax, fallback_tx, fallback_ty);
         if (fallback_var_w > 1e-12 && var_w > 0.98 * fallback_var_w) {
-          fall_back();
+          fall_back(true);
           continue;
         }
 
         const double phi = (var_w > 1e-12) ? var_id / var_w : 0.0;
-        if (!(phi > 1.0) || !std::isfinite(phi)) { fall_back(); continue; }
+        if (!(phi > 1.0) || !std::isfinite(phi)) { fall_back(true); continue; }
 
         if (aperture_limited) {
           profile_.aperture_tiles += 1;
+          if (tiles == final_tiles_) {
+            profile_.final_aperture_tiles += 1;
+          }
         } else {
           profile_.full_rank_tiles += 1;
+          if (tiles == final_tiles_) {
+            profile_.final_full_rank_tiles += 1;
+          }
         }
         if (prior > 0.0) {
           profile_.prior_tiles += 1;

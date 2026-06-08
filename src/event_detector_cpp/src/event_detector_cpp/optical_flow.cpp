@@ -490,13 +490,17 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(const dv::EventStore 
     "Flow profile MomentFlow: ingest=%.3f ms decay=%.3f ms stage_a=%.3f ms "
     "stage_b=%.3f ms smooth=%.3f ms solve_total=%.3f ms total=%.3f ms events=%d "
     "active_cells=%d valid_cells=%d reject(residual/speed)=%d/%d "
-    "tiles(full/aperture/fallback/prior)=%d/%d/%d/%d",
+    "tiles_total(full/aperture/fallback/prior)=%d/%d/%d/%d "
+    "tiles_final(full/aperture/fallback)=%d/%d/%d "
+    "timeaware_fallback(support/reject)=%d/%d",
     profile.ingest_ms, profile.decay_ms, profile.stage_a_ms,
     profile.stage_b_ms, profile.smooth_ms, profile.total_solve_ms, moment_ms,
     profile.events_ingested, profile.active_cells, profile.valid_cells,
     profile.residual_reject_cells, profile.speed_reject_cells,
     profile.full_rank_tiles, profile.aperture_tiles, profile.fallback_tiles,
-    profile.prior_tiles);
+    profile.prior_tiles,
+    profile.final_full_rank_tiles, profile.final_aperture_tiles, profile.final_fallback_tiles,
+    profile.timeaware_support_fallback_tiles, profile.timeaware_reject_fallback_tiles);
 
   RCLCPP_INFO(
     get_logger(),
