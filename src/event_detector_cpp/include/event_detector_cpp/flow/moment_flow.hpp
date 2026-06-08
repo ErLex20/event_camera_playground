@@ -37,7 +37,6 @@
 #include <vector>
 
 #include <Eigen/Core>
-#include <Eigen/Eigenvalues>
 
 namespace event_detector_cpp::flow
 {
@@ -371,7 +370,6 @@ private:
   static constexpr int64_t kRebaseThresholdUs = 250000;
   static constexpr float kPruneMass = 1e-4f;
   static constexpr float kMinTimeVariance = 1e-12f;
-  static constexpr float kMinPlaneTimeNormal = 1e-3f;
 
   int img_w_;
   int img_h_;
@@ -595,23 +593,9 @@ private:
         continue;
       }
 
-      Eigen::Matrix3f cov;
-      cov << cxx, cxy, dx,
-             cxy, cyy, dy,
-             dx,  dy,  sc;
-      Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> eig(cov);
-      if (eig.info() != Eigen::Success) {
-        continue;
-      }
-      const Eigen::Vector3f normal = eig.eigenvectors().col(0);
-      const float nt = normal.z();
-      if (!(std::abs(nt) >= kMinPlaneTimeNormal)) {
-        profile_.speed_reject_cells += 1;
-        continue;
-      }
-      const float gx = -normal.x() / nt;
-      const float gy = -normal.y() / nt;
-      if (!std::isfinite(gx) || !std::isfinite(gy)) {
+      float gx = 0.0f;
+      float gy = 0.0f;
+      if (!solve2(cxx, cxy, cyy, dx, dy, gx, gy)) {
         continue;
       }
 
