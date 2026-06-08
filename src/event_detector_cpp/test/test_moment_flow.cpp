@@ -168,6 +168,33 @@ TEST(MomentFlow, RecoversWarpSignConvention)
   EXPECT_GT(flow.profile().valid_cells, 0);
 }
 
+TEST(MomentFlow, TimeAwareOrdersRunWithoutCellFits)
+{
+  const int W = 128;
+  const int H = 96;
+  const float Fx = 420.0f;
+  const float Fy = 0.0f;
+
+  for (int order = 1; order <= 2; ++order) {
+    MomentFlowParams p = test_params(1);
+    p.time_aware_order = order;
+    p.tile_min_mass = 0.0f;
+    p.tile_min_cells = 1;
+
+    MomentFlow flow(W, H, p);
+    flow.ingest(make_plane_events(W, H, p.cell_size_px, Fx, Fy, 30, 7, 0.0f, W));
+
+    Eigen::VectorXf warm;
+    Eigen::VectorXf F(flow.num_vars());
+    flow.solve(warm, F);
+
+    ASSERT_EQ(F.size(), 2);
+    EXPECT_GT(flow.profile().active_cells, 0);
+    EXPECT_NEAR(F[0], Fx, 80.0f) << "order=" << order;
+    EXPECT_NEAR(F[1], Fy, 35.0f) << "order=" << order;
+  }
+}
+
 TEST(MomentFlow, TileTikhonovIsScaleAwareForFastMotion)
 {
   const int W = 256;

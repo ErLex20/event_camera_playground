@@ -12,23 +12,30 @@
     sae_enabled: true
     iwe_enabled: true
     flow_enabled: true
-    flow_max_window_ms: 10.0
+    flow_max_window_ms: 20.0
     flow_num_scales: 5
-    flow_cell_size_px: 4
+    flow_cell_size_px: 8
     flow_decay_enabled: false
     flow_decay_tau_us: 30000
     flow_tau_adaptive: false
-    flow_cell_min_mass: 50.0
-    flow_cell_min_lambda: 0.01
-    flow_cell_max_residual_ratio: 0.6
-    flow_tile_min_mass: 100.0
+    flow_cell_min_mass: 6.0
+    flow_cell_min_lambda: 0.005
+    flow_cell_max_residual_ratio: 0.95
+    
+    # --- PARAMETRI MODIFICATI ---
+    flow_tile_min_mass: 15.0         # Abbassato da 40.0: fa sopravvivere più tile
     flow_tile_min_cells: 3
-    flow_tile_min_lambda: 0.000001
-    flow_aperture_ratio: 0.05
+    flow_tile_min_lambda: 0.00001     # Alzato da 1e-6: uccide i tile di puro rumore
+    flow_time_aware_order: 2
+    flow_aperture_ratio: 0.08
     flow_tikhonov_eps: 0.01
-    flow_prior_lambda: 0.08
-    flow_smooth_iters: 0
-    flow_smooth_alpha: 0.0
+    
+    # --- REGOLARIZZAZIONE SPAZIALE (SMOOTHING) ---
+    flow_prior_lambda: 0.5           # Abbassato da 1.5: riduce l'appiattimento globale
+    flow_smooth_alpha: 0.5           # Alzato da 0.3: propagazione più fluida
+    flow_smooth_iters: 4             # Alzato da 2: il flusso raggiunge le zone vuote
+    # ----------------------------
+    
     flow_refine_enabled: false
     flow_refine_iters: 2
     flow_refine_huber_delta: 0.01

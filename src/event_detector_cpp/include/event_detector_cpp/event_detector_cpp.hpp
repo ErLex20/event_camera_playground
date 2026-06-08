@@ -297,6 +297,7 @@ private:
   double  flow_refine_huber_delta_;
   int64_t flow_iwe_scale_;
   double  flow_max_speed_px_s_;
+  int64_t flow_time_aware_order_;
 
   /* Threads. */
   std::thread thread_worker_;

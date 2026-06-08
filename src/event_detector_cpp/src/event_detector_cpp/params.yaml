@@ -172,6 +172,16 @@ params:
     constraints: "Must be non-negative."
     read_only: false
     var_name: flow_tile_min_lambda_
+  flow_time_aware_order:
+    type: integer
+    default_value: 0
+    min_value: 0
+    max_value: 2
+    step: 1
+    description: "Tile estimator: 0 = structure-tensor (legacy), 1 = constant-velocity dispersion-min, 2 = affine-in-time (velocity + acceleration)."
+    constraints: "0..2."
+    read_only: false
+    var_name: flow_time_aware_order_
   flow_aperture_ratio:
     type: double
     default_value: 0.05

@@ -154,11 +154,13 @@ double iwe_contrast(const cv::Mat & iwe)
 IweRenderStats render_iwe_bilinear(
   const Events & events,
   const Eigen::VectorXf & F,
+  const Eigen::VectorXf * A,
   int tiles,
   int img_w,
   int img_h,
   int scale,
   bool warp,
+  float t_shift,
   cv::Mat & iwe)
 {
   IweRenderStats stats;
@@ -172,10 +174,19 @@ IweRenderStats render_iwe_bilinear(
     float wx = events.x[k];
     float wy = events.y[k];
     if (warp) {
+      const float tt = events.t[k] + t_shift;
+      const float ox = wx;
+      const float oy = wy;
       float vx, vy;
-      sample_tile_velocity(F, tiles, tiles, img_w, img_h, wx, wy, vx, vy);
-      wx += events.t[k] * vx;
-      wy += events.t[k] * vy;
+      sample_tile_velocity(F, tiles, tiles, img_w, img_h, ox, oy, vx, vy);
+      wx += tt * vx;
+      wy += tt * vy;
+      if (A != nullptr) {
+        float ax, ay;
+        sample_tile_velocity(*A, tiles, tiles, img_w, img_h, ox, oy, ax, ay);
+        wx += 0.5f * tt * tt * ax;
+        wy += 0.5f * tt * tt * ay;
+      }
     }
     wx *= inv_scale;
     wy *= inv_scale;
@@ -286,6 +297,7 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(const dv::EventStore 
   params.refine_iters = static_cast<int>(flow_refine_iters_);
   params.refine_huber_delta = static_cast<float>(flow_refine_huber_delta_);
   params.max_speed_px_s = static_cast<float>(flow_max_speed_px_s_);
+  params.time_aware_order = static_cast<int>(flow_time_aware_order_);
 
   if (flow_tau_adaptive_) {
     RCLCPP_WARN_THROTTLE(
@@ -322,9 +334,6 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(const dv::EventStore 
   const double moment_ms = elapsed_ms(t_moment);
   const auto profile = moment_flow_->profile();
 
-  prev_flow_field_ = F;
-  prev_flow_tiles_ = final_tiles;
-
   const auto t_render_events = ProfileClock::now();
   Events render_ev;
   render_ev.t_ref_us = t_ref_us;
@@ -340,6 +349,42 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(const dv::EventStore 
     render_ev.t.push_back(static_cast<float>(e.timestamp() - t_ref_us) * 1e-6f);
   }
   const double render_events_ms = elapsed_ms(t_render_events);
+
+  // ---- Field-level multi-reference focus (Sec. III-B) diagnostic ----
+  // Warp to t_ref in {mid, lo, hi} (lo/hi via a temporal shift of the events),
+  // combine gradient-magnitude contrasts: f = (G_lo + 2 G_mid + G_hi)/(4 G_id).
+  // f <= 1 means the field did not improve this particular focus metric. Keep
+  // the candidate visible anyway; otherwise a strict gate can black out the
+  // first frame and keep every later warm start at zero.
+  const Eigen::VectorXf * accel_ptr =
+    (params.time_aware_order >= 2) ? &moment_flow_->acceleration() : nullptr;
+  const int iwe_scale = std::max<int>(1, static_cast<int>(flow_iwe_scale_));
+  const float half_span_s = static_cast<float>(t_hi_us - t_lo_us) * 0.5e-6f;
+
+  cv::Mat focus_id, focus_mid, focus_lo, focus_hi;
+  render_iwe_bilinear(render_ev, F, nullptr,   final_tiles, w, h, iwe_scale, false, 0.0f, focus_id);
+  render_iwe_bilinear(render_ev, F, accel_ptr, final_tiles, w, h, iwe_scale, true,  0.0f, focus_mid);
+  render_iwe_bilinear(render_ev, F, accel_ptr, final_tiles, w, h, iwe_scale, true,  half_span_s,  focus_lo);
+  render_iwe_bilinear(render_ev, F, accel_ptr, final_tiles, w, h, iwe_scale, true, -half_span_s,  focus_hi);
+  // Integer event coords keep the identity IWE on single pixels (no sub-pixel
+  // spread) -> artificially high L1-gradient, while any warp produces fractional
+  // coords that bilinear splatting smooths. Equalize with the same sigma=1px blur
+  // (the paper's delta ~= Gaussian(1px)) so focus_f measures alignment, not warp.
+  auto focus_contrast = [](const cv::Mat & iwe) {
+    cv::Mat b;
+    cv::GaussianBlur(iwe, b, cv::Size(0, 0), 1.0);
+    return iwe_contrast(b);
+  };
+  const double g_id  = std::max(focus_contrast(focus_id), 1e-12);
+  const double g_mid = focus_contrast(focus_mid);
+  const double g_lo  = focus_contrast(focus_lo);
+  const double g_hi  = focus_contrast(focus_hi);
+  const double focus_f = (g_lo + 2.0 * g_mid + g_hi) / (4.0 * g_id);
+
+  const bool flow_rejected = !(focus_f > 1.0);
+
+  prev_flow_field_ = F;
+  prev_flow_tiles_ = final_tiles;
 
   const auto t_flow_image = ProfileClock::now();
   cv::Mat angle(h, w, CV_32F);
@@ -402,11 +447,12 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(const dv::EventStore 
     std::nth_element(support_speeds.begin(), support_speeds.begin() + nth, support_speeds.end());
     robust_max_speed = std::max<double>(support_speeds[nth], 0.05 * support_max_speed);
   }
-  const double display_max_speed = (robust_max_speed > 1e-6)
-    ? std::min(static_cast<double>(vis_speed_cap), robust_max_speed)
-    : ((observed_max_speed > 1e-6)
-      ? std::min(static_cast<double>(vis_speed_cap), observed_max_speed)
-      : static_cast<double>(vis_speed_cap));
+  const double display_floor_speed = std::max(25.0, 0.10 * static_cast<double>(vis_speed_cap));
+  const double raw_display_max = (robust_max_speed > 1e-6)
+    ? robust_max_speed
+    : ((observed_max_speed > 1e-6) ? observed_max_speed : static_cast<double>(vis_speed_cap));
+  const double display_max_speed = std::clamp(
+    raw_display_max, display_floor_speed, static_cast<double>(vis_speed_cap));
   const double support_mean_speed = support_speeds.empty()
     ? 0.0
     : support_speed_sum / static_cast<double>(support_speeds.size());
@@ -430,19 +476,13 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(const dv::EventStore 
   const double flow_image_ms = elapsed_ms(t_flow_image);
 
   const auto t_iwe = ProfileClock::now();
-  const int scale = std::max<int>(1, static_cast<int>(flow_iwe_scale_));
-  cv::Mat identity_iwe;
-  cv::Mat warped_iwe;
-  const IweRenderStats identity_stats =
-    render_iwe_bilinear(render_ev, F, final_tiles, w, h, scale, false, identity_iwe);
-  const IweRenderStats warped_stats =
-    render_iwe_bilinear(render_ev, F, final_tiles, w, h, scale, true, warped_iwe);
-  const double identity_contrast = iwe_contrast(identity_iwe);
-  const double warped_contrast = iwe_contrast(warped_iwe);
-  const double sharpen_ratio = (identity_contrast > 1e-12)
-    ? warped_contrast / identity_contrast
-    : 0.0;
-  cv::normalize(warped_iwe, result.iwe, 0.0, 255.0, cv::NORM_MINMAX, CV_8U);
+  cv::Mat result_iwe_f;
+  if (!flow_rejected) {
+    result_iwe_f = focus_mid;   // reuse the t_mid warped IWE
+  } else {
+    result_iwe_f = focus_id;    // keep the published IWE readable when focus rejects
+  }
+  cv::normalize(result_iwe_f, result.iwe, 0.0, 255.0, cv::NORM_MINMAX, CV_8U);
   const double iwe_ms = elapsed_ms(t_iwe);
 
   RCLCPP_INFO(
@@ -461,12 +501,11 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(const dv::EventStore 
   RCLCPP_INFO(
     get_logger(),
     "Flow profile IWE: render_events=%zu event_pack=%.3f ms flow_image=%.3f ms "
-    "iwe_render_norm=%.3f ms identity_accept=%zu/%zu warped_accept=%zu/%zu "
-    "warped_drop=%zu identity_contrast=%.6f warped_contrast=%.6f sharpen_ratio=%.6f",
+    "iwe_render_norm=%.3f ms order=%d focus_f=%.4f (lo=%.6f mid=%.6f hi=%.6f id=%.6f) "
+    "rejected=%d",
     render_ev.size(), render_events_ms, flow_image_ms, iwe_ms,
-    identity_stats.accepted, identity_stats.input,
-    warped_stats.accepted, warped_stats.input, warped_stats.dropped,
-    identity_contrast, warped_contrast, sharpen_ratio);
+    params.time_aware_order, focus_f, g_lo, g_mid, g_hi, g_id,
+    flow_rejected ? 1 : 0);
 
   RCLCPP_INFO(
     get_logger(),

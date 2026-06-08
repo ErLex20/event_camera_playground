@@ -37,6 +37,7 @@
 #include <vector>
 
 #include <Eigen/Core>
+#include <Eigen/Cholesky>
 
 namespace event_detector_cpp::flow
 {
@@ -74,6 +75,7 @@ struct MomentFlowParams
   int refine_iters = 2;
   float refine_huber_delta = 0.01f;
   float max_speed_px_s = 4000.0f;
+  int time_aware_order = 0;  // 0 legacy structure-tensor, 1 const-vel, 2 affine-in-time
 };
 
 inline bool operator==(const MomentFlowParams & a, const MomentFlowParams & b)
@@ -97,7 +99,8 @@ inline bool operator==(const MomentFlowParams & a, const MomentFlowParams & b)
          a.refine_enabled == b.refine_enabled &&
          a.refine_iters == b.refine_iters &&
          a.refine_huber_delta == b.refine_huber_delta &&
-         a.max_speed_px_s == b.max_speed_px_s;
+         a.max_speed_px_s == b.max_speed_px_s &&
+         a.time_aware_order == b.time_aware_order;
 }
 
 inline bool operator!=(const MomentFlowParams & a, const MomentFlowParams & b)
@@ -142,6 +145,18 @@ struct alignas(64) CellMoments
 static_assert(alignof(CellMoments) == 64, "CellMoments must be cache-line aligned");
 static_assert(sizeof(CellMoments) == 64, "CellMoments must occupy one cache line");
 
+/// Extra per-cell temporal moments, only for the affine-in-time estimator
+/// (time_aware_order == 2): sums of a*tau^3, a*tau^4, a*dx*tau^2, a*dy*tau^2
+/// (dx,dy cell-centre-relative, tau == dt). Kept out of CellMoments so the
+/// constant-velocity fast path stays one cache line.
+struct CellMomentsT
+{
+  float stau3 = 0.0f;
+  float stau4 = 0.0f;
+  float sxtau2 = 0.0f;
+  float sytau2 = 0.0f;
+};
+
 class MomentFlow
 {
 public:
@@ -179,6 +194,15 @@ public:
       scale_fields_.push_back(Eigen::VectorXf(2 * tiles * tiles));
       scale_fallback_.push_back(Eigen::VectorXf(2 * tiles * tiles));
     }
+
+    accel_final_ = Eigen::VectorXf::Zero(final_vars_);
+    if (params_.time_aware_order > 0) {
+      tile_accum_t_.assign(
+        static_cast<size_t>(final_tiles_) * final_tiles_, TileMomentsT{});
+    }
+    if (params_.time_aware_order >= 2) {
+      cells_t_.assign(cells_.size(), CellMomentsT{});
+    }
   }
 
   bool compatible(int img_w, int img_h, const MomentFlowParams & params) const
@@ -189,12 +213,17 @@ public:
   int final_tiles() const { return final_tiles_; }
   int num_vars() const { return final_vars_; }
   const MomentFlowProfile & profile() const { return profile_; }
+  const Eigen::VectorXf & acceleration() const { return accel_final_; }
 
   void reset()
   {
     for (CellMoments & c : cells_) {
       clear_cell(c);
     }
+    for (CellMomentsT & ct : cells_t_) {
+      ct = CellMomentsT{};
+    }
+    accel_final_.setZero();
     time_origin_us_ = 0;
     last_event_us_ = 0;
     has_time_origin_ = false;
@@ -261,6 +290,14 @@ public:
       c.sxt += a * dx * dt;
       c.syt += a * dy * dt;
       c.stt += a * dt * dt;
+      if (!cells_t_.empty()) {
+        CellMomentsT & ct = cells_t_[cell_index(cx, cy)];
+        const float dt2 = dt * dt;
+        ct.stau3 += a * dt2 * dt;
+        ct.stau4 += a * dt2 * dt2;
+        ct.sxtau2 += a * dx * dt2;
+        ct.sytau2 += a * dy * dt2;
+      }
       c.t_last_us = std::max(c.t_last_us, t_us);
       last_event_us_ = std::max(last_event_us_, t_us);
       profile_.events_ingested += 1;
@@ -302,7 +339,8 @@ public:
     profile_.stage_a_ms = elapsed_ms(t_a, Clock::now());
 
     const bool have_warm = warm_start.size() == final_vars_;
-    if (profile_.valid_cells == 0) {
+    const bool has_solver_support = profile_.valid_cells > 0;
+    if (!has_solver_support) {
       if (have_warm) {
         copy_vector(warm_start, F_out);
       } else {
@@ -333,7 +371,24 @@ public:
       }
 
       const auto t_b = Clock::now();
-      solve_scale(tiles, fallback, field);
+      if (params_.time_aware_order == 0) {
+        solve_scale(tiles, fallback, field);
+      } else {
+        Eigen::VectorXf stable_fallback(field.size());
+        const int saved_full_rank = profile_.full_rank_tiles;
+        const int saved_aperture = profile_.aperture_tiles;
+        const int saved_fallback = profile_.fallback_tiles;
+        const int saved_prior = profile_.prior_tiles;
+        solve_scale(tiles, fallback, stable_fallback);
+        profile_.full_rank_tiles = saved_full_rank;
+        profile_.aperture_tiles = saved_aperture;
+        profile_.fallback_tiles = saved_fallback;
+        profile_.prior_tiles = saved_prior;
+        Eigen::VectorXf * accel_out =
+          (l == params_.num_scales - 1 && params_.time_aware_order >= 2)
+            ? &accel_final_ : nullptr;
+        solve_scale_timeaware(tiles, stable_fallback, field, accel_out);
+      }
       profile_.stage_b_ms += elapsed_ms(t_b, Clock::now());
 
       const auto t_smooth = Clock::now();
@@ -367,6 +422,15 @@ private:
     int count = 0;
   };
 
+  struct TileMomentsT
+  {
+    double P0 = 0.0, P1 = 0.0, P2 = 0.0, P3 = 0.0, P4 = 0.0;
+    double Qx0 = 0.0, Qx1 = 0.0, Qx2 = 0.0;
+    double Qy0 = 0.0, Qy1 = 0.0, Qy2 = 0.0;
+    double Rxx = 0.0, Rxy = 0.0, Ryy = 0.0;
+    int count = 0;
+  };
+
   static constexpr int64_t kRebaseThresholdUs = 250000;
   static constexpr float kPruneMass = 1e-4f;
   static constexpr float kMinTimeVariance = 1e-12f;
@@ -379,13 +443,16 @@ private:
   int final_tiles_;
   int final_vars_;
   std::vector<CellMoments> cells_;
+  std::vector<CellMomentsT> cells_t_;
   std::vector<CellFit> fits_;
   std::vector<float> cell_center_x_;
   std::vector<float> cell_center_y_;
   std::vector<TileAccum> tile_accum_;
+  std::vector<TileMomentsT> tile_accum_t_;
   std::vector<Eigen::VectorXf> scale_fields_;
   std::vector<Eigen::VectorXf> scale_fallback_;
   Eigen::VectorXf smooth_scratch_;
+  Eigen::VectorXf accel_final_;
   MomentFlowProfile profile_;
   int64_t time_origin_us_ = 0;
   int64_t last_event_us_ = 0;
@@ -410,6 +477,7 @@ private:
     p.refine_iters = std::max(0, p.refine_iters);
     p.refine_huber_delta = std::max(1e-9f, p.refine_huber_delta);
     p.max_speed_px_s = std::max(1.0f, p.max_speed_px_s);
+    p.time_aware_order = std::clamp(p.time_aware_order, 0, 2);
     return p;
   }
 
@@ -486,11 +554,24 @@ private:
     if (delta == 0.0f) {
       return;
     }
-    for (CellMoments & c : cells_) {
+    for (size_t k = 0; k < cells_.size(); ++k) {
+      CellMoments & c = cells_[k];
       if (c.w <= 0.0f) {
         continue;
       }
       const float old_st = c.st;
+      const float old_stt = c.stt;
+      if (!cells_t_.empty()) {
+        CellMomentsT & ct = cells_t_[k];
+        const float d = delta;
+        const float old_stau3 = ct.stau3;
+        ct.stau4 = ct.stau4 - 4.0f * d * old_stau3 + 6.0f * d * d * old_stt
+                   - 4.0f * d * d * d * old_st + d * d * d * d * c.w;
+        ct.stau3 = old_stau3 - 3.0f * d * old_stt + 3.0f * d * d * old_st
+                   - d * d * d * c.w;
+        ct.sxtau2 = ct.sxtau2 - 2.0f * d * c.sxt + d * d * c.sx;
+        ct.sytau2 = ct.sytau2 - 2.0f * d * c.syt + d * d * c.sy;
+      }
       c.st -= delta * c.w;
       c.sxt -= delta * c.sx;
       c.syt -= delta * c.sy;
@@ -722,6 +803,243 @@ private:
     }
   }
 
+  // Closed-form dispersion-minimizing tile solve approximating CMax in the
+  // moment domain. Per tile we minimize the spatial dispersion of events warped
+  // by x' = x - tau*v - 0.5*tau^2*a (a only for order 2), an OLS regression of
+  // event positions onto {1, tau, 0.5 tau^2}. v (and a) come out closed-form
+  // from the accumulated moments; no iteration, no re-warp, no autodiff.
+  void solve_scale_timeaware(
+    int tiles,
+    const Eigen::VectorXf & fallback_F,
+    Eigen::VectorXf & out_F,
+    Eigen::VectorXf * out_A)
+  {
+    const int order = params_.time_aware_order;
+    const bool have_t = (order >= 2) && !cells_t_.empty();
+    const int n_tiles = tiles * tiles;
+    for (int i = 0; i < n_tiles; ++i) {
+      tile_accum_t_[static_cast<size_t>(i)] = TileMomentsT{};
+    }
+
+    // Scatter per-cell moments into their tile, rebuilding absolute-frame
+    // monomials sum a*x*tau^j from the cell-centre-relative base moments.
+    for (size_t k = 0; k < cells_.size(); ++k) {
+      const CellMoments & c = cells_[k];
+      if (!(c.w >= params_.cell_min_mass)) {
+        continue;
+      }
+      const double q = 1.0;  // event-uniform: dispersion-min wants every massive
+                             // cell, not only the clean single-orientation fits
+      const int tx = std::clamp(
+        static_cast<int>(cell_center_x_[k] * tiles / std::max(1, img_w_)), 0, tiles - 1);
+      const int ty = std::clamp(
+        static_cast<int>(cell_center_y_[k] * tiles / std::max(1, img_h_)), 0, tiles - 1);
+      TileMomentsT & a = tile_accum_t_[static_cast<size_t>(ty * tiles + tx)];
+      const double cx = cell_center_x_[k];
+      const double cy = cell_center_y_[k];
+      a.P0 += q * c.w;
+      a.P1 += q * c.st;
+      a.P2 += q * c.stt;
+      a.Qx0 += q * (c.sx + cx * c.w);
+      a.Qy0 += q * (c.sy + cy * c.w);
+      a.Qx1 += q * (c.sxt + cx * c.st);
+      a.Qy1 += q * (c.syt + cy * c.st);
+      a.Rxx += q * (c.sxx + 2.0 * cx * c.sx + cx * cx * c.w);
+      a.Rxy += q * (c.sxy + cx * c.sy + cy * c.sx + cx * cy * c.w);
+      a.Ryy += q * (c.syy + 2.0 * cy * c.sy + cy * cy * c.w);
+      a.count += 1;
+      if (have_t) {
+        const CellMomentsT & ct = cells_t_[k];
+        a.P3 += q * ct.stau3;
+        a.P4 += q * ct.stau4;
+        a.Qx2 += q * (ct.sxtau2 + cx * c.stt);
+        a.Qy2 += q * (ct.sytau2 + cy * c.stt);
+      }
+    }
+
+    const double ridge = std::max(1e-12f, params_.tikhonov_eps);
+    const double prior = std::max(0.0f, params_.prior_lambda);
+
+    for (int ty = 0; ty < tiles; ++ty) {
+      for (int tx = 0; tx < tiles; ++tx) {
+        const int k = ty * tiles + tx;
+        const TileMomentsT & a = tile_accum_t_[static_cast<size_t>(k)];
+        const float fb_Fx = fallback_F[2 * k];
+        const float fb_Fy = fallback_F[2 * k + 1];
+        const double fb_px = -fb_Fx;
+        const double fb_py = -fb_Fy;
+
+        auto fall_back = [&]() {
+          out_F[2 * k] = fb_Fx;
+          out_F[2 * k + 1] = fb_Fy;
+          if (out_A) { (*out_A)[2 * k] = 0.0f; (*out_A)[2 * k + 1] = 0.0f; }
+          profile_.fallback_tiles += 1;
+        };
+
+        if (a.count < std::max(1, params_.tile_min_cells) ||
+            a.P0 < params_.tile_min_mass || !(a.P2 > 0.0)) {
+          fall_back();
+          continue;
+        }
+
+        const double inv_p0 = 1.0 / a.P0;
+        const double cxx = std::max(0.0, a.Rxx * inv_p0 - a.Qx0 * a.Qx0 * inv_p0 * inv_p0);
+        const double cxy = a.Rxy * inv_p0 - a.Qx0 * a.Qy0 * inv_p0 * inv_p0;
+        const double cyy = std::max(0.0, a.Ryy * inv_p0 - a.Qy0 * a.Qy0 * inv_p0 * inv_p0);
+        float spatial_lmin = 0.0f;
+        float spatial_lmax = 0.0f;
+        eig2(
+          static_cast<float>(cxx), static_cast<float>(cxy), static_cast<float>(cyy),
+          spatial_lmin, spatial_lmax);
+        if (!(spatial_lmax >= params_.tile_min_lambda)) {
+          fall_back();
+          continue;
+        }
+
+        double vx_phys = 0.0, vy_phys = 0.0, ax_phys = 0.0, ay_phys = 0.0;
+        double s_tau = 0.0;
+        bool ok = false;
+
+        // v = Cov(x,tau)/Var(tau): centred ratio, well-conditioned in double.
+        const double denom_v = a.P2 - a.P1 * a.P1 / a.P0;
+        if (std::abs(denom_v) > 1e-20 && std::isfinite(denom_v)) {
+          const double prior_mass = prior * denom_v;
+          vx_phys = (a.Qx1 - a.Qx0 * a.P1 / a.P0 + prior_mass * fb_px) /
+                    (denom_v + prior_mass);
+          vy_phys = (a.Qy1 - a.Qy0 * a.P1 / a.P0 + prior_mass * fb_py) /
+                    (denom_v + prior_mass);
+          ok = std::isfinite(vx_phys) && std::isfinite(vy_phys);
+        }
+
+        if (ok && order >= 2 && have_t) {
+          const double s2 = a.P2 / a.P0;
+          if (s2 > 0.0 && std::isfinite(s2)) {
+            s_tau = std::sqrt(s2);
+            const double sq = 0.5 * a.P2;
+            const double sqq = 0.25 * a.P4;
+            const double denom_a = sqq - sq * sq / a.P0;
+            if (denom_a > 1e-24 && std::isfinite(denom_a)) {
+              const double accel_prior_mass =
+                std::max(8.0 * prior, ridge) * denom_a;
+              const double rx0 = a.Qx0 - vx_phys * a.P1;
+              const double ry0 = a.Qy0 - vy_phys * a.P1;
+              const double rxq = 0.5 * (a.Qx2 - vx_phys * a.P3);
+              const double ryq = 0.5 * (a.Qy2 - vy_phys * a.P3);
+              ax_phys = (rxq - rx0 * sq / a.P0) / (denom_a + accel_prior_mass);
+              ay_phys = (ryq - ry0 * sq / a.P0) / (denom_a + accel_prior_mass);
+              ok = std::isfinite(ax_phys) && std::isfinite(ay_phys);
+            }
+          }
+        }
+        if (s_tau > 0.0) {
+          const double da = std::hypot(ax_phys, ay_phys) * s_tau;
+          const double max_delta_v = 0.25 * static_cast<double>(params_.max_speed_px_s);
+          if (da > max_delta_v && da > 0.0) {
+            const double sc = max_delta_v / da;
+            ax_phys *= sc;
+            ay_phys *= sc;
+          }
+        }
+        if (!ok) { fall_back(); continue; }
+
+        // Moment-domain multi-reference focus phi = Var_id / Var_warp. phi <= 1
+        // means the warp does not sharpen -> reject (analogue of the paper's f<=1).
+        const double var_id =
+          (a.Rxx - a.Qx0 * a.Qx0 / a.P0) + (a.Ryy - a.Qy0 * a.Qy0 / a.P0);
+        auto warped_stats = [&](double vx, double vy, double ax, double ay,
+            double & var_w, float & lmin, float & lmax, float & tx_tan, float & ty_tan) {
+            const double sxp = a.Qx0 - vx * a.P1 - 0.5 * ax * a.P2;
+            const double syp = a.Qy0 - vy * a.P1 - 0.5 * ay * a.P2;
+            const double sxxp = a.Rxx - 2.0 * vx * a.Qx1 - ax * a.Qx2
+              + vx * vx * a.P2 + vx * ax * a.P3 + 0.25 * ax * ax * a.P4;
+            const double sxyp = a.Rxy - vx * a.Qy1 - vy * a.Qx1
+              - 0.5 * ax * a.Qy2 - 0.5 * ay * a.Qx2 + vx * vy * a.P2
+              + 0.5 * (vx * ay + vy * ax) * a.P3 + 0.25 * ax * ay * a.P4;
+            const double syyp = a.Ryy - 2.0 * vy * a.Qy1 - ay * a.Qy2
+              + vy * vy * a.P2 + vy * ay * a.P3 + 0.25 * ay * ay * a.P4;
+            const double inv_p0 = 1.0 / a.P0;
+            const double cov_xx = std::max(0.0, sxxp * inv_p0 - sxp * sxp * inv_p0 * inv_p0);
+            const double cov_xy = sxyp * inv_p0 - sxp * syp * inv_p0 * inv_p0;
+            const double cov_yy = std::max(0.0, syyp * inv_p0 - syp * syp * inv_p0 * inv_p0);
+            eig2(
+              static_cast<float>(cov_xx), static_cast<float>(cov_xy),
+              static_cast<float>(cov_yy), lmin, lmax);
+            dominant_eigenvector(
+              static_cast<float>(cov_xx), static_cast<float>(cov_xy),
+              static_cast<float>(cov_yy), lmax, tx_tan, ty_tan);
+            var_w = (sxxp - sxp * sxp * inv_p0) + (syyp - syp * syp * inv_p0);
+          };
+
+        double var_w = 0.0;
+        float warp_lmin = 0.0f;
+        float warp_lmax = 0.0f;
+        float tx_tan = 1.0f;
+        float ty_tan = 0.0f;
+        warped_stats(vx_phys, vy_phys, ax_phys, ay_phys, var_w, warp_lmin, warp_lmax, tx_tan, ty_tan);
+
+        const bool aperture_limited =
+          warp_lmin / std::max(warp_lmax, 1e-12f) < params_.aperture_ratio;
+        if (aperture_limited) {
+          const double nx_norm = -ty_tan;
+          const double ny_norm = tx_tan;
+          const double normal_v = vx_phys * nx_norm + vy_phys * ny_norm;
+          const double tangent_v = fb_px * tx_tan + fb_py * ty_tan;
+          vx_phys = normal_v * nx_norm + tangent_v * tx_tan;
+          vy_phys = normal_v * ny_norm + tangent_v * ty_tan;
+
+          const double normal_a = ax_phys * nx_norm + ay_phys * ny_norm;
+          ax_phys = normal_a * nx_norm;
+          ay_phys = normal_a * ny_norm;
+          warped_stats(vx_phys, vy_phys, ax_phys, ay_phys, var_w, warp_lmin, warp_lmax, tx_tan, ty_tan);
+        }
+
+        double fallback_var_w = 0.0;
+        float fallback_lmin = 0.0f;
+        float fallback_lmax = 0.0f;
+        float fallback_tx = 1.0f;
+        float fallback_ty = 0.0f;
+        warped_stats(
+          fb_px, fb_py, 0.0, 0.0,
+          fallback_var_w, fallback_lmin, fallback_lmax, fallback_tx, fallback_ty);
+        if (fallback_var_w > 1e-12 && var_w > 0.98 * fallback_var_w) {
+          fall_back();
+          continue;
+        }
+
+        const double phi = (var_w > 1e-12) ? var_id / var_w : 0.0;
+        if (!(phi > 1.0) || !std::isfinite(phi)) { fall_back(); continue; }
+
+        if (aperture_limited) {
+          profile_.aperture_tiles += 1;
+        } else {
+          profile_.full_rank_tiles += 1;
+        }
+        if (prior > 0.0) {
+          profile_.prior_tiles += 1;
+        }
+
+        float vxf = static_cast<float>(vx_phys);
+        float vyf = static_cast<float>(vy_phys);
+        clamp_speed(vxf, vyf);
+        out_F[2 * k] = -vxf;
+        out_F[2 * k + 1] = -vyf;
+
+        if (out_A) {
+          float axf = static_cast<float>(ax_phys);
+          float ayf = static_cast<float>(ay_phys);
+          const float da = std::hypot(axf, ayf) * static_cast<float>(s_tau);
+          const float max_delta_v = 0.25f * params_.max_speed_px_s;
+          if (da > max_delta_v && da > 0.0f) {
+            const float sc = max_delta_v / da;
+            axf *= sc; ayf *= sc;
+          }
+          (*out_A)[2 * k] = -axf;
+          (*out_A)[2 * k + 1] = -ayf;
+        }
+      }
+    }
+  }
+
   void clamp_speed(float & vx, float & vy) const
   {
     const float speed = std::hypot(vx, vy);
@@ -744,27 +1062,39 @@ private:
       for (int ty = 0; ty < tiles; ++ty) {
         for (int tx = 0; tx < tiles; ++tx) {
           const int k = ty * tiles + tx;
-          float sum_x = field[2 * k];
-          float sum_y = field[2 * k + 1];
-          float weight = 1.0f;
-
-          auto add_neighbor = [&](int nx, int ny) {
-            if (nx < 0 || ny < 0 || nx >= tiles || ny >= tiles) {
-              return;
+          int neighbors[9];
+          int n = 0;
+          for (int dy = -1; dy <= 1; ++dy) {
+            for (int dx = -1; dx <= 1; ++dx) {
+              const int nx = tx + dx;
+              const int ny = ty + dy;
+              if (nx < 0 || ny < 0 || nx >= tiles || ny >= tiles) {
+                continue;
+              }
+              neighbors[n++] = ny * tiles + nx;
             }
-            const int nk = ny * tiles + nx;
-            sum_x += field[2 * nk];
-            sum_y += field[2 * nk + 1];
-            weight += 1.0f;
-          };
-          add_neighbor(tx - 1, ty);
-          add_neighbor(tx + 1, ty);
-          add_neighbor(tx, ty - 1);
-          add_neighbor(tx, ty + 1);
+          }
 
-          smooth_scratch_[2 * k] = keep * field[2 * k] + alpha * (sum_x / weight);
+          int best = k;
+          float best_score = std::numeric_limits<float>::max();
+          for (int ci = 0; ci < n; ++ci) {
+            const int ck = neighbors[ci];
+            const float cx = field[2 * ck];
+            const float cy = field[2 * ck + 1];
+            float score = 0.0f;
+            for (int ni = 0; ni < n; ++ni) {
+              const int nk = neighbors[ni];
+              score += std::hypot(cx - field[2 * nk], cy - field[2 * nk + 1]);
+            }
+            if (score < best_score) {
+              best_score = score;
+              best = ck;
+            }
+          }
+
+          smooth_scratch_[2 * k] = keep * field[2 * k] + alpha * field[2 * best];
           smooth_scratch_[2 * k + 1] =
-            keep * field[2 * k + 1] + alpha * (sum_y / weight);
+            keep * field[2 * k + 1] + alpha * field[2 * best + 1];
         }
       }
 
