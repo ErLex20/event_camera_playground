@@ -25,12 +25,30 @@
 #include "event_detector_cpp/event_detector_cpp.hpp"
 
 #include <algorithm>
+#include <cinttypes>
+#include <cmath>
 #include <limits>
+#include <memory>
 #include <mutex>
 #include <utility>
 
 namespace event_detector_cpp
 {
+
+namespace
+{
+
+std::shared_ptr<dv::EventPacket> make_event_packet()
+{
+  return std::make_shared<dv::EventPacket>();
+}
+
+dv::EventStore make_event_store(const std::shared_ptr<dv::EventPacket> & packet)
+{
+  return dv::EventStore(std::const_pointer_cast<const dv::EventPacket>(packet));
+}
+
+}  // namespace
 
 void EventDetector::worker_thread_routine()
 {
@@ -64,7 +82,7 @@ void EventDetector::worker_thread_routine()
     // Evaluate time to calculate everything
     auto t_ba = std::chrono::high_resolution_clock::now();
     dv::EventStore sae_events = ba_filter_enabled_ ? compute_ba(chunk.events) : chunk.events;
-    if (sae_events.isEmpty() && !(iwe_enabled_ || flow_enabled_)) {
+    if (sae_events.isEmpty() && !(iwe_enabled_ || flow_enabled_ || flow_save_enabled_)) {
       continue;
     }
     auto dt1 = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -83,16 +101,31 @@ void EventDetector::worker_thread_routine()
       RCLCPP_INFO_THROTTLE(this->get_logger(), *get_clock(), 1000, "SAE: %ld ms", dt2);
     }
 
-    // IWE and optical flow run once per fixed-duration flow window.
-    if (iwe_enabled_ || flow_enabled_) {
+    // IWE and optical flow run once per fixed-duration flow window. When a
+    // benchmark timestamp schedule is configured, it only controls which
+    // windows are saved and how they are named.
+    if (iwe_enabled_ || flow_enabled_ || flow_save_enabled_) {
+      dv::EventStore flow_events = chunk.events;
+      const bool scheduled_flow_active =
+        flow_save_enabled_ &&
+        flow_save_prepared_ &&
+        !flow_save_windows_.empty() &&
+        flow_save_next_window_ < flow_save_windows_.size();
+      if (scheduled_flow_active) {
+        flow_events = accumulate_scheduled_flow(chunk.events, chunk.header);
+        if (flow_events.isEmpty()) {
+          continue;
+        }
+      }
+
       int64_t chunk_first_us = std::numeric_limits<int64_t>::max();
       int64_t chunk_last_us = std::numeric_limits<int64_t>::lowest();
-      for (const auto & e : chunk.events) {
+      for (const auto & e : flow_events) {
         chunk_first_us = std::min(chunk_first_us, e.timestamp());
         chunk_last_us = std::max(chunk_last_us, e.timestamp());
       }
-      if (!chunk.events.isEmpty()) {
-        flow_accum_.add(chunk.events);
+      if (!flow_events.isEmpty()) {
+        flow_accum_.add(flow_events);
         flow_accum_first_us_ = std::min(flow_accum_first_us_, chunk_first_us);
         flow_accum_last_us_ = std::max(flow_accum_last_us_, chunk_last_us);
       }
@@ -114,6 +147,8 @@ void EventDetector::worker_thread_routine()
           this->get_logger(), *get_clock(), 1000,
           "Flow window close: events=%ld span=%.3f ms target=%.3f ms",
           flow_accum_events, flow_span_ms, flow_max_window_ms_);
+        const int64_t save_from_us = flow_accum_first_us_;
+        const int64_t save_to_us = flow_accum_last_us_;
         dv::EventStore window = flow_accum_;
         flow_accum_ = dv::EventStore();
         flow_accum_first_us_ = std::numeric_limits<int64_t>::max();
@@ -125,6 +160,13 @@ void EventDetector::worker_thread_routine()
           std::chrono::high_resolution_clock::now() - t_flow).count();
         RCLCPP_INFO_THROTTLE(
           this->get_logger(), *get_clock(), 1000, "Flow moment: %ld ms", dt_flow);
+
+        if (flow_save_enabled_ && flow_save_prepared_ && flow_save_windows_.empty()) {
+          const int64_t file_index =
+            flow_save_first_index_ + flow_save_sequence_index_ * flow_save_index_step_;
+          save_flow_png(res.flow_velocity, file_index, save_from_us, save_to_us);
+          flow_save_sequence_index_ += 1;
+        }
 
         if (iwe_enabled_) {
           publish_image(
@@ -139,6 +181,109 @@ void EventDetector::worker_thread_routine()
   }
 
   RCLCPP_WARN(this->get_logger(), "Worker STOP");
+}
+
+dv::EventStore EventDetector::accumulate_scheduled_flow(
+  const dv::EventStore & events,
+  const std_msgs::msg::Header & header)
+{
+  if (events.isEmpty() || flow_save_next_window_ >= flow_save_windows_.size()) {
+    return events;
+  }
+
+  auto packet = make_event_packet();
+  auto unscheduled_packet = make_event_packet();
+
+  auto estimate_to_us = [this](const FlowSaveWindow & window) -> int64_t {
+    const int64_t requested_us = std::max<int64_t>(
+      1,
+      static_cast<int64_t>(std::llround(flow_max_window_ms_ * 1000.0)));
+    return std::min(window.to_us, window.from_us + requested_us);
+  };
+
+  auto flush_packet = [&]() {
+    if (packet->elements.empty()) {
+      return;
+    }
+    flow_accum_.add(make_event_store(packet));
+    packet = make_event_packet();
+  };
+
+  auto close_current_window = [&]() {
+    flush_packet();
+    if (flow_save_next_window_ >= flow_save_windows_.size()) {
+      return;
+    }
+
+    const FlowSaveWindow window = flow_save_windows_[flow_save_next_window_];
+    const int64_t estimate_to = estimate_to_us(window);
+    RCLCPP_INFO(
+      get_logger(),
+      "Scheduled flow window close: index=%" PRId64
+      " estimate=[%" PRId64 ", %" PRId64 ") encode=[%" PRId64 ", %" PRId64 ") events=%zu",
+      window.file_index, window.from_us, estimate_to, window.from_us, window.to_us,
+      static_cast<std::size_t>(flow_accum_.size()));
+
+    FlowResult res;
+    if (flow_accum_.size() >= 2) {
+      res = solve_flow_moment(
+        flow_accum_,
+        window.from_us + (estimate_to - window.from_us) / 2);
+    } else {
+      RCLCPP_WARN(
+        get_logger(),
+        "Scheduled flow estimate interval [%" PRId64 ", %" PRId64
+        ") has fewer than 2 events; saving zero flow",
+        window.from_us, estimate_to);
+    }
+
+    save_flow_png(res.flow_velocity, window.file_index, window.from_us, window.to_us);
+
+    if (iwe_enabled_) {
+      publish_image(pub_iwe_, res.iwe, sensor_msgs::image_encodings::MONO8, header);
+    }
+    if (flow_enabled_) {
+      publish_image(pub_flow_, res.flow, sensor_msgs::image_encodings::BGR8, header);
+    }
+
+    flow_accum_ = dv::EventStore();
+    flow_accum_first_us_ = std::numeric_limits<int64_t>::max();
+    flow_accum_last_us_ = std::numeric_limits<int64_t>::lowest();
+    flow_save_next_window_ += 1;
+  };
+
+  for (const auto & event : events) {
+    const int64_t t_us = event.timestamp();
+
+    while (flow_save_next_window_ < flow_save_windows_.size() &&
+      t_us >= estimate_to_us(flow_save_windows_[flow_save_next_window_]))
+    {
+      close_current_window();
+    }
+    if (flow_save_next_window_ >= flow_save_windows_.size()) {
+      unscheduled_packet->elements.push_back(event);
+      continue;
+    }
+
+    const FlowSaveWindow & window = flow_save_windows_[flow_save_next_window_];
+    const int64_t estimate_to = estimate_to_us(window);
+    if (t_us < window.from_us) {
+      continue;
+    }
+    if (t_us >= estimate_to) {
+      continue;
+    }
+
+    packet->elements.push_back(event);
+    flow_accum_first_us_ = std::min(flow_accum_first_us_, t_us);
+    flow_accum_last_us_ = std::max(flow_accum_last_us_, t_us);
+  }
+
+  flush_packet();
+  if (unscheduled_packet->elements.empty()) {
+    return dv::EventStore();
+  }
+  return make_event_store(unscheduled_packet);
 }
 
 } // namespace event_detector_cpp

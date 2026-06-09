@@ -212,7 +212,9 @@ IweRenderStats render_iwe_bilinear(
 
 }  // namespace
 
-EventDetector::FlowResult EventDetector::solve_flow_moment(const dv::EventStore & window)
+EventDetector::FlowResult EventDetector::solve_flow_moment(
+  const dv::EventStore & window,
+  std::optional<int64_t> t_ref_override_us)
 {
   const auto t_total = ProfileClock::now();
   FlowResult result;
@@ -262,7 +264,7 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(const dv::EventStore 
     solve_samples.begin(), solve_samples.end(), by_time);
   const int64_t t_lo_us = t_minmax.first->t_us;
   const int64_t t_hi_us = t_minmax.second->t_us;
-  const int64_t t_ref_us = t_lo_us + (t_hi_us - t_lo_us) / 2;
+  const int64_t t_ref_us = t_ref_override_us.value_or(t_lo_us + (t_hi_us - t_lo_us) / 2);
 
   Events ev;
   ev.t_ref_us = t_ref_us;
@@ -389,6 +391,7 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(const dv::EventStore 
   const auto t_flow_image = ProfileClock::now();
   cv::Mat angle(h, w, CV_32F);
   cv::Mat magnitude(h, w, CV_32F);
+  result.flow_velocity = cv::Mat(h, w, CV_32FC2);
   double vx_sum = 0.0;
   double vy_sum = 0.0;
   double vx2_sum = 0.0;
@@ -396,6 +399,7 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(const dv::EventStore 
   for (int y = 0; y < h; ++y) {
     float * arow = angle.ptr<float>(y);
     float * mrow = magnitude.ptr<float>(y);
+    cv::Vec2f * vrow = result.flow_velocity.ptr<cv::Vec2f>(y);
     for (int x = 0; x < w; ++x) {
       float vx, vy;
       sample_tile_velocity(
@@ -403,6 +407,7 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(const dv::EventStore 
         static_cast<float>(x), static_cast<float>(y), vx, vy);
       vx = -vx;
       vy = -vy;
+      vrow[x] = cv::Vec2f(vx, vy);
       vx_sum += vx;
       vy_sum += vy;
       vx2_sum += static_cast<double>(vx) * vx;

@@ -279,3 +279,51 @@ params:
     constraints: "Must be positive."
     read_only: false
     var_name: flow_max_speed_px_s_
+  flow_save_enabled:
+    type: bool
+    default_value: false
+    description: "Save raw dense optical-flow estimates as DSEC-compatible 16-bit PNG files."
+    constraints: "Enable for offline benchmarking; leave disabled for live visualization."
+    read_only: true
+    var_name: flow_save_enabled_
+  flow_save_output_dir:
+    type: string
+    default_value: "/home/neo/workspace/logs/moment_flow"
+    description: "Directory where DSEC-format raw optical-flow PNGs are written."
+    constraints: "Created automatically when flow_save_enabled is true."
+    read_only: true
+    var_name: flow_save_output_dir_
+  flow_save_timestamp_file:
+    type: string
+    default_value: ""
+    description: "Optional DSEC forward-flow timestamp file; when set, saved estimates are aligned to these intervals."
+    constraints: "Rows must contain from_us,to_us and may optionally contain a file index."
+    read_only: true
+    var_name: flow_save_timestamp_file_
+  flow_save_clear_output:
+    type: bool
+    default_value: true
+    description: "Delete stale PNG files from flow_save_output_dir before saving a new benchmark run."
+    constraints: "Only .png files in the output directory are removed."
+    read_only: true
+    var_name: flow_save_clear_output_
+  flow_save_first_index:
+    type: integer
+    default_value: 2
+    min_value: 0
+    max_value: 9223372036854775807
+    step: 1
+    description: "First output file index when the timestamp file does not include explicit indices."
+    constraints: "DSEC training flow for thun_00_a uses 2,4,6,..."
+    read_only: true
+    var_name: flow_save_first_index_
+  flow_save_index_step:
+    type: integer
+    default_value: 2
+    min_value: 1
+    max_value: 9223372036854775807
+    step: 1
+    description: "Output file-index increment when the timestamp file does not include explicit indices."
+    constraints: "DSEC training flow for thun_00_a uses a step of 2."
+    read_only: true
+    var_name: flow_save_index_step_

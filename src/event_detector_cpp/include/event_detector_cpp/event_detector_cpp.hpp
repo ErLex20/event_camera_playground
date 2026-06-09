@@ -31,7 +31,9 @@
 #include <limits>
 #include <mutex>
 #include <optional>
+#include <string>
 #include <thread>
+#include <vector>
 
 #include <dua_node_cpp/dua_node.hpp>
 #include <dua_qos_cpp/dua_qos.hpp>
@@ -139,6 +141,14 @@ private:
   {
     cv::Mat flow;  // dense flow field, BGR8 (hue = direction, value = speed)
     cv::Mat iwe;   // Image of Warped Events at the window midpoint, MONO8
+    cv::Mat flow_velocity;  // dense image-flow velocity, CV_32FC2 [px/s]
+  };
+
+  struct FlowSaveWindow
+  {
+    int64_t from_us;
+    int64_t to_us;
+    int64_t file_index;
   };
 
   /**
@@ -153,7 +163,48 @@ private:
    * @param window The window of events to estimate the flow from.
    * @return The rendered flow (BGR8) and IWE (MONO8) images.
    */
-  FlowResult solve_flow_moment(const dv::EventStore & window);
+  FlowResult solve_flow_moment(
+    const dv::EventStore & window,
+    std::optional<int64_t> t_ref_override_us = std::nullopt);
+
+  /**
+   * @brief Loads the optional benchmark-save timestamp schedule.
+   *
+   * If a DSEC-style timestamp file is configured, saves are produced at the
+   * ground-truth cadence and named by the DSEC image index. Each estimate still
+   * uses the ordinary flow_max_window_ms_ algorithm window at the start of the
+   * corresponding ground-truth interval. If no timestamp file is configured,
+   * saving falls back to every ordinary flow_max_window_ms_ window.
+   */
+  void prepare_flow_saving();
+
+  /**
+   * @brief Processes one chunk using the DSEC benchmark-save schedule.
+   *
+   * Splits incoming events so the estimator runs over flow_max_window_ms_ from
+   * the start of each ground-truth interval, then skips ahead to the next
+   * scheduled save. This keeps the algorithm window independent from the
+   * ground-truth cadence.
+   *
+   * @return Events after the final scheduled save, so ordinary publishing can
+   * continue after benchmark output is complete.
+   */
+  dv::EventStore accumulate_scheduled_flow(
+    const dv::EventStore & events,
+    const std_msgs::msg::Header & header);
+
+  /**
+   * @brief Saves a dense image-flow velocity field in DSEC 16-bit PNG format.
+   *
+   * The velocity is converted to displacement using the exact interval
+   * duration, then encoded as RGB: flow_x, flow_y, valid. OpenCV writes BGR, so
+   * the in-memory matrix uses B=valid, G=flow_y, R=flow_x.
+   */
+  void save_flow_png(
+    const cv::Mat & flow_velocity,
+    int64_t file_index,
+    int64_t from_us,
+    int64_t to_us);
 
   /**
    * @brief Allocates the resolution-dependent processors on the first packet.
@@ -266,6 +317,10 @@ private:
   Eigen::VectorXf prev_flow_field_;
   int prev_flow_tiles_{0};
   std::optional<flow::MomentFlow> moment_flow_;
+  std::vector<FlowSaveWindow> flow_save_windows_;
+  std::size_t flow_save_next_window_{0};
+  int64_t flow_save_sequence_index_{0};
+  bool flow_save_prepared_{false};
 
   /* Node parameters. */
   bool    autostart_;
@@ -298,6 +353,12 @@ private:
   int64_t flow_iwe_scale_;
   double  flow_max_speed_px_s_;
   int64_t flow_time_aware_order_;
+  bool flow_save_enabled_;
+  std::string flow_save_output_dir_;
+  std::string flow_save_timestamp_file_;
+  bool flow_save_clear_output_;
+  int64_t flow_save_first_index_;
+  int64_t flow_save_index_step_;
 
   /* Threads. */
   std::thread thread_worker_;

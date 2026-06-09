@@ -12,7 +12,7 @@
     sae_enabled: true
     iwe_enabled: true
     flow_enabled: true
-    flow_max_window_ms: 10.0          # 10->25: in 10 ms l'accel e' ~0 => order-2 == order-1. Serve l'arco per fittarla
+    flow_max_window_ms: 10.0          # Algorithm window. With GT-scheduled saving, one estimate is saved per GT row using this window length.
     flow_num_scales: 6                # 8->6: fine = 32x32 (setting DSEC del paper). 128x128 su VGA = tile 5px ~1 cella => vuoti + smooth 12ms
     flow_cell_size_px: 6              # 4->6: piu' eventi/cella => fit stabili, meno celle a singola orientazione
     flow_decay_enabled: false
@@ -38,3 +38,9 @@
     flow_refine_huber_delta: 0.01
     flow_iwe_scale: 1
     flow_max_speed_px_s: 3000.0
+    flow_save_enabled: true
+    flow_save_output_dir: /home/neo/workspace/logs/moment_flow/thun_00_a
+    flow_save_timestamp_file: /home/neo/workspace/logs/dsec/thun_00_a/optical_flow_foward/thun_00_a_optical_flow_forward_timestamps.txt
+    flow_save_clear_output: true
+    flow_save_first_index: 2
+    flow_save_index_step: 2

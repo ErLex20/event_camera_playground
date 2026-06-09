@@ -63,11 +63,15 @@ void EventDetector::callback_event_packet(EventPacket::ConstSharedPtr msg)
 
   {
     std::lock_guard<std::mutex> lock(queue_mutex_);
-    if (queue_.size() >= kMaxQueueChunks) {
+    if (!flow_save_enabled_ && queue_.size() >= kMaxQueueChunks) {
       queue_.pop_front();
       RCLCPP_WARN_THROTTLE(
         get_logger(), *get_clock(), 2000,
         "Worker behind; dropping oldest event chunk");
+    } else if (flow_save_enabled_ && queue_.size() >= kMaxQueueChunks) {
+      RCLCPP_WARN_THROTTLE(
+        get_logger(), *get_clock(), 2000,
+        "Worker behind while raw-flow saving is enabled; preserving queued chunks for benchmark precision");
     }
     queue_.push_back(std::move(chunk));
   }
