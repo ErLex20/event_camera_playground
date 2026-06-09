@@ -12,7 +12,7 @@ from launch_ros.actions import Node
 def generate_launch_description():
     ld = LaunchDescription()
 
-    default_h5 = '/home/neo/workspace/logs/dsec/thun_00_a_events_left/events.h5'
+    default_h5 = '/home/neo/workspace/logs/dsec/thun_00_a/events_left/events.h5'
     config = os.path.join(
         get_package_share_directory('dsec_publisher'), 'config', 'dsec_publisher.yaml')
 
@@ -20,7 +20,7 @@ def generate_launch_description():
         'namespace': '',
         'events_h5': default_h5,
         'topic': 'event_camera/events',
-        'window_ms': '10.0',
+        'window_ms': '1.0',
         'realtime_factor': '1.0',
         'loop': 'false',
         'start_offset_s': '0.0',
