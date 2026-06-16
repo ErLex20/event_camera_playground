@@ -212,6 +212,36 @@ params:
     constraints: "Must be non-negative."
     read_only: false
     var_name: flow_prior_lambda_
+  flow_reg_lambda:
+    type: double
+    default_value: 0.0
+    min_value: 0.0
+    max_value: 1000000000.0
+    step: 0.0
+    description: "Spatially coupled tile-flow regularization strength."
+    constraints: "Set to 0, or set flow_reg_sweeps to 0, for an exact no-op."
+    read_only: false
+    var_name: flow_reg_lambda_
+  flow_reg_sweeps:
+    type: integer
+    default_value: 0
+    min_value: 0
+    max_value: 16
+    step: 1
+    description: "Gauss-Seidel sweeps for coupled tile-flow regularization."
+    constraints: "Set to 0, or set flow_reg_lambda to 0, for an exact no-op."
+    read_only: false
+    var_name: flow_reg_sweeps_
+  flow_reg_sigma:
+    type: double
+    default_value: 1000000000.0
+    min_value: 0.000001
+    max_value: 1000000000000.0
+    step: 0.0
+    description: "Charbonnier edge threshold [px/s] for coupled regularization; very large is nearly isotropic."
+    constraints: "Must be positive."
+    read_only: false
+    var_name: flow_reg_sigma_
   flow_smooth_iters:
     type: integer
     default_value: 0

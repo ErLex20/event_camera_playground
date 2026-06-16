@@ -115,6 +115,9 @@ MomentFlowParams test_params(int scales)
   p.cell_min_lambda = 1e-4f;
   p.aperture_ratio = 0.05f;
   p.tikhonov_eps = 1e-6f;
+  p.flow_reg_lambda = 0.0f;
+  p.flow_reg_sweeps = 0;
+  p.flow_reg_sigma = 1e9f;
   p.smooth_iters = 0;
   p.smooth_alpha = 0.0f;
   p.max_speed_px_s = 5000.0f;
@@ -374,18 +377,24 @@ TEST(MomentFlow, ProducesNonUniformTileField)
   EXPECT_LT(F[2], -100.0f);
 }
 
-TEST(MomentFlow, SmoothingReducesTileJumps)
+TEST(MomentFlow, SpatialRegularizationNoopWhenDisabled)
 {
   const int W = 128;
   const int H = 96;
   MomentFlowParams raw_params = test_params(3);
-  MomentFlowParams smooth_params = raw_params;
-  smooth_params.smooth_iters = 2;
-  smooth_params.smooth_alpha = 0.35f;
+  MomentFlowParams disabled_params = raw_params;
+  disabled_params.flow_reg_lambda = 10.0f;
+  disabled_params.flow_reg_sweeps = 0;
+  disabled_params.smooth_iters = 4;
+  disabled_params.smooth_alpha = 0.6f;
 
   Events ev;
-  append_events(ev, make_plane_events(W, H, raw_params.cell_size_px, 400.0f, 0.0f, 30, 21, 0.0f, W / 2.0f));
-  append_events(ev, make_plane_events(W, H, raw_params.cell_size_px, -300.0f, 0.0f, 30, 23, W / 2.0f, W));
+  append_events(
+    ev,
+    make_plane_events(W, H, raw_params.cell_size_px, 400.0f, 0.0f, 30, 21, 0.0f, W / 2.0f));
+  append_events(
+    ev,
+    make_plane_events(W, H, raw_params.cell_size_px, -300.0f, 0.0f, 30, 23, W / 2.0f, W));
 
   MomentFlow raw_flow(W, H, raw_params);
   raw_flow.ingest(ev);
@@ -393,12 +402,51 @@ TEST(MomentFlow, SmoothingReducesTileJumps)
   Eigen::VectorXf raw_F(raw_flow.num_vars());
   raw_flow.solve(warm, raw_F);
 
-  MomentFlow smooth_flow(W, H, smooth_params);
-  smooth_flow.ingest(ev);
-  Eigen::VectorXf smooth_F(smooth_flow.num_vars());
-  smooth_flow.solve(warm, smooth_F);
+  MomentFlow disabled_flow(W, H, disabled_params);
+  disabled_flow.ingest(ev);
+  Eigen::VectorXf disabled_F(disabled_flow.num_vars());
+  disabled_flow.solve(warm, disabled_F);
 
-  const int tiles = smooth_flow.final_tiles();
-  EXPECT_LT(neighbor_variation(smooth_F, tiles), neighbor_variation(raw_F, tiles));
-  EXPECT_GT(neighbor_variation(smooth_F, tiles), 1000.0);
+  ASSERT_EQ(disabled_F.size(), raw_F.size());
+  for (int i = 0; i < raw_F.size(); ++i) {
+    EXPECT_FLOAT_EQ(disabled_F[i], raw_F[i]);
+  }
+  EXPECT_EQ(disabled_flow.profile().reg_total_tiles, 0);
+  EXPECT_EQ(disabled_flow.profile().reg_modified_tiles, 0);
+}
+
+TEST(MomentFlow, CoupledRegularizationReducesTileJumps)
+{
+  const int W = 128;
+  const int H = 96;
+  MomentFlowParams raw_params = test_params(3);
+  MomentFlowParams reg_params = raw_params;
+  reg_params.flow_reg_lambda = 5.0f;
+  reg_params.flow_reg_sweeps = 4;
+  reg_params.flow_reg_sigma = 1e9f;
+
+  Events ev;
+  append_events(
+    ev,
+    make_plane_events(W, H, raw_params.cell_size_px, 400.0f, 0.0f, 30, 21, 0.0f, W / 2.0f));
+  append_events(
+    ev,
+    make_plane_events(W, H, raw_params.cell_size_px, -300.0f, 0.0f, 30, 23, W / 2.0f, W));
+
+  MomentFlow raw_flow(W, H, raw_params);
+  raw_flow.ingest(ev);
+  Eigen::VectorXf warm;
+  Eigen::VectorXf raw_F(raw_flow.num_vars());
+  raw_flow.solve(warm, raw_F);
+
+  MomentFlow reg_flow(W, H, reg_params);
+  reg_flow.ingest(ev);
+  Eigen::VectorXf reg_F(reg_flow.num_vars());
+  reg_flow.solve(warm, reg_F);
+
+  const int tiles = reg_flow.final_tiles();
+  EXPECT_LT(neighbor_variation(reg_F, tiles), neighbor_variation(raw_F, tiles));
+  EXPECT_GT(neighbor_variation(reg_F, tiles), 1000.0);
+  EXPECT_GT(reg_flow.profile().reg_modified_tiles, 0);
+  EXPECT_GT(reg_flow.profile().reg_mean_delta_speed, 0.0);
 }

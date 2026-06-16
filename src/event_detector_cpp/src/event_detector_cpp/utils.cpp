@@ -144,31 +144,40 @@ void EventDetector::prepare_flow_saving()
 
   const std::filesystem::path output_dir(flow_save_output_dir_);
   std::error_code ec;
-  std::filesystem::create_directories(output_dir, ec);
-  if (ec) {
-    RCLCPP_ERROR(
-      get_logger(), "Could not create flow save directory '%s': %s",
-      output_dir.string().c_str(), ec.message().c_str());
-    return;
+  // Dense (flow_dense) and sparse (flow_events) predictions go into separate
+  // subdirectories so both benchmarks can run from a single node run.
+  for (const auto & dir :
+    {output_dir, output_dir / "dense", output_dir / "sparse"})
+  {
+    std::filesystem::create_directories(dir, ec);
+    if (ec) {
+      RCLCPP_ERROR(
+        get_logger(), "Could not create flow save directory '%s': %s",
+        dir.string().c_str(), ec.message().c_str());
+      return;
+    }
   }
 
   if (flow_save_clear_output_) {
-    for (const auto & entry : std::filesystem::directory_iterator(output_dir, ec)) {
-      if (ec) {
-        RCLCPP_WARN(
-          get_logger(), "Could not scan flow save directory '%s': %s",
-          output_dir.string().c_str(), ec.message().c_str());
-        break;
-      }
-      if (entry.is_regular_file() && entry.path().extension() == ".png") {
-        std::filesystem::remove(entry.path(), ec);
+    for (const auto & dir : {output_dir / "dense", output_dir / "sparse"}) {
+      for (const auto & entry : std::filesystem::directory_iterator(dir, ec)) {
         if (ec) {
           RCLCPP_WARN(
-            get_logger(), "Could not remove stale flow PNG '%s': %s",
-            entry.path().string().c_str(), ec.message().c_str());
-          ec.clear();
+            get_logger(), "Could not scan flow save directory '%s': %s",
+            dir.string().c_str(), ec.message().c_str());
+          break;
+        }
+        if (entry.is_regular_file() && entry.path().extension() == ".png") {
+          std::filesystem::remove(entry.path(), ec);
+          if (ec) {
+            RCLCPP_WARN(
+              get_logger(), "Could not remove stale flow PNG '%s': %s",
+              entry.path().string().c_str(), ec.message().c_str());
+            ec.clear();
+          }
         }
       }
+      ec.clear();
     }
   }
 
@@ -245,8 +254,22 @@ void EventDetector::prepare_flow_saving()
   }
 }
 
+void EventDetector::save_flow_results(
+  const FlowResult & res,
+  int64_t file_index,
+  int64_t from_us,
+  int64_t to_us)
+{
+  // Dense keeps its original behavior on degenerate windows (all-valid zeros);
+  // only the sparse field treats a missing estimate as invalid.
+  save_flow_png(res.flow_dense, "dense", /*empty_is_invalid=*/false, file_index, from_us, to_us);
+  save_flow_png(res.flow_events, "sparse", /*empty_is_invalid=*/true, file_index, from_us, to_us);
+}
+
 void EventDetector::save_flow_png(
-  const cv::Mat & flow_dense,
+  const cv::Mat & flow_velocity,
+  const std::string & subdir,
+  bool empty_is_invalid,
   int64_t file_index,
   int64_t from_us,
   int64_t to_us)
@@ -264,9 +287,17 @@ void EventDetector::save_flow_png(
     return;
   }
 
-  cv::Mat velocity = flow_dense;
+  cv::Mat velocity = flow_velocity;
   if (velocity.empty()) {
-    velocity = cv::Mat::zeros(res_.height, res_.width, CV_32FC2);
+    if (empty_is_invalid) {
+      // Sparse field with no estimate: write a fully-invalid frame (preserves
+      // file-index alignment) rather than a fake all-valid zero field.
+      const float nan = std::numeric_limits<float>::quiet_NaN();
+      velocity = cv::Mat(res_.height, res_.width, CV_32FC2, cv::Scalar(nan, nan));
+    } else {
+      // Dense field: original behavior, an all-valid zero field.
+      velocity = cv::Mat::zeros(res_.height, res_.width, CV_32FC2);
+    }
   }
   if (velocity.type() != CV_32FC2) {
     RCLCPP_ERROR(
@@ -281,12 +312,20 @@ void EventDetector::save_flow_png(
     const cv::Vec2f * vrow = velocity.ptr<cv::Vec2f>(y);
     cv::Vec<uint16_t, 3> * erow = encoded.ptr<cv::Vec<uint16_t, 3>>(y);
     for (int x = 0; x < velocity.cols; ++x) {
+      // DSEC's on-disk channels are RGB=(flow_x, flow_y, valid). OpenCV stores
+      // and writes this matrix as BGR, so memory is (valid, flow_y, flow_x).
+      // flow_events leaves unsupported pixels as NaN; mark those invalid so the
+      // benchmark scores only event-supported pixels (use --mask-mode intersection).
+      if (!std::isfinite(vrow[x][0]) || !std::isfinite(vrow[x][1])) {
+        erow[x][0] = 0;
+        erow[x][1] = 32768;
+        erow[x][2] = 32768;
+        continue;
+      }
       const double flow_x = static_cast<double>(vrow[x][0]) * dt_s;
       const double flow_y = static_cast<double>(vrow[x][1]) * dt_s;
       const double enc_x = std::round(flow_x * 128.0 + 32768.0);
       const double enc_y = std::round(flow_y * 128.0 + 32768.0);
-      // DSEC's on-disk channels are RGB=(flow_x, flow_y, valid). OpenCV stores
-      // and writes this matrix as BGR, so memory is (valid, flow_y, flow_x).
       erow[x][0] = 1;
       erow[x][1] = static_cast<uint16_t>(std::clamp(enc_y, 0.0, 65535.0));
       erow[x][2] = static_cast<uint16_t>(std::clamp(enc_x, 0.0, 65535.0));
@@ -296,7 +335,7 @@ void EventDetector::save_flow_png(
   std::ostringstream name;
   name << std::setw(6) << std::setfill('0') << file_index << ".png";
   const std::filesystem::path output_path =
-    std::filesystem::path(flow_save_output_dir_) / name.str();
+    std::filesystem::path(flow_save_output_dir_) / subdir / name.str();
 
   if (!cv::imwrite(output_path.string(), encoded)) {
     RCLCPP_ERROR(get_logger(), "Could not write raw flow PNG '%s'", output_path.string().c_str());

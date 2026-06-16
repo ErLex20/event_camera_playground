@@ -351,6 +351,9 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
   params.aperture_ratio = static_cast<float>(flow_aperture_ratio_);
   params.tikhonov_eps = static_cast<float>(flow_tikhonov_eps_);
   params.prior_lambda = static_cast<float>(flow_prior_lambda_);
+  params.flow_reg_lambda = static_cast<float>(flow_reg_lambda_);
+  params.flow_reg_sweeps = static_cast<int>(flow_reg_sweeps_);
+  params.flow_reg_sigma = static_cast<float>(flow_reg_sigma_);
   params.smooth_iters = static_cast<int>(flow_smooth_iters_);
   params.smooth_alpha = static_cast<float>(flow_smooth_alpha_);
   params.refine_enabled = false;
@@ -564,15 +567,21 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
   result.flow_events = mask_flow_by_support(result.flow_dense, support_mask);
   result.flow_events_debug = mask_debug_by_support(result.flow_dense_debug, support_mask);
   const double iwe_ms = elapsed_ms(t_iwe);
+  const double reg_modified_fraction =
+    (profile.reg_total_tiles > 0)
+      ? static_cast<double>(profile.reg_modified_tiles) /
+        static_cast<double>(profile.reg_total_tiles)
+      : 0.0;
 
   RCLCPP_INFO(
     get_logger(),
     "Flow profile MomentFlow: ingest=%.3f ms decay=%.3f ms stage_a=%.3f ms "
-    "stage_b=%.3f ms smooth=%.3f ms solve_total=%.3f ms total=%.3f ms events=%d "
+    "stage_b=%.3f ms spatial=%.3f ms solve_total=%.3f ms total=%.3f ms events=%d "
     "active_cells=%d valid_cells=%d reject(residual/speed)=%d/%d "
     "tiles_total(full/aperture/fallback/prior)=%d/%d/%d/%d "
     "tiles_final(full/aperture/fallback)=%d/%d/%d "
-    "timeaware_fallback(support/reject)=%d/%d final=%d/%d",
+    "timeaware_fallback(support/reject)=%d/%d final=%d/%d "
+    "reg(modified_frac/mean_delta) %.3f/%.3f",
     profile.ingest_ms, profile.decay_ms, profile.stage_a_ms,
     profile.stage_b_ms, profile.smooth_ms, profile.total_solve_ms, moment_ms,
     profile.events_ingested, profile.active_cells, profile.valid_cells,
@@ -582,7 +591,8 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
     profile.final_full_rank_tiles, profile.final_aperture_tiles, profile.final_fallback_tiles,
     profile.timeaware_support_fallback_tiles, profile.timeaware_reject_fallback_tiles,
     profile.final_timeaware_support_fallback_tiles,
-    profile.final_timeaware_reject_fallback_tiles);
+    profile.final_timeaware_reject_fallback_tiles,
+    reg_modified_fraction, profile.reg_mean_delta_speed);
 
   RCLCPP_INFO(
     get_logger(),

@@ -68,6 +68,9 @@ struct MomentFlowParams
   float aperture_ratio = 0.05f;
   float tikhonov_eps = 1e-3f;
   float prior_lambda = 0.05f;
+  float flow_reg_lambda = 0.0f;
+  int flow_reg_sweeps = 0;
+  float flow_reg_sigma = 1e9f;
   int smooth_iters = 0;
   float smooth_alpha = 0.0f;
   bool refine_enabled = false;
@@ -93,6 +96,9 @@ inline bool operator==(const MomentFlowParams & a, const MomentFlowParams & b)
          a.aperture_ratio == b.aperture_ratio &&
          a.tikhonov_eps == b.tikhonov_eps &&
          a.prior_lambda == b.prior_lambda &&
+         a.flow_reg_lambda == b.flow_reg_lambda &&
+         a.flow_reg_sweeps == b.flow_reg_sweeps &&
+         a.flow_reg_sigma == b.flow_reg_sigma &&
          a.smooth_iters == b.smooth_iters &&
          a.smooth_alpha == b.smooth_alpha &&
          a.refine_enabled == b.refine_enabled &&
@@ -139,6 +145,9 @@ struct MomentFlowProfile
   int final_timeaware_solve_fail_fallback_tiles = 0;
   int final_timeaware_no_improve_fallback_tiles = 0;
   int final_timeaware_no_focus_fallback_tiles = 0;
+  int reg_total_tiles = 0;
+  int reg_modified_tiles = 0;
+  double reg_mean_delta_speed = 0.0;
   double ingest_ms = 0.0;
   double decay_ms = 0.0;
   double stage_a_ms = 0.0;
@@ -364,6 +373,9 @@ public:
     profile_.final_timeaware_solve_fail_fallback_tiles = 0;
     profile_.final_timeaware_no_improve_fallback_tiles = 0;
     profile_.final_timeaware_no_focus_fallback_tiles = 0;
+    profile_.reg_total_tiles = 0;
+    profile_.reg_modified_tiles = 0;
+    profile_.reg_mean_delta_speed = 0.0;
 
     if (F_out.size() != final_vars_) {
       return;
@@ -439,9 +451,9 @@ public:
       }
       profile_.stage_b_ms += elapsed_ms(t_b, Clock::now());
 
-      const auto t_smooth = Clock::now();
-      smooth_field(tiles, field);
-      profile_.smooth_ms += elapsed_ms(t_smooth, Clock::now());
+      const auto t_spatial = Clock::now();
+      regularize_field_coupled(tiles, field);
+      profile_.smooth_ms += elapsed_ms(t_spatial, Clock::now());
     }
 
     copy_vector(scale_fields_.back(), F_out);
@@ -531,6 +543,9 @@ private:
     p.aperture_ratio = std::clamp(p.aperture_ratio, 0.0f, 1.0f);
     p.tikhonov_eps = std::max(1e-12f, p.tikhonov_eps);
     p.prior_lambda = std::max(0.0f, p.prior_lambda);
+    p.flow_reg_lambda = std::max(0.0f, p.flow_reg_lambda);
+    p.flow_reg_sweeps = std::clamp(p.flow_reg_sweeps, 0, 16);
+    p.flow_reg_sigma = std::max(1e-6f, p.flow_reg_sigma);
     p.smooth_iters = std::clamp(p.smooth_iters, 0, 16);
     p.smooth_alpha = std::clamp(p.smooth_alpha, 0.0f, 1.0f);
     p.refine_iters = std::max(0, p.refine_iters);
@@ -1190,6 +1205,145 @@ private:
       vx *= s;
       vy *= s;
     }
+  }
+
+  const Eigen::VectorXf * fallback_for_tiles(int tiles) const
+  {
+    const int n = 2 * tiles * tiles;
+    for (const Eigen::VectorXf & fallback : scale_fallback_) {
+      if (fallback.size() == n) {
+        return &fallback;
+      }
+    }
+    return nullptr;
+  }
+
+  float tile_data_confidence(int k) const
+  {
+    const TileAccum & a = tile_accum_[static_cast<size_t>(k)];
+    const float trace = a.mxx + a.myy;
+    if (a.rho > 0.0f && trace > 0.0f && std::isfinite(trace)) {
+      return trace;
+    }
+    return 0.0f;
+  }
+
+  float robust_coupling_psi(const Eigen::VectorXf & field, int k, int nk) const
+  {
+    const float sigma = params_.flow_reg_sigma;
+    if (!(sigma < 1e8f)) {
+      return 1.0f;
+    }
+    const float dx = field[2 * k] - field[2 * nk];
+    const float dy = field[2 * k + 1] - field[2 * nk + 1];
+    const float z = (dx * dx + dy * dy) / (sigma * sigma);
+    return 1.0f / std::sqrt(1.0f + z);
+  }
+
+  void regularize_field_coupled(int tiles, Eigen::VectorXf & field)
+  {
+    if (params_.flow_reg_lambda <= 0.0f || params_.flow_reg_sweeps <= 0 || tiles <= 1) {
+      return;
+    }
+
+    const int n_tiles = tiles * tiles;
+    const int n_vars = 2 * n_tiles;
+    if (field.size() < n_vars || smooth_scratch_.size() < n_vars) {
+      return;
+    }
+
+    for (int i = 0; i < n_vars; ++i) {
+      smooth_scratch_[i] = field[i];
+    }
+
+    const Eigen::VectorXf * fallback = fallback_for_tiles(tiles);
+    const float lambda_s = params_.flow_reg_lambda;
+
+    for (int sweep = 0; sweep < params_.flow_reg_sweeps; ++sweep) {
+      for (int ty = 0; ty < tiles; ++ty) {
+        for (int tx = 0; tx < tiles; ++tx) {
+          const int k = ty * tiles + tx;
+          const TileAccum & a = tile_accum_[static_cast<size_t>(k)];
+
+          float lmin = 0.0f;
+          float lmax = 0.0f;
+          eig2(a.mxx, a.mxy, a.myy, lmin, lmax);
+          const float data_scale = std::max(lmax, 1e-12f);
+          const float tile_eps = params_.tikhonov_eps * data_scale;
+          const float prior = params_.prior_lambda * data_scale;
+          const float fb_px =
+            fallback ? -(*fallback)[2 * k] : -smooth_scratch_[2 * k];
+          const float fb_py =
+            fallback ? -(*fallback)[2 * k + 1] : -smooth_scratch_[2 * k + 1];
+
+          float rhs_x = a.bx + prior * fb_px;
+          float rhs_y = a.by + prior * fb_py;
+          float weight_sum = 0.0f;
+
+          auto add_neighbor = [&](int nx, int ny) {
+            if (nx < 0 || ny < 0 || nx >= tiles || ny >= tiles) {
+              return;
+            }
+            const int nk = ny * tiles + nx;
+            const float conf = tile_data_confidence(nk);
+            if (!(conf > 0.0f)) {
+              return;
+            }
+            const float psi = robust_coupling_psi(field, k, nk);
+            const float w = lambda_s * conf * psi;
+            if (!(w > 0.0f) || !std::isfinite(w)) {
+              return;
+            }
+            weight_sum += w;
+            rhs_x += w * -field[2 * nk];
+            rhs_y += w * -field[2 * nk + 1];
+          };
+
+          add_neighbor(tx - 1, ty);
+          add_neighbor(tx + 1, ty);
+          add_neighbor(tx, ty - 1);
+          add_neighbor(tx, ty + 1);
+
+          if (!(weight_sum > 0.0f)) {
+            continue;
+          }
+
+          float vx_phys = -field[2 * k];
+          float vy_phys = -field[2 * k + 1];
+          const bool solved = solve2(
+            a.mxx + tile_eps + prior + weight_sum, a.mxy,
+            a.myy + tile_eps + prior + weight_sum,
+            rhs_x, rhs_y, vx_phys, vy_phys);
+          if (!solved) {
+            continue;
+          }
+
+          clamp_speed(vx_phys, vy_phys);
+          field[2 * k] = -vx_phys;
+          field[2 * k + 1] = -vy_phys;
+        }
+      }
+    }
+
+    int modified = 0;
+    double delta_sum = 0.0;
+    for (int k = 0; k < n_tiles; ++k) {
+      const double dx = static_cast<double>(field[2 * k] - smooth_scratch_[2 * k]);
+      const double dy = static_cast<double>(field[2 * k + 1] - smooth_scratch_[2 * k + 1]);
+      const double delta = std::hypot(dx, dy);
+      delta_sum += delta;
+      if (delta > 1e-4) {
+        modified += 1;
+      }
+    }
+
+    const double prev_sum = profile_.reg_mean_delta_speed * profile_.reg_total_tiles;
+    profile_.reg_total_tiles += n_tiles;
+    profile_.reg_modified_tiles += modified;
+    profile_.reg_mean_delta_speed =
+      (profile_.reg_total_tiles > 0)
+        ? (prev_sum + delta_sum) / static_cast<double>(profile_.reg_total_tiles)
+        : 0.0;
   }
 
   void smooth_field(int tiles, Eigen::VectorXf & field)

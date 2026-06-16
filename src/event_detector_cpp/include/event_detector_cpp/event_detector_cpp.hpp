@@ -197,14 +197,31 @@ private:
     const std_msgs::msg::Header & header);
 
   /**
-   * @brief Saves a dense image-flow velocity field in DSEC 16-bit PNG format.
+   * @brief Saves both the dense and event-sparse flow fields as DSEC PNGs.
+   *
+   * Writes flow_dense to the "dense" subdirectory and flow_events to the
+   * "sparse" subdirectory of flow_save_output_dir_, so both benchmarks (dense
+   * and sparse) can be run from a single node run.
+   */
+  void save_flow_results(
+    const FlowResult & res,
+    int64_t file_index,
+    int64_t from_us,
+    int64_t to_us);
+
+  /**
+   * @brief Saves a per-pixel image-flow velocity field in DSEC 16-bit PNG format.
    *
    * The velocity is converted to displacement using the exact interval
    * duration, then encoded as RGB: flow_x, flow_y, valid. OpenCV writes BGR, so
-   * the in-memory matrix uses B=valid, G=flow_y, R=flow_x.
+   * the in-memory matrix uses B=valid, G=flow_y, R=flow_x. Non-finite pixels
+   * (e.g. unsupported cells in flow_events) are written with valid=0. Files are
+   * written under flow_save_output_dir_/<subdir>.
    */
   void save_flow_png(
-    const cv::Mat & flow_dense,
+    const cv::Mat & flow_velocity,
+    const std::string & subdir,
+    bool empty_is_invalid,
     int64_t file_index,
     int64_t from_us,
     int64_t to_us);
@@ -351,6 +368,9 @@ private:
   double  flow_aperture_ratio_;
   double  flow_tikhonov_eps_;
   double  flow_prior_lambda_;
+  double  flow_reg_lambda_;
+  int64_t flow_reg_sweeps_;
+  double  flow_reg_sigma_;
   int64_t flow_smooth_iters_;
   double  flow_smooth_alpha_;
   bool    flow_refine_enabled_;

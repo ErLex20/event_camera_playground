@@ -164,7 +164,7 @@ void EventDetector::worker_thread_routine()
         if (flow_save_enabled_ && flow_save_prepared_ && flow_save_windows_.empty()) {
           const int64_t file_index =
             flow_save_first_index_ + flow_save_sequence_index_ * flow_save_index_step_;
-          save_flow_png(res.flow_dense, file_index, save_from_us, save_to_us);
+          save_flow_results(res, file_index, save_from_us, save_to_us);
           flow_save_sequence_index_ += 1;
         }
 
@@ -247,7 +247,7 @@ dv::EventStore EventDetector::accumulate_scheduled_flow(
         window.from_us, estimate_to);
     }
 
-    save_flow_png(res.flow_dense, window.file_index, window.from_us, window.to_us);
+    save_flow_results(res, window.file_index, window.from_us, window.to_us);
 
     if (iwe_enabled_) {
       publish_image(pub_iwe_, res.iwe, sensor_msgs::image_encodings::MONO8, header);
