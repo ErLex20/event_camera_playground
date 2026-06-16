@@ -57,6 +57,10 @@ class DsecPublisher(Node):
         self.events_h5 = os.path.abspath(os.path.expanduser(self.events_h5))
         if not os.path.isfile(self.events_h5):
             raise FileNotFoundError(f'events.h5 not found: {self.events_h5}')
+        
+        rect_path = os.path.join(os.path.dirname(self.events_h5), 'rectify_map.h5')
+        with h5py.File(rect_path, 'r') as rf:
+            self.rectify_map = np.asarray(rf['rectify_map'], dtype=np.float32)
 
         # --- Data source ---
         self._h5f = h5py.File(self.events_h5, 'r')
@@ -85,6 +89,18 @@ class DsecPublisher(Node):
             f"({self.width}x{self.height}, window={self.window_ms} ms, "
             f"rt_factor={self.realtime_factor}, loop={self.loop}). "
             f"Duration ~{(self.t_final_us - self.t_start_us) / 1e6:.2f} s.")
+        
+    def _rectify(self, ev):
+        x = ev['x'].astype(np.int64)
+        y = ev['y'].astype(np.int64)
+        rc = self.rectify_map[y, x]
+        xr = np.rint(rc[:, 0]).astype(np.int64)
+        yr = np.rint(rc[:, 1]).astype(np.int64)
+        m = (xr >= 0) & (xr < self.width) & (yr >= 0) & (yr < self.height)
+        if not np.any(m):
+            return None
+        return {'t': ev['t'][m], 'p': ev['p'][m],
+                'x': xr[m].astype(ev['x'].dtype), 'y': yr[m].astype(ev['y'].dtype)}
 
     def _on_timer(self):
         if self.cursor_us >= self.t_final_us:
@@ -105,6 +121,9 @@ class DsecPublisher(Node):
         self.cursor_us += self.window_us
 
         ev = self.slicer.get_events(t0, t1)
+        if ev is None or ev['t'].size == 0:
+            return
+        ev = self._rectify(ev)
         if ev is None or ev['t'].size == 0:
             return
 
