@@ -33,6 +33,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <vector>
 
 #include <Eigen/Core>
@@ -210,6 +211,63 @@ IweRenderStats render_iwe_bilinear(
   return stats;
 }
 
+cv::Mat make_iwe_support_mask(const cv::Mat & support_iwe)
+{
+  if (support_iwe.empty() || support_iwe.type() != CV_32F) {
+    return cv::Mat();
+  }
+
+  cv::Mat support_mask(support_iwe.rows, support_iwe.cols, CV_8U, cv::Scalar(0));
+  for (int y = 0; y < support_iwe.rows; ++y) {
+    const float * support_row = support_iwe.ptr<float>(y);
+    uint8_t * mask_row = support_mask.ptr<uint8_t>(y);
+    for (int x = 0; x < support_iwe.cols; ++x) {
+      if (std::isfinite(support_row[x]) && support_row[x] > 0.0f) {
+        mask_row[x] = 255;
+      }
+    }
+  }
+  return support_mask;
+}
+
+cv::Mat mask_flow_by_support(const cv::Mat & flow_dense, const cv::Mat & support_mask)
+{
+  if (flow_dense.empty() || support_mask.empty() ||
+    flow_dense.type() != CV_32FC2 || support_mask.type() != CV_8U ||
+    flow_dense.size() != support_mask.size())
+  {
+    return cv::Mat();
+  }
+
+  const float nan = std::numeric_limits<float>::quiet_NaN();
+  cv::Mat flow_events(flow_dense.rows, flow_dense.cols, CV_32FC2, cv::Scalar(nan, nan));
+  for (int y = 0; y < flow_dense.rows; ++y) {
+    const cv::Vec2f * dense_row = flow_dense.ptr<cv::Vec2f>(y);
+    const uint8_t * mask_row = support_mask.ptr<uint8_t>(y);
+    cv::Vec2f * events_row = flow_events.ptr<cv::Vec2f>(y);
+    for (int x = 0; x < flow_dense.cols; ++x) {
+      if (mask_row[x] != 0) {
+        events_row[x] = dense_row[x];
+      }
+    }
+  }
+  return flow_events;
+}
+
+cv::Mat mask_debug_by_support(const cv::Mat & flow_debug, const cv::Mat & support_mask)
+{
+  if (flow_debug.empty() || support_mask.empty() ||
+    flow_debug.type() != CV_8UC3 || support_mask.type() != CV_8U ||
+    flow_debug.size() != support_mask.size())
+  {
+    return cv::Mat();
+  }
+
+  cv::Mat flow_events_debug(flow_debug.rows, flow_debug.cols, CV_8UC3, cv::Scalar(0, 0, 0));
+  flow_debug.copyTo(flow_events_debug, support_mask);
+  return flow_events_debug;
+}
+
 }  // namespace
 
 EventDetector::FlowResult EventDetector::solve_flow_moment(
@@ -364,10 +422,14 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
   const float half_span_s = static_cast<float>(t_hi_us - t_lo_us) * 0.5e-6f;
 
   cv::Mat focus_id, focus_mid, focus_lo, focus_hi;
-  render_iwe_bilinear(render_ev, F, nullptr,   final_tiles, w, h, iwe_scale, false, 0.0f, focus_id);
-  render_iwe_bilinear(render_ev, F, accel_ptr, final_tiles, w, h, iwe_scale, true,  0.0f, focus_mid);
-  render_iwe_bilinear(render_ev, F, accel_ptr, final_tiles, w, h, iwe_scale, true,  half_span_s,  focus_lo);
-  render_iwe_bilinear(render_ev, F, accel_ptr, final_tiles, w, h, iwe_scale, true, -half_span_s,  focus_hi);
+  render_iwe_bilinear(
+    render_ev, F, nullptr, final_tiles, w, h, iwe_scale, false, 0.0f, focus_id);
+  render_iwe_bilinear(
+    render_ev, F, accel_ptr, final_tiles, w, h, iwe_scale, true, 0.0f, focus_mid);
+  render_iwe_bilinear(
+    render_ev, F, accel_ptr, final_tiles, w, h, iwe_scale, true, half_span_s, focus_lo);
+  render_iwe_bilinear(
+    render_ev, F, accel_ptr, final_tiles, w, h, iwe_scale, true, -half_span_s, focus_hi);
   // Integer event coords keep the identity IWE on single pixels (no sub-pixel
   // spread) -> artificially high L1-gradient, while any warp produces fractional
   // coords that bilinear splatting smooths. Equalize with the same sigma=1px blur
@@ -391,7 +453,7 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
   const auto t_flow_image = ProfileClock::now();
   cv::Mat angle(h, w, CV_32F);
   cv::Mat magnitude(h, w, CV_32F);
-  result.flow_velocity = cv::Mat(h, w, CV_32FC2);
+  result.flow_dense = cv::Mat(h, w, CV_32FC2);
   double vx_sum = 0.0;
   double vy_sum = 0.0;
   double vx2_sum = 0.0;
@@ -399,7 +461,7 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
   for (int y = 0; y < h; ++y) {
     float * arow = angle.ptr<float>(y);
     float * mrow = magnitude.ptr<float>(y);
-    cv::Vec2f * vrow = result.flow_velocity.ptr<cv::Vec2f>(y);
+    cv::Vec2f * vrow = result.flow_dense.ptr<cv::Vec2f>(y);
     for (int x = 0; x < w; ++x) {
       float vx, vy;
       sample_tile_velocity(
@@ -477,7 +539,7 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
   magnitude.convertTo(hsv_parts[2], CV_8U);
   cv::Mat hsv;
   cv::merge(hsv_parts, 3, hsv);
-  cv::cvtColor(hsv, result.flow, cv::COLOR_HSV2BGR);
+  cv::cvtColor(hsv, result.flow_dense_debug, cv::COLOR_HSV2BGR);
   const double flow_image_ms = elapsed_ms(t_flow_image);
 
   const auto t_iwe = ProfileClock::now();
@@ -488,6 +550,19 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
     result_iwe_f = focus_id;    // keep the published IWE readable when focus rejects
   }
   cv::normalize(result_iwe_f, result.iwe, 0.0, 255.0, cv::NORM_MINMAX, CV_8U);
+  cv::Mat support_iwe_f;
+  if (iwe_scale == 1) {
+    support_iwe_f = result_iwe_f;
+  } else {
+    const bool support_warp = !flow_rejected;
+    const Eigen::VectorXf * support_accel = support_warp ? accel_ptr : nullptr;
+    render_iwe_bilinear(
+      render_ev, F, support_accel, final_tiles, w, h,
+      1, support_warp, 0.0f, support_iwe_f);
+  }
+  const cv::Mat support_mask = make_iwe_support_mask(support_iwe_f);
+  result.flow_events = mask_flow_by_support(result.flow_dense, support_mask);
+  result.flow_events_debug = mask_debug_by_support(result.flow_dense_debug, support_mask);
   const double iwe_ms = elapsed_ms(t_iwe);
 
   RCLCPP_INFO(

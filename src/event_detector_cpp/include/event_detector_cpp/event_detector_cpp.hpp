@@ -139,9 +139,11 @@ private:
   /* Outputs of one dense optical-flow solve over a window. */
   struct FlowResult
   {
-    cv::Mat flow;  // dense flow field, BGR8 (hue = direction, value = speed)
-    cv::Mat iwe;   // Image of Warped Events at the window midpoint, MONO8
-    cv::Mat flow_velocity;  // dense image-flow velocity, CV_32FC2 [px/s]
+    cv::Mat flow_dense_debug;   // dense flow visualization, BGR8
+    cv::Mat flow_dense;         // dense image-flow velocity, CV_32FC2 [px/s]
+    cv::Mat flow_events_debug;  // event-supported flow visualization, BGR8
+    cv::Mat flow_events;        // flow_dense only where IWE is active, CV_32FC2 [px/s]
+    cv::Mat iwe;                // Image of Warped Events at the window midpoint, MONO8
   };
 
   struct FlowSaveWindow
@@ -161,7 +163,8 @@ private:
    * Runs on the worker thread.
    *
    * @param window The window of events to estimate the flow from.
-   * @return The rendered flow (BGR8) and IWE (MONO8) images.
+   * @return The rendered debug flow (BGR8), dense flow (CV_32FC2),
+   * event-supported flow (CV_32FC2), and IWE (MONO8) images.
    */
   FlowResult solve_flow_moment(
     const dv::EventStore & window,
@@ -201,7 +204,7 @@ private:
    * the in-memory matrix uses B=valid, G=flow_y, R=flow_x.
    */
   void save_flow_png(
-    const cv::Mat & flow_velocity,
+    const cv::Mat & flow_dense,
     int64_t file_index,
     int64_t from_us,
     int64_t to_us);
@@ -286,7 +289,10 @@ private:
 
   /* Publishers. */
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr pub_sae_;
-  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr pub_flow_;
+  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr pub_flow_dense_debug_;
+  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr pub_flow_dense_;
+  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr pub_flow_events_debug_;
+  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr pub_flow_events_;
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr pub_iwe_;
 
   /* Subscribers. */

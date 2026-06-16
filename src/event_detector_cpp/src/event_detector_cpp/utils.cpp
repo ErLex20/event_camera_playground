@@ -246,7 +246,7 @@ void EventDetector::prepare_flow_saving()
 }
 
 void EventDetector::save_flow_png(
-  const cv::Mat & flow_velocity,
+  const cv::Mat & flow_dense,
   int64_t file_index,
   int64_t from_us,
   int64_t to_us)
@@ -264,7 +264,7 @@ void EventDetector::save_flow_png(
     return;
   }
 
-  cv::Mat velocity = flow_velocity;
+  cv::Mat velocity = flow_dense;
   if (velocity.empty()) {
     velocity = cv::Mat::zeros(res_.height, res_.width, CV_32FC2);
   }

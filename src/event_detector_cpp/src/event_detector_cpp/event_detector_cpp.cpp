@@ -67,8 +67,20 @@ void EventDetector::init_publishers()
     "~/sae_image",
     dua_qos::BestEffort::get_image_qos(1));
 
-  pub_flow_ = dua_create_publisher<sensor_msgs::msg::Image>(
-    "~/flow_image",
+  pub_flow_dense_debug_ = dua_create_publisher<sensor_msgs::msg::Image>(
+    "~/flow_dense_debug",
+    dua_qos::BestEffort::get_image_qos(1));
+
+  pub_flow_dense_ = dua_create_publisher<sensor_msgs::msg::Image>(
+    "~/flow_dense",
+    dua_qos::BestEffort::get_image_qos(1));
+
+  pub_flow_events_debug_ = dua_create_publisher<sensor_msgs::msg::Image>(
+    "~/flow_events_debug",
+    dua_qos::BestEffort::get_image_qos(1));
+
+  pub_flow_events_ = dua_create_publisher<sensor_msgs::msg::Image>(
+    "~/flow_events",
     dua_qos::BestEffort::get_image_qos(1));
 
   pub_iwe_ = dua_create_publisher<sensor_msgs::msg::Image>(
