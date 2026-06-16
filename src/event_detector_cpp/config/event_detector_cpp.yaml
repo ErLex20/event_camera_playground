@@ -43,7 +43,7 @@
     flow_max_speed_px_s: 3000.0    # speed clamp [px/s] and upper saturation for the flow visualization
     flow_save_enabled: true        # export the flow as DSEC-format 16-bit PNG
     flow_save_output_dir: /home/neo/workspace/logs/moment_flow/thun_00_a   # output directory for the exported flow PNGs
-    flow_save_timestamp_file: /home/neo/workspace/logs/dsec/thun_00_a/optical_flow_foward/thun_00_a_optical_flow_forward_timestamps.txt   # DSEC (from_us, to_us, index) save schedule
+    flow_save_timestamp_file: /home/neo/workspace/logs/dsec/thun_00_a/optical_flow_forward/thun_00_a_optical_flow_forward_timestamps.txt   # DSEC (from_us, to_us, index) save schedule
     flow_save_clear_output: true   # delete stale PNGs in the output dir before saving
     flow_save_first_index: 2       # first DSEC GT file index to save
     flow_save_index_step: 2        # DSEC GT file index step (matches the 100 ms / 10 Hz GT cadence)
