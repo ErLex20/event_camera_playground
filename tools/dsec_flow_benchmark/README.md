@@ -34,7 +34,12 @@ Accepted NumPy shapes are `H,W,2`, `2,H,W`, `H,W,3`, or `3,H,W`. For `.npz`, use
 
 The current `event_detector_cpp` `~/flow_image` topic is a BGR visualization, not raw optical flow. Do not benchmark those color images.
 
-The C++ node can now save raw DSEC-format PNG predictions directly to `logs/moment_flow` when `flow_save_enabled` is true in `src/event_detector_cpp/config/event_detector_cpp.yaml`. The default config aligns saved files to:
+When `flow_save_enabled` is true in `src/event_detector_cpp/config/event_detector_cpp.yaml`, the C++ node saves **two** raw DSEC-format PNG prediction sets per run, into subdirectories of `flow_save_output_dir`:
+
+- `dense/` — the `flow_dense` field (full dense MomentFlow velocity, every pixel valid). Benchmark with `--mask-mode gt`.
+- `sparse/` — the `flow_events` field (dense flow masked to event-supported pixels). Unsupported pixels are non-finite and written with the DSEC `valid` channel set to `0`. Benchmark with `--mask-mode intersection` so only pixels that are both DSEC-valid and event-supported are scored.
+
+The default config aligns saved files to:
 
 ```text
 logs/dsec/thun_00_a/optical_flow_foward/thun_00_a_optical_flow_forward_timestamps.txt
@@ -42,14 +47,24 @@ logs/dsec/thun_00_a/optical_flow_foward/thun_00_a_optical_flow_forward_timestamp
 
 When a timestamp file is configured, `event_detector_cpp` saves exactly one prediction per ground-truth row. The estimator still uses `flow_max_window_ms` events from the start of each row; for example, a 10 ms algorithm window produces one saved prediction every ~100 ms. The saved velocity is encoded as displacement over the DSEC ground-truth interval so filenames and units remain comparable.
 
-Compare those saved predictions with:
+Compare both saved prediction sets with:
 
 ```bash
+# Dense benchmark (flow_dense)
 python3 -m tools.dsec_flow_benchmark \
   --gt-dir logs/dsec/thun_00_a/optical_flow_foward \
-  --pred-dir logs/moment_flow/thun_00_a \
-  --output-json logs/moment_flow/thun_00_a/benchmark.json \
-  --output-csv logs/moment_flow/thun_00_a/benchmark_frames.csv
+  --pred-dir logs/moment_flow/thun_00_a/dense \
+  --mask-mode gt \
+  --output-json logs/moment_flow/thun_00_a/dense/benchmark.json \
+  --output-csv logs/moment_flow/thun_00_a/dense/benchmark_frames.csv
+
+# Sparse benchmark (flow_events)
+python3 -m tools.dsec_flow_benchmark \
+  --gt-dir logs/dsec/thun_00_a/optical_flow_foward \
+  --pred-dir logs/moment_flow/thun_00_a/sparse \
+  --mask-mode intersection \
+  --output-json logs/moment_flow/thun_00_a/sparse/benchmark.json \
+  --output-csv logs/moment_flow/thun_00_a/sparse/benchmark_frames.csv
 ```
 
 If you dump the algorithm's raw velocity field in pixels per second, compare it with:
@@ -69,7 +84,7 @@ The summary reports DSEC-style endpoint error (`EPE`), angular error (`AE`), and
 
 ## Analysis Notebook
 
-Open `tools/dsec_flow_benchmark/analyze_moment_flow.ipynb` to inspect the `logs/moment_flow` benchmark outputs. The notebook refreshes stale metric files when prediction PNGs are present, checks DSEC PNG encoding, plots per-frame errors, shows worst-frame flow/error maps, and runs sign/scale/axis diagnostics to separate save-format bugs from estimator errors.
+Open `tools/dsec_flow_benchmark/analyze_moment_flow.ipynb` to inspect the `logs/moment_flow` benchmark outputs. It runs both the dense and sparse benchmarks, shows a side-by-side summary and a dense-vs-sparse per-frame error overlay, then drops into a per-frame deep dive on whichever variant `ACTIVE` selects (default `"sparse"`; set it in the config cell and rerun from the load cell to switch). The deep dive checks DSEC PNG encoding, shows worst-frame flow/error maps, and runs sign/scale/axis diagnostics to separate save-format bugs from estimator errors.
 
 ## Self Test
 
