@@ -12,7 +12,7 @@
     sae_enabled: true              # render the Surface of Active Events (visualization only)
     iwe_enabled: true              # render the Image of Warped Events (alignment diagnostic / visualization)
     flow_enabled: true             # run the MomentFlow optical-flow estimator
-    flow_max_window_ms: 10.0       # event time span accumulated per flow estimate (one estimate per GT row when saving)
+    flow_max_window_ms: 15.0       # event time span accumulated per flow estimate (one estimate per GT row when saving)
     flow_num_scales: 5             # tile-pyramid scales; final grid = 2^(N-1) per side (5 -> 16x16 tiles)
     flow_cell_size_px: 4           # moment-grid cell size [px]; larger = more events/cell, stabler fits, coarser
     flow_decay_enabled: false      # causal exponential down-weighting of older events within the window
@@ -26,13 +26,13 @@
     flow_tile_min_cells: 2         # min number of valid cells per tile
     flow_tile_min_lambda: 0.00001  # min tile structure-tensor eigenvalue (else fall back to prior)
     flow_time_aware_order: 2       # solver: 0 structure-tensor, 1 const-velocity dispersion-min, 2 affine-in-time (vel+accel)
-    flow_aperture_ratio: 0.05      # ratio lmin/lmax below which a tile is aperture-limited (tangential taken from prior)
-    flow_tikhonov_eps: 0.001       # Tikhonov regularization coefficient (scaled by the tile's dominant eigenvalue)
+    flow_aperture_ratio: 0.04      # ratio lmin/lmax below which a tile is aperture-limited (tangential taken from prior)
+    flow_tikhonov_eps: 0.0005      # Tikhonov regularization coefficient (scaled by the tile's dominant eigenvalue)
 
-    flow_prior_lambda: 1.0         # pull toward the prior (coarser scale / warm-start); high = more stable but shrinks fast motion
+    flow_prior_lambda: 0.7         # pull toward the prior (coarser scale / warm-start); high = more stable but shrinks fast motion
     flow_reg_lambda: 0.8           # spatial coupling strength of the data-coupled regularizer (0 = exact no-op)
     flow_reg_sweeps: 3             # Gauss-Seidel sweeps for the coupled regularizer (0 = exact no-op)
-    flow_reg_sigma: 250.0          # Charbonnier edge-preserving threshold [px/s]; large = nearly isotropic coupling
+    flow_reg_sigma: 220.0          # Charbonnier edge-preserving threshold [px/s]; large = nearly isotropic coupling
     flow_smooth_alpha: 0.0         # deprecated post-hoc blur strength (replaced by flow_reg_*); kept for compatibility
     flow_smooth_iters: 0           # deprecated post-hoc blur iterations (replaced by flow_reg_*); kept for compatibility
 
