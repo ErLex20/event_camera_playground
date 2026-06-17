@@ -460,6 +460,18 @@ public:
     profile_.total_solve_ms = elapsed_ms(t_total, Clock::now());
   }
 
+  void final_tile_confidence(std::vector<float> & conf) const
+  {
+    const int n = final_tiles_ * final_tiles_;
+    conf.resize(static_cast<size_t>(n));
+    for (int k = 0; k < n; ++k) {
+      const TileAccum & a = tile_accum_[static_cast<size_t>(k)];
+      float lmin = 0.0f, lmax = 0.0f;
+      eig2(a.mxx, a.mxy, a.myy, lmin, lmax);
+      conf[k] = (std::isfinite(lmin) && lmin > 0.0f) ? lmin : 0.0f;
+    }
+  }
+
 private:
   enum class TimeAwareFallbackReason
   {
@@ -1276,9 +1288,25 @@ private:
           const float fb_py =
             fallback ? -(*fallback)[2 * k + 1] : -smooth_scratch_[2 * k + 1];
 
-          float rhs_x = a.bx + prior * fb_px;
-          float rhs_y = a.by + prior * fb_py;
-          float weight_sum = 0.0f;
+          // Tangenziale del tensore di struttura di QUESTO tile: il dominant
+          // eigenvector e' la direzione del gradiente (normale all'edge), quindi
+          // la tangenziale (lungo l'edge = direzione poco vincolata dai dati, l_min)
+          // e' la sua perpendicolare. L'accoppiamento col vicinato agisce SOLO
+          // lungo questa direzione, lasciando la normale guidata dai dati.
+          float ex = 1.0f;
+          float ey = 0.0f;
+          dominant_eigenvector(a.mxx, a.mxy, a.myy, lmax, ex, ey);
+          const float tgx = -ey;
+          const float tgy = ex;
+
+          // Accumulo rank-1: penalita' sum_n w_n * (t . (v - v_n))^2.
+          //   LHS += (sum_n w_n) * t t^T      (Cxx,Cxy,Cyy)
+          //   RHS += (sum_n w_n * t.v_n) * t  (rt)
+          float Cxx = 0.0f;
+          float Cxy = 0.0f;
+          float Cyy = 0.0f;
+          float rt = 0.0f;
+          float wt_sum = 0.0f;
 
           auto add_neighbor = [&](int nx, int ny) {
             if (nx < 0 || ny < 0 || nx >= tiles || ny >= tiles) {
@@ -1294,9 +1322,15 @@ private:
             if (!(w > 0.0f) || !std::isfinite(w)) {
               return;
             }
-            weight_sum += w;
-            rhs_x += w * -field[2 * nk];
-            rhs_y += w * -field[2 * nk + 1];
+            // velocita' fisica del vicino (field = -v_phys) e sua proiezione tangenziale
+            const float vnx = -field[2 * nk];
+            const float vny = -field[2 * nk + 1];
+            const float proj = vnx * tgx + vny * tgy;
+            wt_sum += w;
+            Cxx += w * tgx * tgx;
+            Cxy += w * tgx * tgy;
+            Cyy += w * tgy * tgy;
+            rt += w * proj;
           };
 
           add_neighbor(tx - 1, ty);
@@ -1304,16 +1338,19 @@ private:
           add_neighbor(tx, ty - 1);
           add_neighbor(tx, ty + 1);
 
-          if (!(weight_sum > 0.0f)) {
+          if (!(wt_sum > 0.0f)) {
             continue;
           }
 
+          // Normale: M_dato + tikhonov + prior (intatta). Tangenziale: + coupling.
           float vx_phys = -field[2 * k];
           float vy_phys = -field[2 * k + 1];
           const bool solved = solve2(
-            a.mxx + tile_eps + prior + weight_sum, a.mxy,
-            a.myy + tile_eps + prior + weight_sum,
-            rhs_x, rhs_y, vx_phys, vy_phys);
+            a.mxx + tile_eps + prior + Cxx, a.mxy + Cxy,
+            a.myy + tile_eps + prior + Cyy,
+            a.bx + prior * fb_px + rt * tgx,
+            a.by + prior * fb_py + rt * tgy,
+            vx_phys, vy_phys);
           if (!solved) {
             continue;
           }

@@ -345,6 +345,11 @@ private:
   int64_t flow_save_sequence_index_{0};
   bool flow_save_prepared_{false};
 
+  std::vector<float> flow_track_vx_;
+  std::vector<float> flow_track_vy_;
+  std::vector<float> flow_track_w_;
+  double flow_debug_display_max_speed_{0.0};
+
   /* Node parameters. */
   bool    autostart_;
   double  time_window_ms_;

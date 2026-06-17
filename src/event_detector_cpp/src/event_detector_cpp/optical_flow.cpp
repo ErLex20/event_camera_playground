@@ -394,6 +394,30 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
   Eigen::VectorXf F(moment_flow_->num_vars());
   moment_flow_->solve(warm_start, F);
   sanitize_field(F);
+  {
+    const int n_tiles = final_tiles * final_tiles;
+    std::vector<float> conf;
+    moment_flow_->final_tile_confidence(conf);
+    if (static_cast<int>(flow_track_w_.size()) != n_tiles) {
+      flow_track_vx_.assign(n_tiles, 0.0f);
+      flow_track_vy_.assign(n_tiles, 0.0f);
+      flow_track_w_.assign(n_tiles, 0.0f);
+    }
+    const float gamma   = 0.5f;
+    const float w_floor = 1e-3f;
+    for (int k = 0; k < n_tiles; ++k) {
+      const float w_meas = std::max(w_floor, conf[k]);
+      const float vx_m   = -F[2 * k];
+      const float vy_m   = -F[2 * k + 1];
+      const float W_prev = gamma * flow_track_w_[k];
+      const float Wsum   = W_prev + w_meas;
+      flow_track_vx_[k]  = (W_prev * flow_track_vx_[k] + w_meas * vx_m) / Wsum;
+      flow_track_vy_[k]  = (W_prev * flow_track_vy_[k] + w_meas * vy_m) / Wsum;
+      flow_track_w_[k]   = Wsum;
+      F[2 * k]     = -flow_track_vx_[k];
+      F[2 * k + 1] = -flow_track_vy_[k];
+    }
+  }
   const double moment_ms = elapsed_ms(t_moment);
   const auto profile = moment_flow_->profile();
 
