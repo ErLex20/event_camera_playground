@@ -95,6 +95,87 @@ Events make_incoherent_events(int w, int h, int n_events, unsigned seed)
   return ev;
 }
 
+Events make_quadratic_cloud_events(
+  int w, int h, int n_events, float fx_warp, float fy_warp,
+  float ax_warp, float ay_warp, unsigned seed)
+{
+  std::mt19937 rng(seed);
+  std::uniform_real_distribution<float> ux(56.0f, static_cast<float>(w) - 56.0f);
+  std::uniform_real_distribution<float> uy(56.0f, static_cast<float>(h) - 56.0f);
+  std::uniform_real_distribution<float> uu(0.0f, 1.0f);
+
+  Events ev;
+  ev.t_ref_us = 1000000;
+  ev.x.reserve(static_cast<size_t>(n_events));
+  ev.y.reserve(static_cast<size_t>(n_events));
+  ev.t.reserve(static_cast<size_t>(n_events));
+  for (int k = 0; k < n_events; ++k) {
+    const float u = uu(rng);
+    const float t = -0.012f + 0.018f * u * u;
+    const float x0 = ux(rng);
+    const float y0 = uy(rng);
+    const float x = x0 - fx_warp * t - 0.5f * ax_warp * t * t;
+    const float y = y0 - fy_warp * t - 0.5f * ay_warp * t * t;
+    if (x >= 1.0f && y >= 1.0f && x < w - 1.0f && y < h - 1.0f) {
+      ev.x.push_back(x);
+      ev.y.push_back(y);
+      ev.t.push_back(t);
+    }
+  }
+  return ev;
+}
+
+struct SequentialQuadraticEstimate
+{
+  double fx_warp = 0.0;
+  double fy_warp = 0.0;
+  double ax_warp = 0.0;
+  double ay_warp = 0.0;
+};
+
+SequentialQuadraticEstimate old_sequential_quadratic_estimate(const Events & ev)
+{
+  double P0 = 0.0, P1 = 0.0, P2 = 0.0, P3 = 0.0, P4 = 0.0;
+  double Qx0 = 0.0, Qx1 = 0.0, Qx2 = 0.0;
+  double Qy0 = 0.0, Qy1 = 0.0, Qy2 = 0.0;
+  for (size_t k = 0; k < ev.size(); ++k) {
+    const double t = ev.t[k];
+    const double t2 = t * t;
+    P0 += 1.0;
+    P1 += t;
+    P2 += t2;
+    P3 += t2 * t;
+    P4 += t2 * t2;
+    Qx0 += ev.x[k];
+    Qx1 += ev.x[k] * t;
+    Qx2 += ev.x[k] * t2;
+    Qy0 += ev.y[k];
+    Qy1 += ev.y[k] * t;
+    Qy2 += ev.y[k] * t2;
+  }
+
+  SequentialQuadraticEstimate out;
+  const double denom_v = P2 - P1 * P1 / P0;
+  const double vx_phys = (Qx1 - Qx0 * P1 / P0) / denom_v;
+  const double vy_phys = (Qy1 - Qy0 * P1 / P0) / denom_v;
+
+  const double sq = 0.5 * P2;
+  const double sqq = 0.25 * P4;
+  const double denom_a = sqq - sq * sq / P0;
+  const double rx0 = Qx0 - vx_phys * P1;
+  const double ry0 = Qy0 - vy_phys * P1;
+  const double rxq = 0.5 * (Qx2 - vx_phys * P3);
+  const double ryq = 0.5 * (Qy2 - vy_phys * P3);
+  const double ax_phys = (rxq - rx0 * sq / P0) / denom_a;
+  const double ay_phys = (ryq - ry0 * sq / P0) / denom_a;
+
+  out.fx_warp = -vx_phys;
+  out.fy_warp = -vy_phys;
+  out.ax_warp = -ax_phys;
+  out.ay_warp = -ay_phys;
+  return out;
+}
+
 void append_events(Events & dst, const Events & src)
 {
   if (dst.t_ref_us == 0) {
@@ -196,6 +277,55 @@ TEST(MomentFlow, TimeAwareOrdersRunWithoutCellFits)
     EXPECT_NEAR(F[0], Fx, 80.0f) << "order=" << order;
     EXPECT_NEAR(F[1], Fy, 35.0f) << "order=" << order;
   }
+}
+
+TEST(MomentFlow, Order2JointQuadraticBeatsSequentialOnSkewedTau)
+{
+  const int W = 128;
+  const int H = 128;
+  const float Fx = 520.0f;
+  const float Fy = -240.0f;
+  const float Ax = 60000.0f;
+  const float Ay = -35000.0f;
+
+  MomentFlowParams p = test_params(1);
+  p.cell_size_px = 128;
+  p.cell_max_residual_ratio = 1.0f;
+  p.tile_min_mass = 10.0f;
+  p.tile_min_cells = 1;
+  p.tile_min_lambda = 0.0f;
+  p.time_aware_order = 2;
+  p.prior_lambda = 0.0f;
+  p.tikhonov_eps = 1e-10f;
+  p.max_speed_px_s = 10000.0f;
+
+  Events ev = make_quadratic_cloud_events(W, H, 50000, Fx, Fy, Ax, Ay, 53);
+  const auto old = old_sequential_quadratic_estimate(ev);
+
+  MomentFlow flow(W, H, p);
+  flow.ingest(ev);
+
+  Eigen::VectorXf warm;
+  Eigen::VectorXf F(flow.num_vars());
+  flow.solve(warm, F);
+
+  ASSERT_EQ(F.size(), 2);
+  ASSERT_EQ(flow.acceleration().size(), 2);
+  EXPECT_GT(flow.profile().final_full_rank_tiles, 0);
+  EXPECT_NEAR(F[0], Fx, 25.0f);
+  EXPECT_NEAR(F[1], Fy, 25.0f);
+  EXPECT_NEAR(flow.acceleration()[0], Ax, 4500.0f);
+  EXPECT_NEAR(flow.acceleration()[1], Ay, 4500.0f);
+
+  const double new_err =
+    std::hypot(static_cast<double>(F[0]) - Fx, static_cast<double>(F[1]) - Fy) +
+    0.01 * std::hypot(
+      static_cast<double>(flow.acceleration()[0]) - Ax,
+      static_cast<double>(flow.acceleration()[1]) - Ay);
+  const double old_err =
+    std::hypot(old.fx_warp - Fx, old.fy_warp - Fy) +
+    0.01 * std::hypot(old.ax_warp - Ax, old.ay_warp - Ay);
+  EXPECT_LT(new_err, 0.35 * old_err);
 }
 
 TEST(MomentFlow, TileTikhonovIsScaleAwareForFastMotion)
@@ -424,6 +554,7 @@ TEST(MomentFlow, CoupledRegularizationReducesTileJumps)
   reg_params.flow_reg_lambda = 5.0f;
   reg_params.flow_reg_sweeps = 4;
   reg_params.flow_reg_sigma = 1e9f;
+  reg_params.prior_lambda = 1.0f;
 
   Events ev;
   append_events(

@@ -378,6 +378,7 @@ private:
   double  flow_reg_sigma_;
   int64_t flow_smooth_iters_;
   double  flow_smooth_alpha_;
+  double  flow_track_gamma_;
   bool    flow_refine_enabled_;
   int64_t flow_refine_iters_;
   double  flow_refine_huber_delta_;

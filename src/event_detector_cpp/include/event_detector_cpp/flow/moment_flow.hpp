@@ -2,9 +2,10 @@
  * Moment-based incremental optical-flow estimator.
  *
  * Maintains spatio-temporal moments per sensor cell, optionally with causal
- * exponential decay, and solves small closed-form structure-tensor systems on
- * the tile pyramid. The output field uses the same convention as the previous
- * dense-flow publisher:
+ * exponential decay, and solves either the legacy structure-tensor system or a
+ * closed-form moment-domain surrogate of contrast maximization based on
+ * minimizing warped event-cloud dispersion. The output field uses the same
+ * convention as the previous dense-flow publisher:
  * F[2*k], F[2*k+1] are warp parameters in x' = x + t * F.
  *
  * dotX Automation s.r.l. <info@dotxautomation.com>
@@ -77,7 +78,7 @@ struct MomentFlowParams
   int refine_iters = 2;
   float refine_huber_delta = 0.01f;
   float max_speed_px_s = 4000.0f;
-  int time_aware_order = 0;  // 0 legacy structure-tensor, 1 const-vel, 2 affine-in-time
+  int time_aware_order = 0;  // 0 legacy tensor, 1 const-vel dispersion, 2 local accel model
 };
 
 inline bool operator==(const MomentFlowParams & a, const MomentFlowParams & b)
@@ -147,6 +148,8 @@ struct MomentFlowProfile
   int final_timeaware_no_focus_fallback_tiles = 0;
   int reg_total_tiles = 0;
   int reg_modified_tiles = 0;
+  int reg_legacy_geometry_tiles = 0;
+  int reg_warped_geometry_tiles = 0;
   double reg_mean_delta_speed = 0.0;
   double ingest_ms = 0.0;
   double decay_ms = 0.0;
@@ -174,9 +177,10 @@ struct alignas(64) CellMoments
 static_assert(alignof(CellMoments) == 64, "CellMoments must be cache-line aligned");
 static_assert(sizeof(CellMoments) == 64, "CellMoments must occupy one cache line");
 
-/// Extra per-cell temporal moments, only for the affine-in-time estimator
+/// Extra per-cell temporal moments for the local acceleration estimator
 /// (time_aware_order == 2): sums of a*tau^3, a*tau^4, a*dx*tau^2, a*dy*tau^2
-/// (dx,dy cell-centre-relative, tau == dt). Kept out of CellMoments so the
+/// (dx,dy cell-centre-relative, tau == dt). This is a local Taylor model, not
+/// the Shiba/Gallego time-aware PDE formulation. Kept out of CellMoments so the
 /// constant-velocity fast path stays one cache line.
 struct CellMomentsT
 {
@@ -202,6 +206,9 @@ public:
     cell_center_x_(cells_.size(), 0.0f),
     cell_center_y_(cells_.size(), 0.0f),
     tile_accum_(static_cast<size_t>(final_tiles_) * final_tiles_),
+    tile_warp_geom_(params_.time_aware_order > 0
+      ? static_cast<size_t>(final_tiles_) * final_tiles_
+      : 0U),
     smooth_scratch_(final_vars_)
   {
     for (int cy = 0; cy < cells_y_; ++cy) {
@@ -251,6 +258,9 @@ public:
     }
     for (CellMomentsT & ct : cells_t_) {
       ct = CellMomentsT{};
+    }
+    for (TileWarpGeometry & g : tile_warp_geom_) {
+      g = TileWarpGeometry{};
     }
     accel_final_.setZero();
     time_origin_us_ = 0;
@@ -375,6 +385,8 @@ public:
     profile_.final_timeaware_no_focus_fallback_tiles = 0;
     profile_.reg_total_tiles = 0;
     profile_.reg_modified_tiles = 0;
+    profile_.reg_legacy_geometry_tiles = 0;
+    profile_.reg_warped_geometry_tiles = 0;
     profile_.reg_mean_delta_speed = 0.0;
 
     if (F_out.size() != final_vars_) {
@@ -514,6 +526,28 @@ private:
     int count = 0;
   };
 
+  struct TileWarpGeometry
+  {
+    bool valid = false;
+    float cov_xx = 0.0f;
+    float cov_xy = 0.0f;
+    float cov_yy = 0.0f;
+    float lmin = 0.0f;
+    float lmax = 0.0f;
+    float tangent_x = 1.0f;
+    float tangent_y = 0.0f;
+    float normal_x = 0.0f;
+    float normal_y = 1.0f;
+    float mass = 0.0f;
+    float confidence = 0.0f;
+    float focus_phi = 0.0f;
+    float data_mxx = 0.0f;
+    float data_mxy = 0.0f;
+    float data_myy = 0.0f;
+    float data_bx = 0.0f;
+    float data_by = 0.0f;
+  };
+
   static constexpr int64_t kRebaseThresholdUs = 250000;
   static constexpr float kPruneMass = 1e-4f;
   static constexpr float kMinTimeVariance = 1e-12f;
@@ -532,6 +566,7 @@ private:
   std::vector<float> cell_center_y_;
   std::vector<TileAccum> tile_accum_;
   std::vector<TileMomentsT> tile_accum_t_;
+  std::vector<TileWarpGeometry> tile_warp_geom_;
   std::vector<Eigen::VectorXf> scale_fields_;
   std::vector<Eigen::VectorXf> scale_fallback_;
   Eigen::VectorXf smooth_scratch_;
@@ -700,6 +735,54 @@ private:
     x = (c * rx - b * ry) / det;
     y = (-b * rx + a * ry) / det;
     return std::isfinite(x) && std::isfinite(y);
+  }
+
+  struct Cholesky3
+  {
+    double l00 = 0.0, l10 = 0.0, l20 = 0.0;
+    double l11 = 0.0, l21 = 0.0, l22 = 0.0;
+  };
+
+  static bool factor3_spd(
+    double a00, double a01, double a02,
+    double a11, double a12, double a22,
+    Cholesky3 & f)
+  {
+    constexpr double eps = 1e-24;
+    if (!(a00 > eps) || !std::isfinite(a00)) {
+      return false;
+    }
+    f.l00 = std::sqrt(a00);
+    f.l10 = a01 / f.l00;
+    f.l20 = a02 / f.l00;
+
+    const double d11 = a11 - f.l10 * f.l10;
+    if (!(d11 > eps) || !std::isfinite(d11)) {
+      return false;
+    }
+    f.l11 = std::sqrt(d11);
+    f.l21 = (a12 - f.l20 * f.l10) / f.l11;
+
+    const double d22 = a22 - f.l20 * f.l20 - f.l21 * f.l21;
+    if (!(d22 > eps) || !std::isfinite(d22)) {
+      return false;
+    }
+    f.l22 = std::sqrt(d22);
+    return std::isfinite(f.l00) && std::isfinite(f.l11) && std::isfinite(f.l22);
+  }
+
+  static bool solve3_cholesky(
+    const Cholesky3 & f, double r0, double r1, double r2,
+    double & x0, double & x1, double & x2)
+  {
+    const double y0 = r0 / f.l00;
+    const double y1 = (r1 - f.l10 * y0) / f.l11;
+    const double y2 = (r2 - f.l20 * y0 - f.l21 * y1) / f.l22;
+
+    x2 = y2 / f.l22;
+    x1 = (y1 - f.l21 * x2) / f.l11;
+    x0 = (y0 - f.l10 * x1 - f.l20 * x2) / f.l00;
+    return std::isfinite(x0) && std::isfinite(x1) && std::isfinite(x2);
   }
 
   static void dominant_eigenvector(
@@ -901,11 +984,12 @@ private:
     }
   }
 
-  // Closed-form dispersion-minimizing tile solve approximating CMax in the
-  // moment domain. Per tile we minimize the spatial dispersion of events warped
-  // by x' = x - tau*v - 0.5*tau^2*a (a only for order 2), an OLS regression of
-  // event positions onto {1, tau, 0.5 tau^2}. v (and a) come out closed-form
-  // from the accumulated moments; no iteration, no re-warp, no autodiff.
+  // Closed-form moment-domain surrogate of contrast maximization based on
+  // minimizing warped event-cloud dispersion. Under locally rigid translation
+  // and stationary edge sampling the dispersion optimum coincides with the true
+  // velocity / CMax optimum. order=1 is reference-time invariant; order=2 is a
+  // local acceleration model solved as a joint quadratic OLS, not a time-aware
+  // PDE formulation. No iteration, re-warp, or autodiff.
   void solve_scale_timeaware(
     int tiles,
     const Eigen::VectorXf & fallback_F,
@@ -917,6 +1001,9 @@ private:
     const int n_tiles = tiles * tiles;
     for (int i = 0; i < n_tiles; ++i) {
       tile_accum_t_[static_cast<size_t>(i)] = TileMomentsT{};
+      if (static_cast<size_t>(i) < tile_warp_geom_.size()) {
+        tile_warp_geom_[static_cast<size_t>(i)] = TileWarpGeometry{};
+      }
     }
 
     // Scatter per-cell moments into their tile, rebuilding absolute-frame
@@ -973,6 +1060,9 @@ private:
             reason == TimeAwareFallbackReason::NoFocus;
           out_F[2 * k] = fb_Fx;
           out_F[2 * k + 1] = fb_Fy;
+          if (static_cast<size_t>(k) < tile_warp_geom_.size()) {
+            tile_warp_geom_[static_cast<size_t>(k)] = TileWarpGeometry{};
+          }
           if (out_A) { (*out_A)[2 * k] = 0.0f; (*out_A)[2 * k + 1] = 0.0f; }
           profile_.fallback_tiles += 1;
           const bool final_scale = tiles == final_tiles_;
@@ -1050,43 +1140,90 @@ private:
           continue;
         }
 
+        const double denom_v = a.P2 - a.P1 * a.P1 / a.P0;
+        if (!(std::abs(denom_v) > 1e-20) || !std::isfinite(denom_v)) {
+          fall_back(TimeAwareFallbackReason::NoTimeVariance);
+          continue;
+        }
+
         double vx_phys = 0.0, vy_phys = 0.0, ax_phys = 0.0, ay_phys = 0.0;
-        double s_tau = 0.0;
+        double s_tau = std::sqrt(std::max(0.0, denom_v / a.P0));
         bool ok = false;
 
-        // v = Cov(x,tau)/Var(tau): centred ratio, well-conditioned in double.
-        const double denom_v = a.P2 - a.P1 * a.P1 / a.P0;
-        if (std::abs(denom_v) > 1e-20 && std::isfinite(denom_v)) {
+        if (order >= 2 && have_t) {
+          const double tau_mean = a.P1 / a.P0;
+          const double tm2 = tau_mean * tau_mean;
+          const double tm3 = tm2 * tau_mean;
+          const double tm4 = tm2 * tm2;
+
+          const double S0 = a.P0;
+          const double S1 = a.P1 - tau_mean * a.P0;
+          const double S2 = a.P2 - 2.0 * tau_mean * a.P1 + tm2 * a.P0;
+          const double S3 = a.P3 - 3.0 * tau_mean * a.P2 + 3.0 * tm2 * a.P1 -
+                            tm3 * a.P0;
+          const double S4 = a.P4 - 4.0 * tau_mean * a.P3 + 6.0 * tm2 * a.P2 -
+                            4.0 * tm3 * a.P1 + tm4 * a.P0;
+
+          if (!(S2 > 1e-20) || !std::isfinite(S2) || !std::isfinite(S4)) {
+            fall_back(TimeAwareFallbackReason::NoTimeVariance);
+            continue;
+          }
+          s_tau = std::sqrt(std::max(0.0, S2 / a.P0));
+
+          const double Cx0 = a.Qx0;
+          const double Cy0 = a.Qy0;
+          const double Cx1 = a.Qx1 - tau_mean * a.Qx0;
+          const double Cy1 = a.Qy1 - tau_mean * a.Qy0;
+          const double Cx2 = a.Qx2 - 2.0 * tau_mean * a.Qx1 + tm2 * a.Qx0;
+          const double Cy2 = a.Qy2 - 2.0 * tau_mean * a.Qy1 + tm2 * a.Qy0;
+
+          const double vel_scale = std::max(S2, 1e-24);
+          const double acc_scale = std::max(0.25 * S4, 1e-24);
+          const double vel_prior_mass = prior * vel_scale;
+          const double vel_ridge_mass = ridge * vel_scale;
+          const double accel_ridge_mass = std::max(ridge, 8.0 * prior) * acc_scale;
+
+          Cholesky3 fact;
+          const bool factored = factor3_spd(
+            S0, S1, 0.5 * S2,
+            S2 + vel_ridge_mass + vel_prior_mass, 0.5 * S3,
+            0.25 * S4 + accel_ridge_mass,
+            fact);
+          if (factored) {
+            double x0_c = 0.0, vx_c = 0.0, ax_c = 0.0;
+            double y0_c = 0.0, vy_c = 0.0, ay_c = 0.0;
+            const bool sx_ok = solve3_cholesky(
+              fact,
+              Cx0,
+              Cx1 + vel_prior_mass * fb_px,
+              0.5 * Cx2,
+              x0_c, vx_c, ax_c);
+            const bool sy_ok = solve3_cholesky(
+              fact,
+              Cy0,
+              Cy1 + vel_prior_mass * fb_py,
+              0.5 * Cy2,
+              y0_c, vy_c, ay_c);
+            (void)x0_c;
+            (void)y0_c;
+            if (sx_ok && sy_ok) {
+              vx_phys = vx_c - ax_c * tau_mean;
+              vy_phys = vy_c - ay_c * tau_mean;
+              ax_phys = ax_c;
+              ay_phys = ay_c;
+              ok = std::isfinite(vx_phys) && std::isfinite(vy_phys) &&
+                   std::isfinite(ax_phys) && std::isfinite(ay_phys);
+            }
+          }
+        } else {
+          // order=1 is reference-time invariant: a centred covariance ratio
+          // estimates the constant-velocity dispersion optimum.
           const double prior_mass = prior * denom_v;
           vx_phys = (a.Qx1 - a.Qx0 * a.P1 / a.P0 + prior_mass * fb_px) /
                     (denom_v + prior_mass);
           vy_phys = (a.Qy1 - a.Qy0 * a.P1 / a.P0 + prior_mass * fb_py) /
                     (denom_v + prior_mass);
           ok = std::isfinite(vx_phys) && std::isfinite(vy_phys);
-        } else {
-          fall_back(TimeAwareFallbackReason::NoTimeVariance);
-          continue;
-        }
-
-        if (ok && order >= 2 && have_t) {
-          const double s2 = a.P2 / a.P0;
-          if (s2 > 0.0 && std::isfinite(s2)) {
-            s_tau = std::sqrt(s2);
-            const double sq = 0.5 * a.P2;
-            const double sqq = 0.25 * a.P4;
-            const double denom_a = sqq - sq * sq / a.P0;
-            if (denom_a > 1e-24 && std::isfinite(denom_a)) {
-              const double accel_prior_mass =
-                std::max(8.0 * prior, ridge) * denom_a;
-              const double rx0 = a.Qx0 - vx_phys * a.P1;
-              const double ry0 = a.Qy0 - vy_phys * a.P1;
-              const double rxq = 0.5 * (a.Qx2 - vx_phys * a.P3);
-              const double ryq = 0.5 * (a.Qy2 - vy_phys * a.P3);
-              ax_phys = (rxq - rx0 * sq / a.P0) / (denom_a + accel_prior_mass);
-              ay_phys = (ryq - ry0 * sq / a.P0) / (denom_a + accel_prior_mass);
-              ok = std::isfinite(ax_phys) && std::isfinite(ay_phys);
-            }
-          }
         }
         if (s_tau > 0.0) {
           const double da = std::hypot(ax_phys, ay_phys) * s_tau;
@@ -1107,7 +1244,7 @@ private:
         const double var_id =
           (a.Rxx - a.Qx0 * a.Qx0 / a.P0) + (a.Ryy - a.Qy0 * a.Qy0 / a.P0);
         auto warped_stats = [&](double vx, double vy, double ax, double ay,
-            double & var_w, float & lmin, float & lmax, float & tx_tan, float & ty_tan) {
+            double & var_w, TileWarpGeometry & geom) {
             const double sxp = a.Qx0 - vx * a.P1 - 0.5 * ax * a.P2;
             const double syp = a.Qy0 - vy * a.P1 - 0.5 * ay * a.P2;
             const double sxxp = a.Rxx - 2.0 * vx * a.Qx1 - ax * a.Qx2
@@ -1121,46 +1258,49 @@ private:
             const double cov_xx = std::max(0.0, sxxp * inv_p0 - sxp * sxp * inv_p0 * inv_p0);
             const double cov_xy = sxyp * inv_p0 - sxp * syp * inv_p0 * inv_p0;
             const double cov_yy = std::max(0.0, syyp * inv_p0 - syp * syp * inv_p0 * inv_p0);
+            geom = TileWarpGeometry{};
+            geom.valid = true;
+            geom.cov_xx = static_cast<float>(cov_xx);
+            geom.cov_xy = static_cast<float>(cov_xy);
+            geom.cov_yy = static_cast<float>(cov_yy);
             eig2(
               static_cast<float>(cov_xx), static_cast<float>(cov_xy),
-              static_cast<float>(cov_yy), lmin, lmax);
+              static_cast<float>(cov_yy), geom.lmin, geom.lmax);
             dominant_eigenvector(
               static_cast<float>(cov_xx), static_cast<float>(cov_xy),
-              static_cast<float>(cov_yy), lmax, tx_tan, ty_tan);
+              static_cast<float>(cov_yy), geom.lmax, geom.tangent_x, geom.tangent_y);
+            geom.normal_x = -geom.tangent_y;
+            geom.normal_y = geom.tangent_x;
+            geom.mass = static_cast<float>(a.P0);
             var_w = (sxxp - sxp * sxp * inv_p0) + (syyp - syp * syp * inv_p0);
           };
 
         double var_w = 0.0;
-        float warp_lmin = 0.0f;
-        float warp_lmax = 0.0f;
-        float tx_tan = 1.0f;
-        float ty_tan = 0.0f;
-        warped_stats(vx_phys, vy_phys, ax_phys, ay_phys, var_w, warp_lmin, warp_lmax, tx_tan, ty_tan);
+        TileWarpGeometry warp_geom;
+        warped_stats(vx_phys, vy_phys, ax_phys, ay_phys, var_w, warp_geom);
 
         const bool aperture_limited =
-          warp_lmin / std::max(warp_lmax, 1e-12f) < params_.aperture_ratio;
+          warp_geom.lmin / std::max(warp_geom.lmax, 1e-12f) < params_.aperture_ratio;
         if (aperture_limited) {
-          const double nx_norm = -ty_tan;
-          const double ny_norm = tx_tan;
+          const double nx_norm = warp_geom.normal_x;
+          const double ny_norm = warp_geom.normal_y;
           const double normal_v = vx_phys * nx_norm + vy_phys * ny_norm;
-          const double tangent_v = fb_px * tx_tan + fb_py * ty_tan;
-          vx_phys = normal_v * nx_norm + tangent_v * tx_tan;
-          vy_phys = normal_v * ny_norm + tangent_v * ty_tan;
+          const double tangent_v =
+            fb_px * warp_geom.tangent_x + fb_py * warp_geom.tangent_y;
+          vx_phys = normal_v * nx_norm + tangent_v * warp_geom.tangent_x;
+          vy_phys = normal_v * ny_norm + tangent_v * warp_geom.tangent_y;
 
           const double normal_a = ax_phys * nx_norm + ay_phys * ny_norm;
           ax_phys = normal_a * nx_norm;
           ay_phys = normal_a * ny_norm;
-          warped_stats(vx_phys, vy_phys, ax_phys, ay_phys, var_w, warp_lmin, warp_lmax, tx_tan, ty_tan);
+          warped_stats(vx_phys, vy_phys, ax_phys, ay_phys, var_w, warp_geom);
         }
 
         double fallback_var_w = 0.0;
-        float fallback_lmin = 0.0f;
-        float fallback_lmax = 0.0f;
-        float fallback_tx = 1.0f;
-        float fallback_ty = 0.0f;
+        TileWarpGeometry fallback_geom;
         warped_stats(
           fb_px, fb_py, 0.0, 0.0,
-          fallback_var_w, fallback_lmin, fallback_lmax, fallback_tx, fallback_ty);
+          fallback_var_w, fallback_geom);
         if (fallback_var_w > 1e-12 && var_w > 0.98 * fallback_var_w) {
           fall_back(TimeAwareFallbackReason::NoImprove);
           continue;
@@ -1190,6 +1330,8 @@ private:
         float vxf = static_cast<float>(vx_phys);
         float vyf = static_cast<float>(vy_phys);
         clamp_speed(vxf, vyf);
+        vx_phys = vxf;
+        vy_phys = vyf;
         out_F[2 * k] = -vxf;
         out_F[2 * k + 1] = -vyf;
 
@@ -1202,8 +1344,40 @@ private:
             const float sc = max_delta_v / da;
             axf *= sc; ayf *= sc;
           }
+          ax_phys = axf;
+          ay_phys = ayf;
           (*out_A)[2 * k] = -axf;
           (*out_A)[2 * k + 1] = -ayf;
+        }
+
+        if (static_cast<size_t>(k) < tile_warp_geom_.size()) {
+          double reg_var_w = 0.0;
+          TileWarpGeometry reg_geom;
+          warped_stats(vx_phys, vy_phys, ax_phys, ay_phys, reg_var_w, reg_geom);
+          const float ratio =
+            reg_geom.lmin / std::max(reg_geom.lmax, 1e-12f);
+          const float data_conf =
+            static_cast<float>(std::max(denom_v, 1e-12) *
+            std::clamp((phi - 1.0) / std::max(phi, 1e-12), 0.05, 1.0));
+          const bool reg_aperture =
+            ratio < params_.aperture_ratio;
+          const float normal_w = data_conf;
+          const float tangent_w = reg_aperture
+            ? data_conf * std::max(0.0f, ratio)
+            : data_conf;
+          const float nx = reg_geom.normal_x;
+          const float ny = reg_geom.normal_y;
+          const float txg = reg_geom.tangent_x;
+          const float tyg = reg_geom.tangent_y;
+          reg_geom.confidence = data_conf;
+          reg_geom.focus_phi = static_cast<float>(phi);
+          reg_geom.data_mxx = normal_w * nx * nx + tangent_w * txg * txg;
+          reg_geom.data_mxy = normal_w * nx * ny + tangent_w * txg * tyg;
+          reg_geom.data_myy = normal_w * ny * ny + tangent_w * tyg * tyg;
+          reg_geom.data_bx = reg_geom.data_mxx * vxf + reg_geom.data_mxy * vyf;
+          reg_geom.data_by = reg_geom.data_mxy * vxf + reg_geom.data_myy * vyf;
+          tile_warp_geom_[static_cast<size_t>(k)] = reg_geom;
+          (void)reg_var_w;
         }
       }
     }
@@ -1230,8 +1404,19 @@ private:
     return nullptr;
   }
 
-  float tile_data_confidence(int k) const
+  float tile_data_confidence(int k, bool use_warped_geometry) const
   {
+    if (use_warped_geometry) {
+      if (static_cast<size_t>(k) >= tile_warp_geom_.size()) {
+        return 0.0f;
+      }
+      const TileWarpGeometry & g = tile_warp_geom_[static_cast<size_t>(k)];
+      if (g.valid && g.confidence > 0.0f && std::isfinite(g.confidence)) {
+        return g.confidence;
+      }
+      return 0.0f;
+    }
+
     const TileAccum & a = tile_accum_[static_cast<size_t>(k)];
     const float trace = a.mxx + a.myy;
     if (a.rho > 0.0f && trace > 0.0f && std::isfinite(trace)) {
@@ -1270,34 +1455,70 @@ private:
 
     const Eigen::VectorXf * fallback = fallback_for_tiles(tiles);
     const float lambda_s = params_.flow_reg_lambda;
+    const bool use_warped_geometry =
+      params_.time_aware_order >= 1 && tile_warp_geom_.size() >= static_cast<size_t>(n_tiles);
+    if (use_warped_geometry) {
+      profile_.reg_warped_geometry_tiles += n_tiles;
+    } else {
+      profile_.reg_legacy_geometry_tiles += n_tiles;
+    }
 
     for (int sweep = 0; sweep < params_.flow_reg_sweeps; ++sweep) {
       for (int ty = 0; ty < tiles; ++ty) {
         for (int tx = 0; tx < tiles; ++tx) {
           const int k = ty * tiles + tx;
-          const TileAccum & a = tile_accum_[static_cast<size_t>(k)];
 
-          float lmin = 0.0f;
-          float lmax = 0.0f;
-          eig2(a.mxx, a.mxy, a.myy, lmin, lmax);
-          const float data_scale = std::max(lmax, 1e-12f);
-          const float tile_eps = params_.tikhonov_eps * data_scale;
-          const float prior = params_.prior_lambda * data_scale;
-          const float fb_px =
-            fallback ? -(*fallback)[2 * k] : -smooth_scratch_[2 * k];
-          const float fb_py =
-            fallback ? -(*fallback)[2 * k + 1] : -smooth_scratch_[2 * k + 1];
-
-          // Tangenziale del tensore di struttura di QUESTO tile: il dominant
-          // eigenvector e' la direzione del gradiente (normale all'edge), quindi
-          // la tangenziale (lungo l'edge = direzione poco vincolata dai dati, l_min)
-          // e' la sua perpendicolare. L'accoppiamento col vicinato agisce SOLO
-          // lungo questa direzione, lasciando la normale guidata dai dati.
+          float data_mxx = 0.0f;
+          float data_mxy = 0.0f;
+          float data_myy = 0.0f;
+          float data_bx = 0.0f;
+          float data_by = 0.0f;
           float ex = 1.0f;
           float ey = 0.0f;
-          dominant_eigenvector(a.mxx, a.mxy, a.myy, lmax, ex, ey);
-          const float tgx = -ey;
-          const float tgy = ex;
+          float tgx = 0.0f;
+          float tgy = 1.0f;
+
+          if (use_warped_geometry) {
+            const TileWarpGeometry & g = tile_warp_geom_[static_cast<size_t>(k)];
+            if (!g.valid || !(g.confidence > 0.0f)) {
+              continue;
+            }
+            const float data_scale = std::max(g.confidence, 1e-12f);
+            const float tile_eps = params_.tikhonov_eps * data_scale;
+            const float anchor_vx = -smooth_scratch_[2 * k];
+            const float anchor_vy = -smooth_scratch_[2 * k + 1];
+            data_mxx = g.data_mxx + tile_eps;
+            data_mxy = g.data_mxy;
+            data_myy = g.data_myy + tile_eps;
+            data_bx = g.data_bx + tile_eps * anchor_vx;
+            data_by = g.data_by + tile_eps * anchor_vy;
+            tgx = g.tangent_x;
+            tgy = g.tangent_y;
+          } else {
+            const TileAccum & a = tile_accum_[static_cast<size_t>(k)];
+            float lmin = 0.0f;
+            float lmax = 0.0f;
+            eig2(a.mxx, a.mxy, a.myy, lmin, lmax);
+            const float data_scale = std::max(lmax, 1e-12f);
+            const float tile_eps = params_.tikhonov_eps * data_scale;
+            const float prior = params_.prior_lambda * data_scale;
+            const float fb_px =
+              fallback ? -(*fallback)[2 * k] : -smooth_scratch_[2 * k];
+            const float fb_py =
+              fallback ? -(*fallback)[2 * k + 1] : -smooth_scratch_[2 * k + 1];
+
+            data_mxx = a.mxx + tile_eps + prior;
+            data_mxy = a.mxy;
+            data_myy = a.myy + tile_eps + prior;
+            data_bx = a.bx + prior * fb_px;
+            data_by = a.by + prior * fb_py;
+
+            // Legacy structure tensor: dominant eigenvector is the edge normal,
+            // so the weak/tangential direction is its perpendicular.
+            dominant_eigenvector(a.mxx, a.mxy, a.myy, lmax, ex, ey);
+            tgx = -ey;
+            tgy = ex;
+          }
 
           // Accumulo rank-1: penalita' sum_n w_n * (t . (v - v_n))^2.
           //   LHS += (sum_n w_n) * t t^T      (Cxx,Cxy,Cyy)
@@ -1313,7 +1534,7 @@ private:
               return;
             }
             const int nk = ny * tiles + nx;
-            const float conf = tile_data_confidence(nk);
+            const float conf = tile_data_confidence(nk, use_warped_geometry);
             if (!(conf > 0.0f)) {
               return;
             }
@@ -1346,10 +1567,10 @@ private:
           float vx_phys = -field[2 * k];
           float vy_phys = -field[2 * k + 1];
           const bool solved = solve2(
-            a.mxx + tile_eps + prior + Cxx, a.mxy + Cxy,
-            a.myy + tile_eps + prior + Cyy,
-            a.bx + prior * fb_px + rt * tgx,
-            a.by + prior * fb_py + rt * tgy,
+            data_mxx + Cxx, data_mxy + Cxy,
+            data_myy + Cyy,
+            data_bx + rt * tgx,
+            data_by + rt * tgy,
             vx_phys, vy_phys);
           if (!solved) {
             continue;

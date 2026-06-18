@@ -2,8 +2,9 @@
  * Event Detector dense optical-flow estimation via moment-flow alignment.
  *
  * Maintains spatio-temporal moments on a cell grid and solves a coarse-to-fine
- * tile-field surrogate of contrast maximization. The dense flow and the Image
- * of Warped Events at the window midpoint are rendered for publishing.
+ * closed-form moment-domain surrogate of contrast maximization based on
+ * minimizing warped event-cloud dispersion. The dense flow and the Image of
+ * Warped Events at the window midpoint are rendered for publishing.
  *
  * dotX Automation s.r.l. <info@dotxautomation.com>
  *
@@ -77,7 +78,7 @@ double elapsed_ms(
 }
 
 /**
- * Bilinearly sample the tile-grid flow field at a pixel, matching the old CMax
+ * Bilinearly sample the tile-grid flow field at a pixel, matching the legacy
  * stencil convention: tile centers at (i+0.5)*spacing, replicated at borders.
  */
 inline void sample_tile_velocity(
@@ -161,7 +162,7 @@ IweRenderStats render_iwe_bilinear(
   int img_h,
   int scale,
   bool warp,
-  float t_shift,
+  float t_ref_target_s,
   cv::Mat & iwe)
 {
   IweRenderStats stats;
@@ -175,18 +176,19 @@ IweRenderStats render_iwe_bilinear(
     float wx = events.x[k];
     float wy = events.y[k];
     if (warp) {
-      const float tt = events.t[k] + t_shift;
+      const float t = events.t[k];
       const float ox = wx;
       const float oy = wy;
       float vx, vy;
       sample_tile_velocity(F, tiles, tiles, img_w, img_h, ox, oy, vx, vy);
-      wx += tt * vx;
-      wy += tt * vy;
+      wx += (t - t_ref_target_s) * vx;
+      wy += (t - t_ref_target_s) * vy;
       if (A != nullptr) {
         float ax, ay;
         sample_tile_velocity(*A, tiles, tiles, img_w, img_h, ox, oy, ax, ay);
-        wx += 0.5f * tt * tt * ax;
-        wy += 0.5f * tt * tt * ay;
+        const float dq = t * t - t_ref_target_s * t_ref_target_s;
+        wx += 0.5f * dq * ax;
+        wy += 0.5f * dq * ay;
       }
     }
     wx *= inv_scale;
@@ -403,7 +405,7 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
       flow_track_vy_.assign(n_tiles, 0.0f);
       flow_track_w_.assign(n_tiles, 0.0f);
     }
-    const float gamma   = 0.5f;
+    const float gamma = std::clamp(static_cast<float>(flow_track_gamma_), 0.0f, 1.0f);
     const float w_floor = 1e-3f;
     for (int k = 0; k < n_tiles; ++k) {
       const float w_meas = std::max(w_floor, conf[k]);
@@ -437,8 +439,8 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
   }
   const double render_events_ms = elapsed_ms(t_render_events);
 
-  // ---- Field-level multi-reference focus (Sec. III-B) diagnostic ----
-  // Warp to t_ref in {mid, lo, hi} (lo/hi via a temporal shift of the events),
+  // ---- Field-level multi-reference focus diagnostic ----
+  // Warp to explicit target times in the event window coordinate system,
   // combine gradient-magnitude contrasts: f = (G_lo + 2 G_mid + G_hi)/(4 G_id).
   // f <= 1 means the field did not improve this particular focus metric. Keep
   // the candidate visible anyway; otherwise a strict gate can black out the
@@ -446,7 +448,8 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
   const Eigen::VectorXf * accel_ptr =
     (params.time_aware_order >= 2) ? &moment_flow_->acceleration() : nullptr;
   const int iwe_scale = std::max<int>(1, static_cast<int>(flow_iwe_scale_));
-  const float half_span_s = static_cast<float>(t_hi_us - t_lo_us) * 0.5e-6f;
+  const float t_lo_ref_s = static_cast<float>(t_lo_us - t_ref_us) * 1e-6f;
+  const float t_hi_ref_s = static_cast<float>(t_hi_us - t_ref_us) * 1e-6f;
 
   cv::Mat focus_id, focus_mid, focus_lo, focus_hi;
   render_iwe_bilinear(
@@ -454,13 +457,13 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
   render_iwe_bilinear(
     render_ev, F, accel_ptr, final_tiles, w, h, iwe_scale, true, 0.0f, focus_mid);
   render_iwe_bilinear(
-    render_ev, F, accel_ptr, final_tiles, w, h, iwe_scale, true, half_span_s, focus_lo);
+    render_ev, F, accel_ptr, final_tiles, w, h, iwe_scale, true, t_lo_ref_s, focus_lo);
   render_iwe_bilinear(
-    render_ev, F, accel_ptr, final_tiles, w, h, iwe_scale, true, -half_span_s, focus_hi);
+    render_ev, F, accel_ptr, final_tiles, w, h, iwe_scale, true, t_hi_ref_s, focus_hi);
   // Integer event coords keep the identity IWE on single pixels (no sub-pixel
   // spread) -> artificially high L1-gradient, while any warp produces fractional
   // coords that bilinear splatting smooths. Equalize with the same sigma=1px blur
-  // (the paper's delta ~= Gaussian(1px)) so focus_f measures alignment, not warp.
+  // (delta ~= Gaussian(1px)) so focus_f measures alignment, not warp.
   auto focus_contrast = [](const cv::Mat & iwe) {
     cv::Mat b;
     cv::GaussianBlur(iwe, b, cv::Size(0, 0), 1.0);
@@ -605,7 +608,7 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
     "tiles_total(full/aperture/fallback/prior)=%d/%d/%d/%d "
     "tiles_final(full/aperture/fallback)=%d/%d/%d "
     "timeaware_fallback(support/reject)=%d/%d final=%d/%d "
-    "reg(modified_frac/mean_delta) %.3f/%.3f",
+    "reg(modified_frac/mean_delta legacy_geom/warped_geom) %.3f/%.3f %d/%d",
     profile.ingest_ms, profile.decay_ms, profile.stage_a_ms,
     profile.stage_b_ms, profile.smooth_ms, profile.total_solve_ms, moment_ms,
     profile.events_ingested, profile.active_cells, profile.valid_cells,
@@ -616,7 +619,8 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
     profile.timeaware_support_fallback_tiles, profile.timeaware_reject_fallback_tiles,
     profile.final_timeaware_support_fallback_tiles,
     profile.final_timeaware_reject_fallback_tiles,
-    reg_modified_fraction, profile.reg_mean_delta_speed);
+    reg_modified_fraction, profile.reg_mean_delta_speed,
+    profile.reg_legacy_geometry_tiles, profile.reg_warped_geometry_tiles);
 
   RCLCPP_INFO(
     get_logger(),

@@ -92,7 +92,7 @@ params:
     type: bool
     default_value: false
     description: "Apply causal exponential decay inside each moment-flow window."
-    constraints: "Disable for uniform CMax-like window alignment; enable for streaming recent-tail estimates."
+    constraints: "Disable for uniform moment-window alignment; enable for streaming recent-tail estimates."
     read_only: false
     var_name: flow_decay_enabled_
   flow_decay_tau_us:
@@ -168,7 +168,7 @@ params:
     min_value: 0.0
     max_value: 1000000000.0
     step: 0.0
-    description: "Minimum tile structure-tensor eigenvalue required before solving a tile."
+    description: "Minimum tile geometry eigenvalue required before solving a tile."
     constraints: "Must be non-negative."
     read_only: false
     var_name: flow_tile_min_lambda_
@@ -178,7 +178,7 @@ params:
     min_value: 0
     max_value: 2
     step: 1
-    description: "Tile estimator: 0 = structure-tensor (legacy), 1 = constant-velocity dispersion-min, 2 = affine-in-time (velocity + acceleration)."
+    description: "Tile estimator: 0 = legacy structure tensor, 1 = constant-velocity dispersion surrogate, 2 = local acceleration model."
     constraints: "0..2."
     read_only: false
     var_name: flow_time_aware_order_
@@ -198,7 +198,7 @@ params:
     min_value: 0.000000000001
     max_value: 1000.0
     step: 0.0
-    description: "Tikhonov regularization added to cell and tile 2x2 solves."
+    description: "Tikhonov regularization added to cell/tile dynamic solve terms."
     constraints: "Must be positive."
     read_only: false
     var_name: flow_tikhonov_eps_
@@ -262,6 +262,16 @@ params:
     constraints: "Must be in [0, 1]."
     read_only: false
     var_name: flow_smooth_alpha_
+  flow_track_gamma:
+    type: double
+    default_value: 0.5
+    min_value: 0.0
+    max_value: 1.0
+    step: 0.0
+    description: "Temporal forgetting factor for per-tile flow tracking after each moment-flow solve."
+    constraints: "0 disables history; 1 keeps the full accumulated track weight."
+    read_only: false
+    var_name: flow_track_gamma_
   flow_refine_enabled:
     type: bool
     default_value: false
