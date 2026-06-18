@@ -29,11 +29,30 @@
 
 #include <Eigen/Core>
 
+#define EVENT_DETECTOR_CPP_MOMENT_FLOW_TEST_ACCESS
 #include "event_detector_cpp/flow/moment_flow.hpp"
 
 using event_detector_cpp::flow::Events;
 using event_detector_cpp::flow::MomentFlow;
 using event_detector_cpp::flow::MomentFlowParams;
+
+namespace event_detector_cpp::flow
+{
+
+struct MomentFlowTestAccess
+{
+  static void solve_scale_timeaware(
+    MomentFlow & flow,
+    int tiles,
+    const Eigen::VectorXf & fallback_F,
+    Eigen::VectorXf & out_F,
+    Eigen::VectorXf * out_A)
+  {
+    flow.solve_scale_timeaware(tiles, fallback_F, out_F, out_A);
+  }
+};
+
+}  // namespace event_detector_cpp::flow
 
 namespace
 {
@@ -229,6 +248,49 @@ double neighbor_variation(const Eigen::VectorXf & F, int tiles)
   return (count > 0) ? acc / static_cast<double>(count) : 0.0;
 }
 
+double expected_dispersion_confidence(
+  const Events & ev, double vx_phys, double vy_phys, double ax_phys, double ay_phys)
+{
+  double P0 = 0.0, P1 = 0.0, P2 = 0.0, P3 = 0.0, P4 = 0.0;
+  double Qx0 = 0.0, Qx1 = 0.0, Qx2 = 0.0;
+  double Qy0 = 0.0, Qy1 = 0.0, Qy2 = 0.0;
+  double Rxx = 0.0, Ryy = 0.0;
+  for (size_t k = 0; k < ev.size(); ++k) {
+    const double t = ev.t[k];
+    const double t2 = t * t;
+    P0 += 1.0;
+    P1 += t;
+    P2 += t2;
+    P3 += t2 * t;
+    P4 += t2 * t2;
+    Qx0 += ev.x[k];
+    Qx1 += ev.x[k] * t;
+    Qx2 += ev.x[k] * t2;
+    Qy0 += ev.y[k];
+    Qy1 += ev.y[k] * t;
+    Qy2 += ev.y[k] * t2;
+    Rxx += ev.x[k] * ev.x[k];
+    Ryy += ev.y[k] * ev.y[k];
+  }
+
+  const double denom_v = P2 - P1 * P1 / P0;
+  const double var_id = (Rxx - Qx0 * Qx0 / P0) + (Ryy - Qy0 * Qy0 / P0);
+  const double sxp = Qx0 - vx_phys * P1 - 0.5 * ax_phys * P2;
+  const double syp = Qy0 - vy_phys * P1 - 0.5 * ay_phys * P2;
+  const double sxxp =
+    Rxx - 2.0 * vx_phys * Qx1 - ax_phys * Qx2 +
+    vx_phys * vx_phys * P2 + vx_phys * ax_phys * P3 +
+    0.25 * ax_phys * ax_phys * P4;
+  const double syyp =
+    Ryy - 2.0 * vy_phys * Qy1 - ay_phys * Qy2 +
+    vy_phys * vy_phys * P2 + vy_phys * ay_phys * P3 +
+    0.25 * ay_phys * ay_phys * P4;
+  const double var_w = (sxxp - sxp * sxp / P0) + (syyp - syp * syp / P0);
+  const double phi = (var_w > 1e-12) ? var_id / var_w : 0.0;
+  return std::max(denom_v, 1e-12) *
+         std::clamp((phi - 1.0) / std::max(phi, 1e-12), 0.05, 1.0);
+}
+
 }  // namespace
 
 TEST(MomentFlow, RecoversWarpSignConvention)
@@ -326,6 +388,82 @@ TEST(MomentFlow, Order2JointQuadraticBeatsSequentialOnSkewedTau)
     std::hypot(old.fx_warp - Fx, old.fy_warp - Fy) +
     0.01 * std::hypot(old.ax_warp - Ax, old.ay_warp - Ay);
   EXPECT_LT(new_err, 0.35 * old_err);
+}
+
+TEST(MomentFlow, Order2VelocityPriorTargetsReferenceVelocity)
+{
+  const int W = 128;
+  const int H = 128;
+  const float Fx = 520.0f;
+  const float Fy = -240.0f;
+  const float Ax = 60000.0f;
+  const float Ay = -35000.0f;
+  const float FallbackFx = 300.0f;
+  const float FallbackFy = -120.0f;
+
+  MomentFlowParams p = test_params(1);
+  p.cell_size_px = 128;
+  p.cell_max_residual_ratio = 1.0f;
+  p.tile_min_mass = 10.0f;
+  p.tile_min_cells = 1;
+  p.tile_min_lambda = 0.0f;
+  p.time_aware_order = 2;
+  p.prior_lambda = 0.3f;
+  p.tikhonov_eps = 1e-10f;
+  p.max_speed_px_s = 10000.0f;
+
+  MomentFlow flow(W, H, p);
+  flow.ingest(make_quadratic_cloud_events(W, H, 50000, Fx, Fy, Ax, Ay, 59));
+
+  Eigen::VectorXf fallback(flow.num_vars());
+  fallback << FallbackFx, FallbackFy;
+  Eigen::VectorXf F(flow.num_vars());
+  Eigen::VectorXf A(flow.num_vars());
+  event_detector_cpp::flow::MomentFlowTestAccess::solve_scale_timeaware(
+    flow, 1, fallback, F, &A);
+
+  ASSERT_EQ(F.size(), 2);
+  EXPECT_EQ(flow.profile().final_timeaware_solve_fail_fallback_tiles, 0);
+  EXPECT_NEAR(F[0], FallbackFx, 2.0f);
+  EXPECT_NEAR(F[1], FallbackFy, 2.0f);
+}
+
+TEST(MomentFlow, FinalConfidenceUsesDispersionGeometryForTimeAwareOrder)
+{
+  const int W = 128;
+  const int H = 128;
+  const float Fx = 480.0f;
+  const float Fy = -160.0f;
+
+  MomentFlowParams p = test_params(1);
+  p.cell_size_px = 128;
+  p.cell_max_residual_ratio = 1.0f;
+  p.tile_min_mass = 10.0f;
+  p.tile_min_cells = 1;
+  p.tile_min_lambda = 0.0f;
+  p.time_aware_order = 1;
+  p.prior_lambda = 0.0f;
+  p.tikhonov_eps = 1e-10f;
+
+  Events ev = make_quadratic_cloud_events(W, H, 50000, Fx, Fy, 0.0f, 0.0f, 61);
+  MomentFlow flow(W, H, p);
+  flow.ingest(ev);
+
+  Eigen::VectorXf warm;
+  Eigen::VectorXf F(flow.num_vars());
+  flow.solve(warm, F);
+
+  ASSERT_EQ(F.size(), 2);
+  EXPECT_GT(flow.profile().final_full_rank_tiles, 0);
+
+  std::vector<float> conf;
+  flow.final_tile_confidence(conf);
+  ASSERT_EQ(conf.size(), 1U);
+
+  const double expected =
+    expected_dispersion_confidence(ev, -F[0], -F[1], 0.0, 0.0);
+  EXPECT_GT(conf[0], 1e-2f);
+  EXPECT_NEAR(conf[0], expected, std::max(1e-6, expected * 1e-4));
 }
 
 TEST(MomentFlow, TileTikhonovIsScaleAwareForFastMotion)

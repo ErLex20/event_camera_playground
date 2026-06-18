@@ -476,6 +476,16 @@ public:
   {
     const int n = final_tiles_ * final_tiles_;
     conf.resize(static_cast<size_t>(n));
+    if (params_.time_aware_order >= 1 && tile_warp_geom_.size() >= static_cast<size_t>(n)) {
+      for (int k = 0; k < n; ++k) {
+        const TileWarpGeometry & g = tile_warp_geom_[static_cast<size_t>(k)];
+        const bool usable =
+          g.valid && std::isfinite(g.confidence) && g.confidence > 0.0f;
+        conf[k] = usable ? g.confidence : 0.0f;
+      }
+      return;
+    }
+
     for (int k = 0; k < n; ++k) {
       const TileAccum & a = tile_accum_[static_cast<size_t>(k)];
       float lmin = 0.0f, lmax = 0.0f;
@@ -485,6 +495,10 @@ public:
   }
 
 private:
+#ifdef EVENT_DETECTOR_CPP_MOMENT_FLOW_TEST_ACCESS
+  friend struct MomentFlowTestAccess;
+#endif
+
   enum class TimeAwareFallbackReason
   {
     LowCells,
@@ -1182,12 +1196,16 @@ private:
           const double vel_prior_mass = prior * vel_scale;
           const double vel_ridge_mass = ridge * vel_scale;
           const double accel_ridge_mass = std::max(ridge, 8.0 * prior) * acc_scale;
+          const double vel_prior_tau = vel_prior_mass * tau_mean;
+
+          // The warm-start prior targets physical v(0)=vx_c-a*tau_mean, so add
+          // vel_prior_mass * [0,1,-tau_mean]^T[0,1,-tau_mean] to the centered OLS.
 
           Cholesky3 fact;
           const bool factored = factor3_spd(
             S0, S1, 0.5 * S2,
-            S2 + vel_ridge_mass + vel_prior_mass, 0.5 * S3,
-            0.25 * S4 + accel_ridge_mass,
+            S2 + vel_ridge_mass + vel_prior_mass, 0.5 * S3 - vel_prior_tau,
+            0.25 * S4 + accel_ridge_mass + vel_prior_tau * tau_mean,
             fact);
           if (factored) {
             double x0_c = 0.0, vx_c = 0.0, ax_c = 0.0;
@@ -1196,13 +1214,13 @@ private:
               fact,
               Cx0,
               Cx1 + vel_prior_mass * fb_px,
-              0.5 * Cx2,
+              0.5 * Cx2 - vel_prior_tau * fb_px,
               x0_c, vx_c, ax_c);
             const bool sy_ok = solve3_cholesky(
               fact,
               Cy0,
               Cy1 + vel_prior_mass * fb_py,
-              0.5 * Cy2,
+              0.5 * Cy2 - vel_prior_tau * fb_py,
               y0_c, vy_c, ay_c);
             (void)x0_c;
             (void)y0_c;

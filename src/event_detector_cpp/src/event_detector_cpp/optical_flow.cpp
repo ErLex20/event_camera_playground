@@ -53,6 +53,7 @@ using event_detector_cpp::flow::MomentFlowParams;
 
 // Busier windows are strided down so the per-window moment update stays bounded.
 constexpr std::size_t kMaxSolveEvents = 2000000;
+constexpr float kFocusSplatOffsetIwePx = 0.21f;
 
 struct EventSample
 {
@@ -163,6 +164,7 @@ IweRenderStats render_iwe_bilinear(
   int scale,
   bool warp,
   float t_ref_target_s,
+  float splat_offset_iwe_px,
   cv::Mat & iwe)
 {
   IweRenderStats stats;
@@ -191,8 +193,8 @@ IweRenderStats render_iwe_bilinear(
         wy += 0.5f * dq * ay;
       }
     }
-    wx *= inv_scale;
-    wy *= inv_scale;
+    wx = wx * inv_scale + splat_offset_iwe_px;
+    wy = wy * inv_scale + splat_offset_iwe_px;
 
     const int x0 = static_cast<int>(std::floor(wx));
     const int y0 = static_cast<int>(std::floor(wy));
@@ -453,17 +455,20 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
 
   cv::Mat focus_id, focus_mid, focus_lo, focus_hi;
   render_iwe_bilinear(
-    render_ev, F, nullptr, final_tiles, w, h, iwe_scale, false, 0.0f, focus_id);
+    render_ev, F, nullptr, final_tiles, w, h, iwe_scale, false, 0.0f,
+    kFocusSplatOffsetIwePx, focus_id);
   render_iwe_bilinear(
-    render_ev, F, accel_ptr, final_tiles, w, h, iwe_scale, true, 0.0f, focus_mid);
+    render_ev, F, accel_ptr, final_tiles, w, h, iwe_scale, true, 0.0f,
+    kFocusSplatOffsetIwePx, focus_mid);
   render_iwe_bilinear(
-    render_ev, F, accel_ptr, final_tiles, w, h, iwe_scale, true, t_lo_ref_s, focus_lo);
+    render_ev, F, accel_ptr, final_tiles, w, h, iwe_scale, true, t_lo_ref_s,
+    kFocusSplatOffsetIwePx, focus_lo);
   render_iwe_bilinear(
-    render_ev, F, accel_ptr, final_tiles, w, h, iwe_scale, true, t_hi_ref_s, focus_hi);
-  // Integer event coords keep the identity IWE on single pixels (no sub-pixel
-  // spread) -> artificially high L1-gradient, while any warp produces fractional
-  // coords that bilinear splatting smooths. Equalize with the same sigma=1px blur
-  // (delta ~= Gaussian(1px)) so focus_f measures alignment, not warp.
+    render_ev, F, accel_ptr, final_tiles, w, h, iwe_scale, true, t_hi_ref_s,
+    kFocusSplatOffsetIwePx, focus_hi);
+  // The common sub-pixel offset gives integer identity splats variance
+  // eps*(1-eps) ~= 1/6, the average bilinear variance of fractional warps.
+  // Applying it to every focus render keeps zero-motion focus_f exactly neutral.
   auto focus_contrast = [](const cv::Mat & iwe) {
     cv::Mat b;
     cv::GaussianBlur(iwe, b, cv::Size(0, 0), 1.0);
@@ -588,7 +593,7 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
     const Eigen::VectorXf * support_accel = support_warp ? accel_ptr : nullptr;
     render_iwe_bilinear(
       render_ev, F, support_accel, final_tiles, w, h,
-      1, support_warp, 0.0f, support_iwe_f);
+      1, support_warp, 0.0f, kFocusSplatOffsetIwePx, support_iwe_f);
   }
   const cv::Mat support_mask = make_iwe_support_mask(support_iwe_f);
   result.flow_events = mask_flow_by_support(result.flow_dense, support_mask);
