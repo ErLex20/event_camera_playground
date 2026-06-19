@@ -480,6 +480,20 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
   const double g_hi  = focus_contrast(focus_hi);
   const double focus_f = (g_lo + 2.0 * g_mid + g_hi) / (4.0 * g_id);
 
+  // FWL standard (single-reference, Stoffregen & Kleeman 2019): rapporto tra la
+  // varianza dell'IWE motion-compensated e quella dell'IWE identita'. E' la metrica
+  // riportata da Shiba et al. (Tabella II), quindi il termine di confronto diretto
+  // con la CMax. Niente GaussianBlur (a differenza di focus_f) e calcolata sull'IWE
+  // float grezza, prima di qualsiasi normalizzazione.
+  auto iwe_variance = [](const cv::Mat & iwe) {
+    cv::Scalar mean, stddev;
+    cv::meanStdDev(iwe, mean, stddev);   // stddev normalizzata per N -> Var = sigma^2 (eq. 3)
+    return stddev[0] * stddev[0];
+  };
+  const double var_id  = std::max(iwe_variance(focus_id), 1e-12);
+  const double var_mid = iwe_variance(focus_mid);
+  const double fwl = var_mid / var_id;
+
   const bool flow_rejected = !(focus_f > 1.0);
 
   prev_flow_field_ = F;
@@ -652,9 +666,10 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
     get_logger(),
     "Flow profile IWE: render_events=%zu event_pack=%.3f ms flow_image=%.3f ms "
     "iwe_render_norm=%.3f ms order=%d focus_f=%.4f (lo=%.6f mid=%.6f hi=%.6f id=%.6f) "
-    "rejected=%d",
+    "fwl=%.4f (var_warp=%.6f var_id=%.6f) rejected=%d",
     render_ev.size(), render_events_ms, flow_image_ms, iwe_ms,
     params.time_aware_order, focus_f, g_lo, g_mid, g_hi, g_id,
+    fwl, var_mid, var_id,
     flow_rejected ? 1 : 0);
 
   RCLCPP_INFO(
