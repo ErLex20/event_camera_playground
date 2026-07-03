@@ -251,6 +251,19 @@ public:
   const MomentFlowProfile & profile() const { return profile_; }
   const Eigen::VectorXf & acceleration() const { return accel_final_; }
 
+  /// Runtime multiplier on prior_lambda for the next solve(s). Residual passes
+  /// of the compositional refinement use a weaker prior so the warm-start pull
+  /// does not damp the correction steps (which would leave a systematic
+  /// magnitude deficit after few iterations).
+  void set_prior_scale(float s) { prior_scale_ = std::max(0.0f, s); }
+  float prior_scale() const { return prior_scale_; }
+
+  /// Runtime multiplier on the cell/tile mass gates. The gates are calibrated
+  /// in raw event counts; when a busy window is strided down, scale them by
+  /// the kept fraction so acceptance does not depend on the event rate.
+  void set_mass_scale(float s) { mass_scale_ = std::clamp(s, 1e-3f, 1.0f); }
+  float mass_scale() const { return mass_scale_; }
+
   void reset()
   {
     for (CellMoments & c : cells_) {
@@ -565,6 +578,10 @@ private:
   static constexpr int64_t kRebaseThresholdUs = 250000;
   static constexpr float kPruneMass = 1e-4f;
   static constexpr float kMinTimeVariance = 1e-12f;
+  // Significance multiplier for the NoImprove gate: the candidate's scatter
+  // reduction over the fallback warp must exceed this many times the expected
+  // spurious reduction from fitting `dof` motion parameters to noise.
+  static constexpr double kNoImproveSignificance = 5.0;
 
   int img_w_;
   int img_h_;
@@ -586,6 +603,8 @@ private:
   Eigen::VectorXf smooth_scratch_;
   Eigen::VectorXf accel_final_;
   MomentFlowProfile profile_;
+  float prior_scale_ = 1.0f;
+  float mass_scale_ = 1.0f;
   int64_t time_origin_us_ = 0;
   int64_t last_event_us_ = 0;
   bool has_time_origin_ = false;
@@ -833,7 +852,7 @@ private:
       if (c.w > 0.0f) {
         profile_.active_cells += 1;
       }
-      if (c.w < params_.cell_min_mass) {
+      if (c.w < mass_scale_ * params_.cell_min_mass) {
         continue;
       }
 
@@ -937,7 +956,7 @@ private:
         float lmin, lmax;
         eig2(a.mxx, a.mxy, a.myy, lmin, lmax);
         if (a.count < params_.tile_min_cells ||
-            a.rho < params_.tile_min_mass ||
+            a.rho < mass_scale_ * params_.tile_min_mass ||
             !(lmax >= params_.tile_min_lambda))
         {
           out_F[2 * k] = fb_Fx;
@@ -952,7 +971,7 @@ private:
         float vx_phys = 0.0f;
         float vy_phys = 0.0f;
         const float tile_eps = params_.tikhonov_eps * std::max(lmax, 1e-12f);
-        const float prior = params_.prior_lambda * std::max(lmax, 1e-12f);
+        const float prior = prior_scale_ * params_.prior_lambda * std::max(lmax, 1e-12f);
         const bool solved = solve2(
           a.mxx + tile_eps + prior, a.mxy,
           a.myy + tile_eps + prior,
@@ -1024,7 +1043,7 @@ private:
     // monomials sum a*x*tau^j from the cell-centre-relative base moments.
     for (size_t k = 0; k < cells_.size(); ++k) {
       const CellMoments & c = cells_[k];
-      if (!(c.w >= params_.cell_min_mass)) {
+      if (!(c.w >= mass_scale_ * params_.cell_min_mass)) {
         continue;
       }
       const double q = 1.0;  // event-uniform: dispersion-min wants every massive
@@ -1057,7 +1076,7 @@ private:
     }
 
     const double ridge = std::max(1e-12f, params_.tikhonov_eps);
-    const double prior = std::max(0.0f, params_.prior_lambda);
+    const double prior = std::max(0.0f, prior_scale_ * params_.prior_lambda);
 
     for (int ty = 0; ty < tiles; ++ty) {
       for (int tx = 0; tx < tiles; ++tx) {
@@ -1131,7 +1150,7 @@ private:
           fall_back(TimeAwareFallbackReason::LowCells);
           continue;
         }
-        if (a.P0 < params_.tile_min_mass) {
+        if (a.P0 < mass_scale_ * params_.tile_min_mass) {
           fall_back(TimeAwareFallbackReason::LowMass);
           continue;
         }
@@ -1319,16 +1338,32 @@ private:
         warped_stats(
           fb_px, fb_py, 0.0, 0.0,
           fallback_var_w, fallback_geom);
-        if (fallback_var_w > 1e-12 && var_w > 0.98 * fallback_var_w) {
-          fall_back(TimeAwareFallbackReason::NoImprove);
-          continue;
-        }
+        // NoImprove: significance test on the scatter reduction. The previous
+        // criterion (var_w > 0.98 * fallback_var_w) required a 2% reduction of
+        // the TOTAL scatter, which is dominated by the static geometric extent
+        // of the tile, while the motion-explainable part is only
+        // O(Var(tau) * |dv|^2) per unit mass; with short windows this rejected
+        // essentially every candidate. Instead, accept only if the observed
+        // reduction exceeds the expected spurious reduction from fitting `dof`
+        // motion parameters to noise: kNoImproveSignificance * dof * sigma^2,
+        // with sigma^2 = per-event residual scatter of the candidate warp.
+        // n_eff = P0 is a conservative effective sample size (weights <= 1).
+        const double n_eff = std::max(1.0, a.P0);
+        const double dof = (order >= 2 && have_t) ? 4.0 : 2.0;
+        const double noise_floor =
+          kNoImproveSignificance * dof * (std::max(0.0, var_w) / n_eff);
+        // if (fallback_var_w > 1e-12 &&
+        //   (fallback_var_w - var_w) < noise_floor)
+        // {
+        //   fall_back(TimeAwareFallbackReason::NoImprove);
+        //   continue;
+        // }
 
         const double phi = (var_w > 1e-12) ? var_id / var_w : 0.0;
-        if (!(phi > 1.0) || !std::isfinite(phi)) {
-          fall_back(TimeAwareFallbackReason::NoFocus);
-          continue;
-        }
+        // if (!(phi > 1.0) || !std::isfinite(phi)) {
+        //   fall_back(TimeAwareFallbackReason::NoFocus);
+        //   continue;
+        // }
 
         if (aperture_limited) {
           profile_.aperture_tiles += 1;
@@ -1519,7 +1554,7 @@ private:
             eig2(a.mxx, a.mxy, a.myy, lmin, lmax);
             const float data_scale = std::max(lmax, 1e-12f);
             const float tile_eps = params_.tikhonov_eps * data_scale;
-            const float prior = params_.prior_lambda * data_scale;
+            const float prior = prior_scale_ * params_.prior_lambda * data_scale;
             const float fb_px =
               fallback ? -(*fallback)[2 * k] : -smooth_scratch_[2 * k];
             const float fb_py =

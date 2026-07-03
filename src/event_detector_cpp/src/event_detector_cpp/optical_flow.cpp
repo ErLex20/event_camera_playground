@@ -37,6 +37,8 @@
 #include <limits>
 #include <vector>
 
+#include <omp.h>
+
 #include <Eigen/Core>
 
 #include <opencv2/core.hpp>
@@ -51,8 +53,10 @@ namespace
 using event_detector_cpp::flow::Events;
 using event_detector_cpp::flow::MomentFlowParams;
 
-// Busier windows are strided down so the per-window moment update stays bounded.
-constexpr std::size_t kMaxSolveEvents = 2000000;
+// Busier windows are strided down so the per-window moment update stays
+// bounded. The tile/cell moment statistics saturate well below this count;
+// keeping it small bounds the cost of every warped re-solve iteration.
+constexpr std::size_t kMaxSolveEvents = 500000;
 constexpr float kFocusSplatOffsetIwePx = 0.21f;
 
 struct EventSample
@@ -137,6 +141,142 @@ void sanitize_field(Eigen::VectorXf & F)
   }
 }
 
+void clamp_field_speed(Eigen::VectorXf & F, float max_speed)
+{
+  for (int k = 0; k < F.size() / 2; ++k) {
+    const float speed = std::hypot(F[2 * k], F[2 * k + 1]);
+    if (speed > max_speed) {
+      const float s = max_speed / speed;
+      F[2 * k] *= s;
+      F[2 * k + 1] *= s;
+    }
+  }
+}
+
+/**
+ * Confidence-weighted diffusion of the composed tile field. The in-solve
+ * regularizer only sees the per-pass residual field; the composed field
+ * accumulates speckle across passes/frames and tiles without data keep stale
+ * values. Each sweep pulls every tile toward the confidence-weighted mean of
+ * its 4-neighborhood: low-confidence tiles adopt their neighbors, data-rich
+ * tiles stay put. Confidences are normalized by their positive mean, so the
+ * scheme is invariant to the arbitrary scale of the solver confidence.
+ */
+void smooth_field_confidence(
+  Eigen::VectorXf & F,
+  const std::vector<float> & conf,
+  int tiles,
+  int sweeps,
+  float beta)
+{
+  const int n_tiles = tiles * tiles;
+  if (static_cast<int>(conf.size()) < n_tiles || tiles <= 1 || sweeps <= 0) {
+    return;
+  }
+  double conf_sum = 0.0;
+  int conf_n = 0;
+  for (int k = 0; k < n_tiles; ++k) {
+    if (std::isfinite(conf[k]) && conf[k] > 0.0f) {
+      conf_sum += conf[k];
+      conf_n += 1;
+    }
+  }
+  if (conf_n == 0) {
+    return;
+  }
+  const float conf_scale = static_cast<float>(conf_n / conf_sum);
+  constexpr float kNeighborFloor = 0.05f;  // lets flow diffuse into empty regions
+  constexpr float kConfCap = 10.0f;        // one hot tile must not freeze its patch
+
+  std::vector<float> c(static_cast<size_t>(n_tiles));
+  for (int k = 0; k < n_tiles; ++k) {
+    const float ck = (std::isfinite(conf[k]) && conf[k] > 0.0f)
+      ? conf[k] * conf_scale : 0.0f;
+    // sqrt compresses the confidence dynamic range: slow scene regions emit
+    // fewer events (low mass -> low confidence) but their estimate is valid;
+    // without compression fast neighbors diffuse over them.
+    c[static_cast<size_t>(k)] = std::min(std::sqrt(ck), kConfCap);
+  }
+
+  Eigen::VectorXf F_prev = F;
+  for (int s = 0; s < sweeps; ++s) {
+    for (int ty = 0; ty < tiles; ++ty) {
+      for (int tx = 0; tx < tiles; ++tx) {
+        const int k = ty * tiles + tx;
+        float wsum = 0.0f, ax = 0.0f, ay = 0.0f;
+        auto add = [&](int nx, int ny) {
+            if (nx < 0 || ny < 0 || nx >= tiles || ny >= tiles) {
+              return;
+            }
+            const int nk = ny * tiles + nx;
+            const float wn = c[static_cast<size_t>(nk)] + kNeighborFloor;
+            wsum += wn;
+            ax += wn * F_prev[2 * nk];
+            ay += wn * F_prev[2 * nk + 1];
+          };
+        add(tx - 1, ty);
+        add(tx + 1, ty);
+        add(tx, ty - 1);
+        add(tx, ty + 1);
+        if (!(wsum > 0.0f)) {
+          continue;
+        }
+        const float wk = c[static_cast<size_t>(k)];
+        const float denom = wk + beta * wsum;
+        F[2 * k] = (wk * F_prev[2 * k] + beta * ax) / denom;
+        F[2 * k + 1] = (wk * F_prev[2 * k + 1] + beta * ay) / denom;
+      }
+    }
+    F_prev = F;
+  }
+}
+
+/**
+ * Warp events to the reference time with the current tile field (and optional
+ * acceleration field): x' = x + t*v(x) + 0.5*t^2*a(x), t relative to t_ref.
+ * Out-of-bounds warps are dropped, mirroring MomentFlow::ingest.
+ */
+void warp_events_by_field(
+  const Events & src,
+  const Eigen::VectorXf & F,
+  const Eigen::VectorXf * A,
+  int tiles,
+  int img_w,
+  int img_h,
+  Events & dst)
+{
+  dst.t_ref_us = src.t_ref_us;
+  dst.x.resize(src.size());
+  dst.y.resize(src.size());
+  dst.t.resize(src.size());
+  size_t n = 0;
+  for (size_t k = 0; k < src.size(); ++k) {
+    const float x = src.x[k];
+    const float y = src.y[k];
+    const float t = src.t[k];
+    float vx, vy;
+    sample_tile_velocity(F, tiles, tiles, img_w, img_h, x, y, vx, vy);
+    float wx = x + t * vx;
+    float wy = y + t * vy;
+    if (A != nullptr) {
+      float ax, ay;
+      sample_tile_velocity(*A, tiles, tiles, img_w, img_h, x, y, ax, ay);
+      wx += 0.5f * t * t * ax;
+      wy += 0.5f * t * t * ay;
+    }
+    if (!(wx >= 0.0f && wy >= 0.0f && wx < img_w && wy < img_h)) {
+      continue;
+    }
+    dst.x[n] = wx;
+    dst.y[n] = wy;
+    dst.t[n] = t;
+    ++n;
+  }
+  dst.x.resize(n);
+  dst.y.resize(n);
+  dst.t.resize(n);
+}
+
 double iwe_contrast(const cv::Mat & iwe)
 {
   if (iwe.rows < 2 || iwe.cols < 2 || iwe.type() != CV_32F) {
@@ -215,23 +355,67 @@ IweRenderStats render_iwe_bilinear(
   return stats;
 }
 
-cv::Mat make_iwe_support_mask(const cv::Mat & support_iwe)
+/**
+ * Full-resolution event-support mask: marks the bilinear footprint of every
+ * (optionally warped) event. Direct 8U splat — replaces the float IWE render +
+ * threshold pass, which dominated the per-window render budget.
+ */
+cv::Mat render_support_mask(
+  const Events & events,
+  const Eigen::VectorXf & F,
+  const Eigen::VectorXf * A,
+  int tiles,
+  int img_w,
+  int img_h,
+  bool warp)
 {
-  if (support_iwe.empty() || support_iwe.type() != CV_32F) {
-    return cv::Mat();
+  const int n_threads = std::max(1, std::min(omp_get_max_threads(), 8));
+  std::vector<cv::Mat> masks(static_cast<size_t>(n_threads));
+  for (cv::Mat & m : masks) {
+    m = cv::Mat(img_h, img_w, CV_8U, cv::Scalar(0));
   }
 
-  cv::Mat support_mask(support_iwe.rows, support_iwe.cols, CV_8U, cv::Scalar(0));
-  for (int y = 0; y < support_iwe.rows; ++y) {
-    const float * support_row = support_iwe.ptr<float>(y);
-    uint8_t * mask_row = support_mask.ptr<uint8_t>(y);
-    for (int x = 0; x < support_iwe.cols; ++x) {
-      if (std::isfinite(support_row[x]) && support_row[x] > 0.0f) {
-        mask_row[x] = 255;
+  #pragma omp parallel num_threads(n_threads)
+  {
+    cv::Mat & mask = masks[static_cast<size_t>(omp_get_thread_num())];
+    #pragma omp for schedule(static)
+    for (int64_t k = 0; k < static_cast<int64_t>(events.size()); ++k) {
+      float wx = events.x[k];
+      float wy = events.y[k];
+      if (warp) {
+        const float t = events.t[k];
+        float vx, vy;
+        sample_tile_velocity(F, tiles, tiles, img_w, img_h, wx, wy, vx, vy);
+        float px = events.x[k] + t * vx;
+        float py = events.y[k] + t * vy;
+        if (A != nullptr) {
+          float ax, ay;
+          sample_tile_velocity(*A, tiles, tiles, img_w, img_h, wx, wy, ax, ay);
+          px += 0.5f * t * t * ax;
+          py += 0.5f * t * t * ay;
+        }
+        wx = px;
+        wy = py;
       }
+      const int x0 = static_cast<int>(std::floor(wx));
+      const int y0 = static_cast<int>(std::floor(wy));
+      if (x0 < 0 || y0 < 0 || x0 + 1 >= img_w || y0 + 1 >= img_h) {
+        continue;
+      }
+      uint8_t * r0 = mask.ptr<uint8_t>(y0);
+      uint8_t * r1 = mask.ptr<uint8_t>(y0 + 1);
+      r0[x0] = 255;
+      r0[x0 + 1] = 255;
+      r1[x0] = 255;
+      r1[x0 + 1] = 255;
     }
   }
-  return support_mask;
+
+  cv::Mat mask = masks[0];
+  for (int i = 1; i < n_threads; ++i) {
+    cv::bitwise_or(mask, masks[static_cast<size_t>(i)], mask);
+  }
+  return mask;
 }
 
 cv::Mat mask_flow_by_support(const cv::Mat & flow_dense, const cv::Mat & support_mask)
@@ -371,15 +555,11 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
       get_logger(), *get_clock(), 5000,
       "flow_tau_adaptive is reserved and currently behaves as disabled");
   }
-  if (flow_refine_enabled_) {
-    RCLCPP_WARN_THROTTLE(
-      get_logger(), *get_clock(), 5000,
-      "flow_refine_enabled is reserved for Stage C and currently behaves as disabled");
-  }
 
   if (!moment_flow_.has_value() || !moment_flow_->compatible(w, h, params)) {
     moment_flow_.emplace(w, h, params);
   }
+  moment_flow_->set_mass_scale(1.0f / static_cast<float>(stride));
 
   Eigen::VectorXf warm_start;
   const bool have_prev = (prev_flow_tiles_ > 0 &&
@@ -393,11 +573,103 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
   }
 
   const auto t_moment = ProfileClock::now();
-  moment_flow_->reset();
-  moment_flow_->ingest(ev);
+  // Full residual formulation: when a warm start exists, warp the events by it
+  // and estimate only the (small) residual field. Solving on raw events would
+  // re-measure the full displacement, which the within-tile dispersion
+  // regression systematically underestimates once a structure crosses the
+  // tile during the window (dense texture -> data term biased toward zero).
+  // With the pre-warp, the data term is unbiased around the tracked field and
+  // the estimator only needs to follow changes.
+  const bool have_warm_field = warm_start.size() == moment_flow_->num_vars();
   Eigen::VectorXf F(moment_flow_->num_vars());
-  moment_flow_->solve(warm_start, F);
-  sanitize_field(F);
+  const Eigen::VectorXf no_warm_first;
+  if (have_warm_field) {
+    Events wev0;
+    warp_events_by_field(ev, warm_start, nullptr, final_tiles, w, h, wev0);
+    if (wev0.size() >= 2) {
+      moment_flow_->reset();
+      moment_flow_->ingest(wev0);
+      moment_flow_->set_prior_scale(0.5f);
+      moment_flow_->solve(no_warm_first, F);
+      moment_flow_->set_prior_scale(1.0f);
+      sanitize_field(F);
+      F += warm_start;
+    } else {
+      F = warm_start;
+    }
+  } else {
+    moment_flow_->reset();
+    moment_flow_->ingest(ev);
+    moment_flow_->solve(warm_start, F);
+    sanitize_field(F);
+  }
+
+  // ---- Stage C: compositional warped re-solve (Gauss-Newton on dispersion) ----
+  // The single-pass tile regression truncates large displacements: with long
+  // windows an edge crosses several tiles/cells and the linear moment model
+  // underestimates speed. Warping events by the current field and re-solving
+  // for the residual is the moment-domain analogue of the CMax multi-iteration
+  // alignment (Shiba et al.): each pass sharpens the warped cloud, the residual
+  // field shrinks, and the composition F <- F + dF converges to the dispersion
+  // optimum without the truncation bias.
+  Eigen::VectorXf accel_total;
+  if (params.time_aware_order >= 2) {
+    accel_total = moment_flow_->acceleration();
+    sanitize_field(accel_total);
+  }
+  int refine_done = 0;
+  double refine_ms = 0.0;
+  if (flow_refine_enabled_ && flow_refine_iters_ > 0) {
+    const auto t_refine = ProfileClock::now();
+    // Residual speeds below this leave sub-pixel displacement over the window:
+    // further iterations cannot sharpen the IWE, so stop early.
+    const float t_span_s = std::max(
+      1e-4f, static_cast<float>(t_hi_us - t_lo_us) * 1e-6f);
+    const float res_speed_eps = 0.5f / t_span_s;  // 0.5 px over the window
+    Events wev;
+    Eigen::VectorXf F_res(moment_flow_->num_vars());
+    const Eigen::VectorXf no_warm;
+    // Residual passes: a moderate prior (toward zero residual) keeps
+    // degenerate tiles stable while letting corrections through; the full
+    // prior would damp every step by ~1/(1+prior_lambda).
+    moment_flow_->set_prior_scale(0.5f);
+    for (int it = 0; it < static_cast<int>(flow_refine_iters_); ++it) {
+      warp_events_by_field(
+        ev, F, accel_total.size() > 0 ? &accel_total : nullptr,
+        final_tiles, w, h, wev);
+      if (wev.size() < 2) {
+        break;
+      }
+      moment_flow_->reset();
+      moment_flow_->ingest(wev);
+      moment_flow_->solve(no_warm, F_res);
+      sanitize_field(F_res);
+      float max_res = 0.0f;
+      for (int k = 0; k < F_res.size() / 2; ++k) {
+        max_res = std::max(max_res, std::hypot(F_res[2 * k], F_res[2 * k + 1]));
+      }
+      F += F_res;
+      if (accel_total.size() > 0) {
+        Eigen::VectorXf a_res = moment_flow_->acceleration();
+        sanitize_field(a_res);
+        accel_total += a_res;
+      }
+      refine_done += 1;
+      if (max_res < res_speed_eps) {
+        break;
+      }
+    }
+    moment_flow_->set_prior_scale(1.0f);
+    clamp_field_speed(F, static_cast<float>(flow_max_speed_px_s_));
+    refine_ms = elapsed_ms(t_refine);
+  }
+  {
+    // Regularize the composed field: the in-solve regularizer only saw the
+    // last residual pass.
+    std::vector<float> smooth_conf;
+    moment_flow_->final_tile_confidence(smooth_conf);
+    smooth_field_confidence(F, smooth_conf, final_tiles, 4, 0.5f);
+  }
   {
     const int n_tiles = final_tiles * final_tiles;
     std::vector<float> conf;
@@ -448,23 +720,44 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
   // the candidate visible anyway; otherwise a strict gate can black out the
   // first frame and keep every later warm start at zero.
   const Eigen::VectorXf * accel_ptr =
-    (params.time_aware_order >= 2) ? &moment_flow_->acceleration() : nullptr;
+    (accel_total.size() > 0) ? &accel_total : nullptr;
   const int iwe_scale = std::max<int>(1, static_cast<int>(flow_iwe_scale_));
   const float t_lo_ref_s = static_cast<float>(t_lo_us - t_ref_us) * 1e-6f;
   const float t_hi_ref_s = static_cast<float>(t_hi_us - t_ref_us) * 1e-6f;
 
+  // The focus diagnostic uses contrast ratios, which are stable under event
+  // subsampling: cap the events fed to the four focus renders so the
+  // diagnostic cost stays bounded on busy windows.
+  constexpr std::size_t kMaxFocusEvents = 150000;
+  const auto t_focus = ProfileClock::now();
+  Events focus_ev;
+  const Events * focus_src = &render_ev;
+  if (render_ev.size() > kMaxFocusEvents) {
+    const std::size_t fstride = (render_ev.size() + kMaxFocusEvents - 1) / kMaxFocusEvents;
+    focus_ev.t_ref_us = render_ev.t_ref_us;
+    focus_ev.x.reserve(render_ev.size() / fstride + 1);
+    focus_ev.y.reserve(render_ev.size() / fstride + 1);
+    focus_ev.t.reserve(render_ev.size() / fstride + 1);
+    for (size_t k = 0; k < render_ev.size(); k += fstride) {
+      focus_ev.x.push_back(render_ev.x[k]);
+      focus_ev.y.push_back(render_ev.y[k]);
+      focus_ev.t.push_back(render_ev.t[k]);
+    }
+    focus_src = &focus_ev;
+  }
+
   cv::Mat focus_id, focus_mid, focus_lo, focus_hi;
   render_iwe_bilinear(
-    render_ev, F, nullptr, final_tiles, w, h, iwe_scale, false, 0.0f,
+    *focus_src, F, nullptr, final_tiles, w, h, iwe_scale, false, 0.0f,
     kFocusSplatOffsetIwePx, focus_id);
   render_iwe_bilinear(
-    render_ev, F, accel_ptr, final_tiles, w, h, iwe_scale, true, 0.0f,
+    *focus_src, F, accel_ptr, final_tiles, w, h, iwe_scale, true, 0.0f,
     kFocusSplatOffsetIwePx, focus_mid);
   render_iwe_bilinear(
-    render_ev, F, accel_ptr, final_tiles, w, h, iwe_scale, true, t_lo_ref_s,
+    *focus_src, F, accel_ptr, final_tiles, w, h, iwe_scale, true, t_lo_ref_s,
     kFocusSplatOffsetIwePx, focus_lo);
   render_iwe_bilinear(
-    render_ev, F, accel_ptr, final_tiles, w, h, iwe_scale, true, t_hi_ref_s,
+    *focus_src, F, accel_ptr, final_tiles, w, h, iwe_scale, true, t_hi_ref_s,
     kFocusSplatOffsetIwePx, focus_hi);
   // The common sub-pixel offset gives integer identity splats variance
   // eps*(1-eps) ~= 1/6, the average bilinear variance of fractional warps.
@@ -495,6 +788,7 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
   const double fwl = var_mid / var_id;
 
   const bool flow_rejected = !(focus_f > 1.0);
+  const double focus_ms = elapsed_ms(t_focus);
 
   prev_flow_field_ = F;
   prev_flow_tiles_ = final_tiles;
@@ -507,6 +801,8 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
   double vy_sum = 0.0;
   double vx2_sum = 0.0;
   double vy2_sum = 0.0;
+  #pragma omp parallel for schedule(static) \
+  reduction(+ : vx_sum, vy_sum, vx2_sum, vy2_sum)
   for (int y = 0; y < h; ++y) {
     float * arow = angle.ptr<float>(y);
     float * mrow = magnitude.ptr<float>(y);
@@ -592,24 +888,23 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
   const double flow_image_ms = elapsed_ms(t_flow_image);
 
   const auto t_iwe = ProfileClock::now();
-  cv::Mat result_iwe_f;
-  if (!flow_rejected) {
-    result_iwe_f = focus_mid;   // reuse the t_mid warped IWE
-  } else {
-    result_iwe_f = focus_id;    // keep the published IWE readable when focus rejects
+  // The published IWE is a visualization: the (subsampled, possibly
+  // downscaled) focus render is sufficient, upscaled back to sensor size.
+  {
+    cv::Mat iwe_vis;
+    cv::normalize(
+      flow_rejected ? focus_id : focus_mid, iwe_vis, 0.0, 255.0, cv::NORM_MINMAX, CV_8U);
+    if (iwe_vis.size() != cv::Size(w, h)) {
+      cv::resize(iwe_vis, result.iwe, cv::Size(w, h), 0.0, 0.0, cv::INTER_NEAREST);
+    } else {
+      result.iwe = iwe_vis;
+    }
   }
-  cv::normalize(result_iwe_f, result.iwe, 0.0, 255.0, cv::NORM_MINMAX, CV_8U);
-  cv::Mat support_iwe_f;
-  if (iwe_scale == 1) {
-    support_iwe_f = result_iwe_f;
-  } else {
-    const bool support_warp = !flow_rejected;
-    const Eigen::VectorXf * support_accel = support_warp ? accel_ptr : nullptr;
-    render_iwe_bilinear(
-      render_ev, F, support_accel, final_tiles, w, h,
-      1, support_warp, 0.0f, kFocusSplatOffsetIwePx, support_iwe_f);
-  }
-  const cv::Mat support_mask = make_iwe_support_mask(support_iwe_f);
+  // The support mask must reflect every event at full resolution regardless of
+  // the subsampled focus renders above.
+  const cv::Mat support_mask = render_support_mask(
+    render_ev, F, flow_rejected ? nullptr : accel_ptr,
+    final_tiles, w, h, /*warp=*/!flow_rejected);
   result.flow_events = mask_flow_by_support(result.flow_dense, support_mask);
   result.flow_events_debug = mask_debug_by_support(result.flow_dense_debug, support_mask);
   const double iwe_ms = elapsed_ms(t_iwe);
@@ -664,13 +959,14 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
 
   RCLCPP_INFO(
     get_logger(),
-    "Flow profile IWE: render_events=%zu event_pack=%.3f ms flow_image=%.3f ms "
+    "Flow profile IWE: render_events=%zu focus_events=%zu event_pack=%.3f ms "
+    "focus=%.3f ms flow_image=%.3f ms "
     "iwe_render_norm=%.3f ms order=%d focus_f=%.4f (lo=%.6f mid=%.6f hi=%.6f id=%.6f) "
-    "fwl=%.4f (var_warp=%.6f var_id=%.6f) rejected=%d",
-    render_ev.size(), render_events_ms, flow_image_ms, iwe_ms,
+    "fwl=%.4f (var_warp=%.6f var_id=%.6f) rejected=%d refine_iters=%d refine=%.3f ms",
+    render_ev.size(), focus_src->size(), render_events_ms, focus_ms, flow_image_ms, iwe_ms,
     params.time_aware_order, focus_f, g_lo, g_mid, g_hi, g_id,
     fwl, var_mid, var_id,
-    flow_rejected ? 1 : 0);
+    flow_rejected ? 1 : 0, refine_done, refine_ms);
 
   RCLCPP_INFO(
     get_logger(),

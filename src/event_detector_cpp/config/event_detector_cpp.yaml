@@ -12,10 +12,10 @@
     sae_enabled: true              # render the Surface of Active Events (visualization only)
     iwe_enabled: true              # render the Image of Warped Events (alignment diagnostic / visualization)
     flow_enabled: true             # run the MomentFlow optical-flow estimator
-    flow_max_window_ms: 20.0      # event time span accumulated per flow estimate (one estimate per GT row when saving)
+    flow_max_window_ms: 100.0      # event time span accumulated per flow estimate (one estimate per GT row when saving)
     flow_num_scales: 6      # tile-pyramid scales; final grid = 2^(N-1) per side (6 -> 32x32 tiles)
     flow_cell_size_px: 4      # moment-grid cell size [px]; larger = more events/cell, stabler fits, coarser
-    flow_decay_enabled: true      # causal exponential down-weighting of older events within the window (OFF: full mass per window -> cleaner fits)
+    flow_decay_enabled: false      # causal exponential down-weighting of older events within the window (OFF: full mass per window -> cleaner fits)
     flow_decay_tau_us: 30000      # decay time constant [us] (used only when flow_decay_enabled)
     flow_tau_adaptive: false       # reserved; currently behaves as disabled
     flow_cell_min_mass: 3.0      # min accumulated event mass for a cell to be considered
@@ -26,19 +26,19 @@
     flow_tile_min_cells: 2      # min number of valid cells per tile (5: reject sparse/noisy tiles)
     flow_tile_min_lambda: 0.00001      # min tile geometry eigenvalue (else fall back to prior)
     flow_time_aware_order: 2      # solver: 0 legacy tensor, 1 dispersion const-vel, 2 local acceleration model
-    flow_aperture_ratio: 0.12      # ratio lmin/lmax below which a tile is aperture-limited (tangential taken from prior)
-    flow_tikhonov_eps: 0.001      # Tikhonov regularization coefficient (scaled by the tile's dominant eigenvalue)
+    flow_aperture_ratio: 0.04      # ratio lmin/lmax below which a tile is aperture-limited (tangential taken from prior)
+    flow_tikhonov_eps: 0.0005      # Tikhonov regularization coefficient (scaled by the tile's dominant eigenvalue)
 
-    flow_prior_lambda: 5.0      # pull toward the prior (coarser scale / warm-start); high = more stable but shrinks fast motion
+    flow_prior_lambda: 0.7      # pull toward the prior (coarser scale / warm-start); high = more stable but shrinks fast motion
     flow_reg_lambda: 5.0      # spatial coupling strength of the data-coupled regularizer (0 = exact no-op)
     flow_reg_sweeps: 12      # Gauss-Seidel sweeps for the coupled regularizer (0 = exact no-op)
     flow_reg_sigma: 60.0      # Charbonnier edge-preserving threshold [px/s]; large = nearly isotropic coupling
     flow_track_gamma: 0.5      # temporal tracking forget factor after each solve (0 = no history, 1 = keep full weight)
 
-    flow_refine_enabled: false     # reserved (Stage C refinement); currently behaves as disabled
-    flow_refine_iters: 2           # reserved; refinement iterations
+    flow_refine_enabled: true      # Stage C: compositional warped re-solve (CMax-style iterations)
+    flow_refine_iters: 4           # max warped re-solve iterations (early-stops at sub-pixel residual)
     flow_refine_huber_delta: 0.01  # reserved; Huber delta for robust refinement
-    flow_iwe_scale: 1      # downscale factor for the IWE focus diagnostic (>1 = faster/lower-res; does not affect saved flow)
+    flow_iwe_scale: 2      # downscale factor for the IWE focus diagnostic (>1 = faster/lower-res; does not affect saved flow)
     flow_max_speed_px_s: 3000.0      # speed clamp [px/s] and upper saturation for the flow visualization
     flow_save_enabled: true        # export the flow as DSEC-format 16-bit PNG
     flow_save_output_dir: /home/neo/workspace/logs/moment_flow/thun_00_a   # output directory for the exported flow PNGs
