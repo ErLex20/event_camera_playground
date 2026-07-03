@@ -25,7 +25,7 @@
     flow_tile_min_mass: 5.0      # min summed confidence (Σρ) for a tile to be solved from data
     flow_tile_min_cells: 2      # min number of valid cells per tile (5: reject sparse/noisy tiles)
     flow_tile_min_lambda: 0.00001      # min tile geometry eigenvalue (else fall back to prior)
-    flow_time_aware_order: 2      # solver: 0 legacy tensor, 1 dispersion const-vel, 2 local acceleration model
+    flow_time_aware_order: 3      # solver: 0 legacy tensor, 1 dispersion const-vel, 2 local acceleration model
     flow_aperture_ratio: 0.04      # ratio lmin/lmax below which a tile is aperture-limited (tangential taken from prior)
     flow_tikhonov_eps: 0.0005      # Tikhonov regularization coefficient (scaled by the tile's dominant eigenvalue)
 
@@ -33,14 +33,14 @@
     flow_reg_lambda: 5.0      # spatial coupling strength of the data-coupled regularizer (0 = exact no-op)
     flow_reg_sweeps: 12      # Gauss-Seidel sweeps for the coupled regularizer (0 = exact no-op)
     flow_reg_sigma: 60.0      # Charbonnier edge-preserving threshold [px/s]; large = nearly isotropic coupling
-    flow_track_gamma: 0.5      # temporal tracking forget factor after each solve (0 = no history, 1 = keep full weight)
+    flow_track_gamma: 0.0      # temporal tracking forget factor after each solve (0 = no history, 1 = keep full weight)
 
     flow_refine_enabled: true      # Stage C: compositional warped re-solve (CMax-style iterations)
-    flow_refine_iters: 4           # max warped re-solve iterations (early-stops at sub-pixel residual)
+    flow_refine_iters: 4           # max outer warped re-solve iterations (early-stops at sub-pixel residual)
     flow_refine_huber_delta: 0.01  # reserved; Huber delta for robust refinement
-    flow_iwe_scale: 2      # downscale factor for the IWE focus diagnostic (>1 = faster/lower-res; does not affect saved flow)
+    flow_iwe_scale: 1      # downscale factor for the IWE focus diagnostic (>1 = faster/lower-res; does not affect saved flow)
     flow_max_speed_px_s: 3000.0      # speed clamp [px/s] and upper saturation for the flow visualization
-    flow_save_enabled: true        # export the flow as DSEC-format 16-bit PNG
+    flow_save_enabled: false        # export the flow as DSEC-format 16-bit PNG
     flow_save_output_dir: /home/neo/workspace/logs/moment_flow/thun_00_a   # output directory for the exported flow PNGs
     flow_save_timestamp_file: /home/neo/workspace/logs/dsec/thun_00_a/optical_flow_forward/thun_00_a_optical_flow_forward_timestamps.txt   # DSEC (from_us, to_us, index) save schedule
     flow_save_clear_output: true   # delete stale PNGs in the output dir before saving

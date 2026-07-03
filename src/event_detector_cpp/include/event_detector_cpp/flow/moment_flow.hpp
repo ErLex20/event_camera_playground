@@ -236,8 +236,12 @@ public:
       tile_accum_t_.assign(
         static_cast<size_t>(final_tiles_) * final_tiles_, TileMomentsT{});
     }
-    if (params_.time_aware_order >= 2) {
+    if (params_.time_aware_order == 2) {
       cells_t_.assign(cells_.size(), CellMomentsT{});
+    }
+    if (params_.time_aware_order >= 3) {
+      tile_aniso_.assign(
+        static_cast<size_t>(final_tiles_) * final_tiles_, TileAniso{});
     }
   }
 
@@ -449,39 +453,149 @@ public:
         }
       }
 
-      const auto t_b = Clock::now();
-      if (params_.time_aware_order == 0) {
-        solve_scale(tiles, fallback, field);
-      } else {
-        Eigen::VectorXf stable_fallback(field.size());
-        const int saved_full_rank = profile_.full_rank_tiles;
-        const int saved_aperture = profile_.aperture_tiles;
-        const int saved_fallback = profile_.fallback_tiles;
-        const int saved_prior = profile_.prior_tiles;
-        const int saved_final_full_rank = profile_.final_full_rank_tiles;
-        const int saved_final_aperture = profile_.final_aperture_tiles;
-        const int saved_final_fallback = profile_.final_fallback_tiles;
-        solve_scale(tiles, fallback, stable_fallback);
-        profile_.full_rank_tiles = saved_full_rank;
-        profile_.aperture_tiles = saved_aperture;
-        profile_.fallback_tiles = saved_fallback;
-        profile_.prior_tiles = saved_prior;
-        profile_.final_full_rank_tiles = saved_final_full_rank;
-        profile_.final_aperture_tiles = saved_final_aperture;
-        profile_.final_fallback_tiles = saved_final_fallback;
-        Eigen::VectorXf * accel_out =
-          (l == params_.num_scales - 1 && params_.time_aware_order >= 2)
-            ? &accel_final_ : nullptr;
-        solve_scale_timeaware(tiles, stable_fallback, field, accel_out);
-      }
-      profile_.stage_b_ms += elapsed_ms(t_b, Clock::now());
-
-      const auto t_spatial = Clock::now();
-      regularize_field_coupled(tiles, field);
-      profile_.smooth_ms += elapsed_ms(t_spatial, Clock::now());
+      solve_one_scale(l, fallback, field);
     }
 
     copy_vector(scale_fields_.back(), F_out);
+    profile_.total_solve_ms = elapsed_ms(t_total, Clock::now());
+  }
+
+  /**
+   * Coarse-to-fine solve with per-scale event re-warping (residual
+   * formulation). The composed field G starts from the warm start; every
+   * scale estimates a residual w.r.t. the events warped by the current G.
+   * Once the tile size approaches the residual displacement
+   * (tiles >= rewarp_min_tiles), the accumulated residual is folded into G
+   * and the events are re-warped before the scale is solved, so each fine
+   * scale sees an (almost) motion-compensated cloud — the moment-domain
+   * analogue of coarse-to-fine CMax alignment. F_out follows the same warp
+   * convention as solve().
+   */
+  void solve_coarse_to_fine(
+    const Events & events,
+    const Eigen::VectorXf & warm_start,
+    Eigen::VectorXf & F_out,
+    int rewarp_min_tiles = 8)
+  {
+    using Clock = std::chrono::steady_clock;
+    const auto t_total = Clock::now();
+    if (F_out.size() != final_vars_) {
+      return;
+    }
+
+    const bool have_warm = warm_start.size() == final_vars_;
+    Eigen::VectorXf G = Eigen::VectorXf::Zero(final_vars_);
+    if (have_warm) {
+      copy_vector(warm_start, G);
+    }
+
+    double ingest_ms_acc = 0.0;
+    double stage_a_ms_acc = 0.0;
+    auto ingest_current = [&](bool warp) {
+        const auto t_i = Clock::now();
+        reset();
+        if (warp) {
+          warp_events(events, G, warp_scratch_);
+          ingest(warp_scratch_);
+        } else {
+          ingest(events);
+        }
+        if (params_.decay_enabled && last_event_us_ > 0) {
+          decay_all_to(last_event_us_);
+        }
+        ingest_ms_acc += elapsed_ms(t_i, Clock::now());
+        const auto t_a = Clock::now();
+        compute_cell_fits();
+        stage_a_ms_acc += elapsed_ms(t_a, Clock::now());
+      };
+
+    // Largest |t| relative to the reference time: converts residual tile
+    // speeds into worst-case displacements for the adaptive re-warp trigger.
+    float t_absmax = 0.0f;
+    for (size_t k = 0; k < events.size(); ++k) {
+      t_absmax = std::max(t_absmax, std::abs(events.t[k]));
+    }
+
+    ingest_current(have_warm);
+    if (profile_.valid_cells == 0 && profile_.active_cells == 0) {
+      copy_vector(G, F_out);
+      profile_.total_solve_ms = elapsed_ms(t_total, Clock::now());
+      return;
+    }
+
+    for (int l = 0; l < params_.num_scales; ++l) {
+      const int tiles = 1 << l;
+      Eigen::VectorXf & fallback = scale_fallback_[static_cast<size_t>(l)];
+      Eigen::VectorXf & field = scale_fields_[static_cast<size_t>(l)];
+
+      // Re-warping pays off only when the residual accumulated on the
+      // current ingest displaces events by a noticeable fraction of this
+      // scale's tile: below that the dispersion regression is already
+      // unbiased. In steady tracking the residual is sub-pixel, so no extra
+      // ingest ever happens; on cold start / motion changes the fine scales
+      // re-align automatically.
+      bool rewarp = false;
+      if (l > 0 && tiles >= std::max(2, rewarp_min_tiles)) {
+        const int prev_tiles_n = (1 << (l - 1)) * (1 << (l - 1));
+        const Eigen::VectorXf & prev = scale_fields_[static_cast<size_t>(l - 1)];
+        const float tile_px = static_cast<float>(std::min(img_w_, img_h_)) / tiles;
+        const float disp_threshold = std::max(2.0f, 0.5f * tile_px);
+        int over = 0;
+        for (int k = 0; k < prev_tiles_n; ++k) {
+          const float disp =
+            std::hypot(prev[2 * k], prev[2 * k + 1]) * t_absmax;
+          if (disp > disp_threshold) {
+            over += 1;
+          }
+        }
+        // A handful of outlier tiles must not force a re-warp (their noise
+        // would be baked into the event positions of every finer scale);
+        // a genuine cold start / motion change moves a broad share of tiles.
+        rewarp = over >= std::max(2, prev_tiles_n / 10);
+      }
+
+      if (l == 0) {
+        set_zero(fallback);
+      } else if (rewarp) {
+        // Fold the residual accumulated on the current ingest into G, then
+        // re-warp so this scale solves against a compensated cloud.
+        const int prev_tiles = 1 << (l - 1);
+        Eigen::VectorXf & prev_field = scale_fields_[static_cast<size_t>(l - 1)];
+        for (int j = 0; j < final_tiles_; ++j) {
+          for (int i = 0; i < final_tiles_; ++i) {
+            const float px = (static_cast<float>(i) + 0.5f) / final_tiles_ * img_w_;
+            const float py = (static_cast<float>(j) + 0.5f) / final_tiles_ * img_h_;
+            float vx, vy;
+            sample_field(prev_field, prev_tiles, px, py, vx, vy);
+            const int k = j * final_tiles_ + i;
+            G[2 * k] += vx;
+            G[2 * k + 1] += vy;
+          }
+        }
+        ingest_current(true);
+        set_zero(fallback);
+      } else {
+        resample_field(
+          scale_fields_[static_cast<size_t>(l - 1)], 1 << (l - 1), fallback, tiles);
+      }
+
+      solve_one_scale(l, fallback, field);
+    }
+
+    // Fold the final scale's residual and clamp the composed speed.
+    for (int k = 0; k < final_tiles_ * final_tiles_; ++k) {
+      float vx = G[2 * k] + scale_fields_.back()[2 * k];
+      float vy = G[2 * k + 1] + scale_fields_.back()[2 * k + 1];
+      if (!std::isfinite(vx) || !std::isfinite(vy)) {
+        vx = have_warm ? warm_start[2 * k] : 0.0f;
+        vy = have_warm ? warm_start[2 * k + 1] : 0.0f;
+      }
+      clamp_speed(vx, vy);
+      F_out[2 * k] = vx;
+      F_out[2 * k + 1] = vy;
+    }
+    profile_.ingest_ms = ingest_ms_acc;
+    profile_.stage_a_ms = stage_a_ms_acc;
     profile_.total_solve_ms = elapsed_ms(t_total, Clock::now());
   }
 
@@ -553,6 +667,16 @@ private:
     int count = 0;
   };
 
+  /// Fused per-cell normal-flow information for the anisotropic solver:
+  /// M = sum w n n^T (2x2 information matrix), b = sum w v_n n.
+  struct TileAniso
+  {
+    double mxx = 0.0, mxy = 0.0, myy = 0.0;
+    double bx = 0.0, by = 0.0;
+    double mass = 0.0;
+    int count = 0;
+  };
+
   struct TileWarpGeometry
   {
     bool valid = false;
@@ -597,11 +721,13 @@ private:
   std::vector<float> cell_center_y_;
   std::vector<TileAccum> tile_accum_;
   std::vector<TileMomentsT> tile_accum_t_;
+  std::vector<TileAniso> tile_aniso_;
   std::vector<TileWarpGeometry> tile_warp_geom_;
   std::vector<Eigen::VectorXf> scale_fields_;
   std::vector<Eigen::VectorXf> scale_fallback_;
   Eigen::VectorXf smooth_scratch_;
   Eigen::VectorXf accel_final_;
+  Events warp_scratch_;
   MomentFlowProfile profile_;
   float prior_scale_ = 1.0f;
   float mass_scale_ = 1.0f;
@@ -631,7 +757,7 @@ private:
     p.refine_iters = std::max(0, p.refine_iters);
     p.refine_huber_delta = std::max(1e-9f, p.refine_huber_delta);
     p.max_speed_px_s = std::max(1.0f, p.max_speed_px_s);
-    p.time_aware_order = std::clamp(p.time_aware_order, 0, 2);
+    p.time_aware_order = std::clamp(p.time_aware_order, 0, 3);
     return p;
   }
 
@@ -913,6 +1039,77 @@ private:
       fits_[k].dy = dy;
       profile_.valid_cells += 1;
     }
+  }
+
+  /// One pyramid scale: legacy stable fallback, time-aware solve (when
+  /// enabled) and the coupled spatial regularizer. Shared by solve() and
+  /// solve_coarse_to_fine().
+  void solve_one_scale(int l, const Eigen::VectorXf & fallback, Eigen::VectorXf & field)
+  {
+    using Clock = std::chrono::steady_clock;
+    const int tiles = 1 << l;
+    const auto t_b = Clock::now();
+    if (params_.time_aware_order == 0) {
+      solve_scale(tiles, fallback, field);
+    } else {
+      Eigen::VectorXf stable_fallback(field.size());
+      const int saved_full_rank = profile_.full_rank_tiles;
+      const int saved_aperture = profile_.aperture_tiles;
+      const int saved_fallback = profile_.fallback_tiles;
+      const int saved_prior = profile_.prior_tiles;
+      const int saved_final_full_rank = profile_.final_full_rank_tiles;
+      const int saved_final_aperture = profile_.final_aperture_tiles;
+      const int saved_final_fallback = profile_.final_fallback_tiles;
+      solve_scale(tiles, fallback, stable_fallback);
+      profile_.full_rank_tiles = saved_full_rank;
+      profile_.aperture_tiles = saved_aperture;
+      profile_.fallback_tiles = saved_fallback;
+      profile_.prior_tiles = saved_prior;
+      profile_.final_full_rank_tiles = saved_final_full_rank;
+      profile_.final_aperture_tiles = saved_final_aperture;
+      profile_.final_fallback_tiles = saved_final_fallback;
+      if (params_.time_aware_order >= 3) {
+        solve_scale_anisotropic(tiles, stable_fallback, field);
+      } else {
+        Eigen::VectorXf * accel_out =
+          (l == params_.num_scales - 1 && params_.time_aware_order == 2)
+            ? &accel_final_ : nullptr;
+        solve_scale_timeaware(tiles, stable_fallback, field, accel_out);
+      }
+    }
+    profile_.stage_b_ms += elapsed_ms(t_b, Clock::now());
+
+    const auto t_spatial = Clock::now();
+    regularize_field_coupled(tiles, field);
+    profile_.smooth_ms += elapsed_ms(t_spatial, Clock::now());
+  }
+
+  /// Warp events to the reference time with a final-grid field (F warp
+  /// convention: x' = x + t * F(x)). Out-of-bounds warps are dropped.
+  void warp_events(const Events & src, const Eigen::VectorXf & F, Events & dst) const
+  {
+    dst.t_ref_us = src.t_ref_us;
+    dst.x.resize(src.size());
+    dst.y.resize(src.size());
+    dst.t.resize(src.size());
+    size_t n = 0;
+    for (size_t k = 0; k < src.size(); ++k) {
+      const float t = src.t[k];
+      float vx, vy;
+      sample_field(F, final_tiles_, src.x[k], src.y[k], vx, vy);
+      const float wx = src.x[k] + t * vx;
+      const float wy = src.y[k] + t * vy;
+      if (!(wx >= 0.0f && wy >= 0.0f && wx < img_w_ && wy < img_h_)) {
+        continue;
+      }
+      dst.x[n] = wx;
+      dst.y[n] = wy;
+      dst.t[n] = t;
+      ++n;
+    }
+    dst.x.resize(n);
+    dst.y.resize(n);
+    dst.t.resize(n);
   }
 
   void solve_scale(
@@ -1431,6 +1628,231 @@ private:
           reg_geom.data_by = reg_geom.data_mxy * vxf + reg_geom.data_myy * vyf;
           tile_warp_geom_[static_cast<size_t>(k)] = reg_geom;
           (void)reg_var_w;
+        }
+      }
+    }
+  }
+
+  // Anisotropic normal-projected dispersion (time_aware_order == 3).
+  //
+  // The isotropic tile dispersion penalizes the warped scatter along the edge
+  // TANGENT as well, a component that motion cannot reduce: for dense texture
+  // crossing cells/tiles it acts as a zero-velocity attractor. Here every
+  // cell contributes only the component it actually observes. The cell drift
+  // d = Cov(x, tau) points along the local edge normal (tangential motion
+  // produces no space-time correlation), so with
+  //   n   = d / |d|            (edge normal)
+  //   v_n = |d| / Var(tau)     (normal speed)
+  //   R^2 = |d|^2 / (Var(tau) * n^T C n)   (regression quality, in [0,1])
+  // the tile fuses the per-cell normal-flow constraints n^T v = v_n by GLS:
+  //   M v = b,  M = sum w n n^T,  b = sum w v_n n = sum (w / Var(tau)) d,
+  // with w = the OLS precision of v_n (residual variance floored to avoid
+  // single-cell blowups). M's eigenstructure IS the aperture geometry of the
+  // tile: full-rank tiles solve 2D flow, degenerate ones keep the tangential
+  // component of the fallback.
+  void solve_scale_anisotropic(
+    int tiles,
+    const Eigen::VectorXf & fallback_F,
+    Eigen::VectorXf & out_F)
+  {
+    const int n_tiles = tiles * tiles;
+    for (int i = 0; i < n_tiles; ++i) {
+      tile_aniso_[static_cast<size_t>(i)] = TileAniso{};
+      if (static_cast<size_t>(i) < tile_warp_geom_.size()) {
+        tile_warp_geom_[static_cast<size_t>(i)] = TileWarpGeometry{};
+      }
+    }
+
+    // Residual-variance floor of the per-cell normal-position regression
+    // [px^2]: bounds the GLS weight of a perfectly explained cell (sub-pixel
+    // splat jitter makes anything sharper unphysical).
+    constexpr double kSigmaFloor2 = 0.25;
+
+    const float cell_gate = mass_scale_ * params_.cell_min_mass;
+    for (size_t k = 0; k < cells_.size(); ++k) {
+      const CellMoments & c = cells_[k];
+      if (!(c.w >= cell_gate)) {
+        continue;
+      }
+      const double inv_w = 1.0 / c.w;
+      const double mx = c.sx * inv_w;
+      const double my = c.sy * inv_w;
+      const double mt = c.st * inv_w;
+      const double cxx = std::max(0.0, c.sxx * inv_w - mx * mx);
+      const double cxy = c.sxy * inv_w - mx * my;
+      const double cyy = std::max(0.0, c.syy * inv_w - my * my);
+      const double dx = c.sxt * inv_w - mx * mt;
+      const double dy = c.syt * inv_w - my * mt;
+      const double sc = c.stt * inv_w - mt * mt;
+      if (!(sc > kMinTimeVariance)) {
+        continue;
+      }
+
+      float spatial_lmin = 0.0f;
+      float spatial_lmax = 0.0f;
+      eig2(
+        static_cast<float>(cxx), static_cast<float>(cxy), static_cast<float>(cyy),
+        spatial_lmin, spatial_lmax);
+      if (!(spatial_lmax >= params_.cell_min_lambda)) {
+        continue;
+      }
+
+      const double dn2 = dx * dx + dy * dy;
+      if (!(dn2 > 0.0) || !std::isfinite(dn2)) {
+        continue;
+      }
+      // Normal-direction spatial variance n^T C n.
+      const double nCn =
+        (dx * (cxx * dx + cxy * dy) + dy * (cxy * dx + cyy * dy)) / dn2;
+      if (!(nCn > 1e-12)) {
+        continue;
+      }
+      // R^2 of the normal-position-vs-time regression: squared correlation
+      // between n^T x and tau. Clean moving edge -> 1, noise -> 0.
+      const double r2 = std::clamp(dn2 / (sc * nCn), 0.0, 1.0);
+      if (!(1.0 - r2 <= params_.cell_max_residual_ratio)) {
+        continue;
+      }
+      // Speed sanity: |v_n| beyond the clamp is noise, not motion.
+      const double vn = std::sqrt(dn2) / sc;
+      if (!(vn <= params_.max_speed_px_s) || !std::isfinite(vn)) {
+        continue;
+      }
+
+      // GLS precision of v_n: (mass * Var(tau)) / residual variance.
+      const double sigma2 = std::max(kSigmaFloor2, nCn * (1.0 - r2));
+      const double w = c.w * sc / sigma2;
+      if (!(w > 0.0) || !std::isfinite(w)) {
+        continue;
+      }
+
+      const int tx = std::clamp(
+        static_cast<int>(cell_center_x_[k] * tiles / std::max(1, img_w_)), 0, tiles - 1);
+      const int ty = std::clamp(
+        static_cast<int>(cell_center_y_[k] * tiles / std::max(1, img_h_)), 0, tiles - 1);
+      TileAniso & a = tile_aniso_[static_cast<size_t>(ty * tiles + tx)];
+      const double inv_dn2 = 1.0 / dn2;
+      a.mxx += w * dx * dx * inv_dn2;
+      a.mxy += w * dx * dy * inv_dn2;
+      a.myy += w * dy * dy * inv_dn2;
+      a.bx += (w / sc) * dx;
+      a.by += (w / sc) * dy;
+      a.mass += c.w;
+      a.count += 1;
+    }
+
+    const double ridge = std::max(1e-12f, params_.tikhonov_eps);
+    const double prior = std::max(0.0f, prior_scale_ * params_.prior_lambda);
+
+    for (int ty = 0; ty < tiles; ++ty) {
+      for (int tx = 0; tx < tiles; ++tx) {
+        const int k = ty * tiles + tx;
+        const TileAniso & a = tile_aniso_[static_cast<size_t>(k)];
+        const float fb_Fx = fallback_F[2 * k];
+        const float fb_Fy = fallback_F[2 * k + 1];
+        const float fb_px = -fb_Fx;
+        const float fb_py = -fb_Fy;
+
+        auto fall_back = [&]() {
+            out_F[2 * k] = fb_Fx;
+            out_F[2 * k + 1] = fb_Fy;
+            if (static_cast<size_t>(k) < tile_warp_geom_.size()) {
+              tile_warp_geom_[static_cast<size_t>(k)] = TileWarpGeometry{};
+            }
+            profile_.fallback_tiles += 1;
+            if (tiles == final_tiles_) {
+              profile_.final_fallback_tiles += 1;
+            }
+          };
+
+        float lminM = 0.0f;
+        float lmaxM = 0.0f;
+        eig2(
+          static_cast<float>(a.mxx), static_cast<float>(a.mxy),
+          static_cast<float>(a.myy), lminM, lmaxM);
+        if (a.count < std::max(1, params_.tile_min_cells) ||
+          a.mass < mass_scale_ * params_.tile_min_mass ||
+          !(lmaxM > 0.0f) || !std::isfinite(lmaxM))
+        {
+          fall_back();
+          continue;
+        }
+
+        const double tile_eps = ridge * lmaxM;
+        const double prior_mass = prior * lmaxM;
+        float vx_phys = 0.0f;
+        float vy_phys = 0.0f;
+        const bool solved = solve2(
+          static_cast<float>(a.mxx + tile_eps + prior_mass),
+          static_cast<float>(a.mxy),
+          static_cast<float>(a.myy + tile_eps + prior_mass),
+          static_cast<float>(a.bx + prior_mass * fb_px),
+          static_cast<float>(a.by + prior_mass * fb_py),
+          vx_phys, vy_phys);
+        if (!solved) {
+          fall_back();
+          continue;
+        }
+
+        // M's eigenstructure is the aperture geometry: dominant eigenvector
+        // = best-constrained direction (edge normal of the dominant
+        // structure), weak direction takes the fallback's component.
+        const bool aperture_limited =
+          lminM / std::max(lmaxM, 1e-12f) < params_.aperture_ratio;
+        float nx = 1.0f;
+        float ny = 0.0f;
+        dominant_eigenvector(
+          static_cast<float>(a.mxx), static_cast<float>(a.mxy),
+          static_cast<float>(a.myy), lmaxM, nx, ny);
+        const float tgx = -ny;
+        const float tgy = nx;
+        if (aperture_limited) {
+          const float normal_v = vx_phys * nx + vy_phys * ny;
+          const float tangent_v = fb_px * tgx + fb_py * tgy;
+          vx_phys = normal_v * nx + tangent_v * tgx;
+          vy_phys = normal_v * ny + tangent_v * tgy;
+          profile_.aperture_tiles += 1;
+          if (tiles == final_tiles_) {
+            profile_.final_aperture_tiles += 1;
+          }
+        } else {
+          profile_.full_rank_tiles += 1;
+          if (tiles == final_tiles_) {
+            profile_.final_full_rank_tiles += 1;
+          }
+        }
+        if (prior_mass > 0.0) {
+          profile_.prior_tiles += 1;
+        }
+
+        clamp_speed(vx_phys, vy_phys);
+        out_F[2 * k] = -vx_phys;
+        out_F[2 * k + 1] = -vy_phys;
+
+        if (static_cast<size_t>(k) < tile_warp_geom_.size()) {
+          TileWarpGeometry geom;
+          geom.valid = true;
+          geom.normal_x = nx;
+          geom.normal_y = ny;
+          geom.tangent_x = tgx;
+          geom.tangent_y = tgy;
+          geom.lmin = lminM;
+          geom.lmax = lmaxM;
+          geom.mass = static_cast<float>(a.mass);
+          const float ratio = lminM / std::max(lmaxM, 1e-12f);
+          const float data_conf = 0.5f * (lminM + lmaxM);
+          const float normal_w = data_conf;
+          const float tangent_w = aperture_limited
+            ? data_conf * std::max(0.0f, ratio)
+            : data_conf;
+          geom.confidence = data_conf;
+          geom.focus_phi = 1.0f + ratio;
+          geom.data_mxx = normal_w * nx * nx + tangent_w * tgx * tgx;
+          geom.data_mxy = normal_w * nx * ny + tangent_w * tgx * tgy;
+          geom.data_myy = normal_w * ny * ny + tangent_w * tgy * tgy;
+          geom.data_bx = geom.data_mxx * vx_phys + geom.data_mxy * vy_phys;
+          geom.data_by = geom.data_mxy * vx_phys + geom.data_myy * vy_phys;
+          tile_warp_geom_[static_cast<size_t>(k)] = geom;
         }
       }
     }

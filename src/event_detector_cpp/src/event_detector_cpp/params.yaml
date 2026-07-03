@@ -176,10 +176,10 @@ params:
     type: integer
     default_value: 0
     min_value: 0
-    max_value: 2
+    max_value: 3
     step: 1
-    description: "Tile estimator: 0 = legacy structure tensor, 1 = constant-velocity dispersion surrogate, 2 = local acceleration model."
-    constraints: "0..2."
+    description: "Tile estimator: 0 = legacy structure tensor, 1 = constant-velocity dispersion surrogate, 2 = local acceleration model, 3 = anisotropic normal-projected dispersion."
+    constraints: "0..3."
     read_only: false
     var_name: flow_time_aware_order_
   flow_aperture_ratio:

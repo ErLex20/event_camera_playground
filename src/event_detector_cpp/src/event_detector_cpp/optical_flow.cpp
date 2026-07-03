@@ -57,6 +57,9 @@ using event_detector_cpp::flow::MomentFlowParams;
 // bounded. The tile/cell moment statistics saturate well below this count;
 // keeping it small bounds the cost of every warped re-solve iteration.
 constexpr std::size_t kMaxSolveEvents = 500000;
+// Tile grids at or above this size re-warp the events by the composed field
+// before solving (per-scale coarse-to-fine alignment).
+constexpr int kRewarpMinTiles = 8;
 constexpr float kFocusSplatOffsetIwePx = 0.21f;
 
 struct EventSample
@@ -573,36 +576,18 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
   }
 
   const auto t_moment = ProfileClock::now();
-  // Full residual formulation: when a warm start exists, warp the events by it
-  // and estimate only the (small) residual field. Solving on raw events would
-  // re-measure the full displacement, which the within-tile dispersion
-  // regression systematically underestimates once a structure crosses the
-  // tile during the window (dense texture -> data term biased toward zero).
-  // With the pre-warp, the data term is unbiased around the tracked field and
-  // the estimator only needs to follow changes.
-  const bool have_warm_field = warm_start.size() == moment_flow_->num_vars();
+  // Coarse-to-fine residual solve with per-scale event re-warping: the warm
+  // start (previous tracked field) seeds the composed field, every scale
+  // estimates a residual on events warped by the field composed so far, and
+  // fine scales re-warp before solving. This keeps the within-tile dispersion
+  // regression in its unbiased small-residual regime — solving raw events
+  // would systematically underestimate any displacement that crosses a tile
+  // within the window (dense texture -> data term biased toward zero).
   Eigen::VectorXf F(moment_flow_->num_vars());
-  const Eigen::VectorXf no_warm_first;
-  if (have_warm_field) {
-    Events wev0;
-    warp_events_by_field(ev, warm_start, nullptr, final_tiles, w, h, wev0);
-    if (wev0.size() >= 2) {
-      moment_flow_->reset();
-      moment_flow_->ingest(wev0);
-      moment_flow_->set_prior_scale(0.5f);
-      moment_flow_->solve(no_warm_first, F);
-      moment_flow_->set_prior_scale(1.0f);
-      sanitize_field(F);
-      F += warm_start;
-    } else {
-      F = warm_start;
-    }
-  } else {
-    moment_flow_->reset();
-    moment_flow_->ingest(ev);
-    moment_flow_->solve(warm_start, F);
-    sanitize_field(F);
-  }
+  moment_flow_->set_prior_scale(0.5f);
+  moment_flow_->solve_coarse_to_fine(ev, warm_start, F, kRewarpMinTiles);
+  moment_flow_->set_prior_scale(1.0f);
+  sanitize_field(F);
 
   // ---- Stage C: compositional warped re-solve (Gauss-Newton on dispersion) ----
   // The single-pass tile regression truncates large displacements: with long
