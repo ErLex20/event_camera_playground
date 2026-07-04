@@ -1,6 +1,6 @@
 /dsec_publisher:
   ros__parameters:
-    events_h5: "logs/dsec/zurich_city_00_b_events_left/events.h5"
+    events_h5: "logs/dsec/zurich_city_10_a/events_left/events.h5"
     topic: "event_camera/events"
     width: 640
     height: 480
@@ -9,3 +9,15 @@
     loop: false
     start_offset_s: 0.0
     frame_id: "camera_0"
+    reliable: true
+    qos_depth: 5000
+    publish_imu: true
+    imu_topic: "imu/data"
+    imu_bag_topic: "/imu/data"
+    imu_bag: ""
+    lidar_imu_root: ""
+    imu_frame_id: "imu0"
+    publish_tf: true
+    lidar_frame_id: "lidar"
+    cam_to_imu_yaml: ""
+    cam_to_lidar_yaml: ""
