@@ -26,6 +26,7 @@ ARG USER_UID=1000
 ENV DEBIAN_FRONTEND=noninteractive
 
 # IMAGE SETUP START #
+# Install dv-processing
 RUN git clone --single-branch --branch 2.0.3 --depth 1 \
     https://gitlab.com/inivation/dv/dv-processing.git /opt/dv-processing && \
     cd /opt/dv-processing && \
@@ -36,6 +37,16 @@ RUN git clone --single-branch --branch 2.0.3 --depth 1 \
     make install && \
     chgrp -R internal /opt/dv-processing && \
     chmod -R g+rwX /opt/dv-processing
+
+# prophesee_evk4_driver START #
+# Install metavision_driver and related packages
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ros-jazzy-metavision-driver \
+      ros-jazzy-event-camera-py \
+      ros-jazzy-ament-cmake-clang-format  && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*/apt/lists/*
+ENV LD_LIBRARY_PATH=/opt/ros/jazzy/opt/openeb_vendor/lib:$LD_LIBRARY_PATH
+# prophesee_evk4_driver END #
 # IMAGE SETUP END #
 
 # Copy user configuration files to /etc/skel
