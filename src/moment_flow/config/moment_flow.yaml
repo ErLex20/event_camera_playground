@@ -10,6 +10,7 @@
     ba_filter_dt_ms: 1.0           # BA correlation time: an event survives only if a neighbor fired within this dt
     iwe_enabled: true              # render the Image of Warped Events (alignment diagnostic / visualization)
     flow_enabled: true             # run the MomentFlow optical-flow estimator
+    debug: true                   # disable debug images/logging/diagnostics-only metrics for lean benchmark runs (flow_dense/flow_events and the timing CSV are unaffected)
     flow_max_window_ms: 100.0      # event time span accumulated per flow estimate (one estimate per GT row when saving)
     flow_num_scales: 6      # tile-pyramid scales; final grid = 2^(N-1) per side (6 -> 32x32 tiles)
     flow_cell_size_px: 4      # moment-grid cell size [px]; larger = more events/cell, stabler fits, coarser
@@ -38,3 +39,4 @@
     flow_save_clear_output: true   # delete stale PNGs in the output dir before saving
     flow_save_first_index: 2       # first DSEC GT file index to save
     flow_save_index_step: 2        # DSEC GT file index step (matches the 100 ms / 10 Hz GT cadence)
+    timing_log_path: /home/neo/workspace/logs/moment_flow/thun_00_a/timing_ms.csv   # end-to-end MomentFlow solve time per window (from_us,to_us,num_events,total_ms)

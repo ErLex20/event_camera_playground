@@ -77,6 +77,7 @@ std::vector<int64_t> parse_int64_fields(std::string line)
 void EventDetector::activate()
 {
   prepare_flow_saving();
+  prepare_timing_log();
 
   // Set running flag
   running_.store(true, std::memory_order_release);
@@ -96,7 +97,55 @@ void EventDetector::deactivate()
     thread_worker_.join();
   }
 
+  if (timing_log_stream_.is_open()) {
+    timing_log_stream_.close();
+  }
+  timing_log_ready_ = false;
+
   RCLCPP_WARN(this->get_logger(), "Moment Flow DEACTIVATED");
+}
+
+void EventDetector::prepare_timing_log()
+{
+  if (timing_log_stream_.is_open()) {
+    timing_log_stream_.close();
+  }
+  timing_log_ready_ = false;
+
+  if (timing_log_path_.empty()) {
+    return;
+  }
+
+  const std::filesystem::path path(timing_log_path_);
+  std::error_code ec;
+  if (path.has_parent_path()) {
+    std::filesystem::create_directories(path.parent_path(), ec);
+    if (ec) {
+      RCLCPP_ERROR(
+        get_logger(), "Could not create timing log directory '%s': %s",
+        path.parent_path().string().c_str(), ec.message().c_str());
+      return;
+    }
+  }
+
+  timing_log_stream_.open(path, std::ios::out | std::ios::trunc);
+  if (!timing_log_stream_.is_open()) {
+    RCLCPP_ERROR(get_logger(), "Could not open timing log '%s'", timing_log_path_.c_str());
+    return;
+  }
+
+  timing_log_stream_ << "from_us,to_us,num_events,total_ms\n";
+  timing_log_ready_ = true;
+}
+
+void EventDetector::log_timing(
+  int64_t from_us, int64_t to_us, std::size_t num_events, double total_ms)
+{
+  if (!timing_log_ready_) {
+    return;
+  }
+  timing_log_stream_ << from_us << ',' << to_us << ',' << num_events << ',' << total_ms << '\n';
+  timing_log_stream_.flush();
 }
 
 void EventDetector::lazy_init(int width, int height)
@@ -334,9 +383,11 @@ void EventDetector::save_flow_png(
     return;
   }
 
-  RCLCPP_INFO(
-    get_logger(), "Saved DSEC raw flow '%s' for [%" PRId64 ", %" PRId64 ") dt=%.6f s",
-    output_path.string().c_str(), from_us, to_us, dt_s);
+  if (debug_) {
+    RCLCPP_INFO(
+      get_logger(), "Saved DSEC raw flow '%s' for [%" PRId64 ", %" PRId64 ") dt=%.6f s",
+      output_path.string().c_str(), from_us, to_us, dt_s);
+  }
 }
 
 void EventDetector::publish_image(

@@ -79,15 +79,16 @@ void EventDetector::worker_thread_routine()
     }
 
     // Background-activity filtering (per packet).
-    // Evaluate time to calculate everything
-    auto t_ba = std::chrono::high_resolution_clock::now();
+    const auto t_ba = std::chrono::high_resolution_clock::now();
     dv::EventStore filtered = ba_filter_enabled_ ? compute_ba(chunk.events) : chunk.events;
     if (filtered.isEmpty() && !(iwe_enabled_ || flow_enabled_ || flow_save_enabled_)) {
       continue;
     }
-    auto dt1 = std::chrono::duration_cast<std::chrono::milliseconds>(
-      std::chrono::high_resolution_clock::now() - t_ba).count();
-    RCLCPP_INFO_THROTTLE(this->get_logger(), *get_clock(), 1000, "BA filter: %ld ms", dt1);
+    if (debug_) {
+      const auto dt1 = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::high_resolution_clock::now() - t_ba).count();
+      RCLCPP_INFO_THROTTLE(this->get_logger(), *get_clock(), 1000, "BA filter: %ld ms", dt1);
+    }
 
     // IWE and optical flow run once per fixed-duration flow window. When a
     // benchmark timestamp schedule is configured, it only controls which
@@ -143,10 +144,12 @@ void EventDetector::worker_thread_routine()
         flow_span_ms >= flow_max_window_ms_;
 
       if (time_ready) {
-        RCLCPP_INFO_THROTTLE(
-          this->get_logger(), *get_clock(), 1000,
-          "Flow window close: events=%ld span=%.3f ms target=%.3f ms",
-          flow_accum_events, flow_span_ms, flow_max_window_ms_);
+        if (debug_) {
+          RCLCPP_INFO_THROTTLE(
+            this->get_logger(), *get_clock(), 1000,
+            "Flow window close: events=%ld span=%.3f ms target=%.3f ms",
+            flow_accum_events, flow_span_ms, flow_max_window_ms_);
+        }
         const int64_t save_from_us = flow_accum_first_us_;
         const int64_t save_to_us = flow_accum_last_us_;
         dv::EventStore window = flow_accum_;
@@ -154,12 +157,7 @@ void EventDetector::worker_thread_routine()
         flow_accum_first_us_ = std::numeric_limits<int64_t>::max();
         flow_accum_last_us_ = std::numeric_limits<int64_t>::lowest();
 
-        auto t_flow = std::chrono::high_resolution_clock::now();
         FlowResult res = solve_flow_moment(window);
-        auto dt_flow = std::chrono::duration_cast<std::chrono::milliseconds>(
-          std::chrono::high_resolution_clock::now() - t_flow).count();
-        RCLCPP_INFO_THROTTLE(
-          this->get_logger(), *get_clock(), 1000, "Flow moment: %ld ms", dt_flow);
 
         if (flow_save_enabled_ && flow_save_prepared_ && flow_save_windows_.empty()) {
           const int64_t file_index =
@@ -237,12 +235,14 @@ dv::EventStore EventDetector::accumulate_scheduled_flow(
 
     const FlowSaveWindow window = flow_save_windows_[flow_save_next_window_];
     const int64_t estimate_to = estimate_to_us(window);
-    RCLCPP_INFO(
-      get_logger(),
-      "Scheduled flow window close: index=%" PRId64
-      " estimate=[%" PRId64 ", %" PRId64 ") encode=[%" PRId64 ", %" PRId64 ") events=%zu",
-      window.file_index, window.from_us, estimate_to, window.from_us, window.to_us,
-      static_cast<std::size_t>(flow_accum_.size()));
+    if (debug_) {
+      RCLCPP_INFO(
+        get_logger(),
+        "Scheduled flow window close: index=%" PRId64
+        " estimate=[%" PRId64 ", %" PRId64 ") encode=[%" PRId64 ", %" PRId64 ") events=%zu",
+        window.file_index, window.from_us, estimate_to, window.from_us, window.to_us,
+        static_cast<std::size_t>(flow_accum_.size()));
+    }
 
     FlowResult res;
     if (flow_accum_.size() >= 2) {

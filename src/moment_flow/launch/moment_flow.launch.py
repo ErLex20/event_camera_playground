@@ -65,26 +65,26 @@ def generate_launch_description():
         # arguments=['--ros-args', '--log-level', 'warn'],
         composable_node_descriptions=[
             # Event Camera Driver
-            ComposableNode(
-                package="metavision_driver",
-                plugin="metavision_driver::DriverROS2",
-                namespace=ns,
-                name='event_camera_driver',
-                parameters=[
-                    trigger_config,
-                    {
-                        "use_multithreading": True,
-                        "bias_file": bias_config,
-                        "camerainfo_url": "",
-                        "frame_id": "",
-                        "event_message_time_threshold": 1.0e-3,
-                    },
-                ],
-                remappings=[
-                    ("~/events", 'event_camera/events'),
-                ],
-                extra_arguments=[{"use_intra_process_comms": True}],
-            ),
+            # ComposableNode(
+            #     package="metavision_driver",
+            #     plugin="metavision_driver::DriverROS2",
+            #     namespace=ns,
+            #     name='event_camera_driver',
+            #     parameters=[
+            #         trigger_config,
+            #         {
+            #             "use_multithreading": True,
+            #             "bias_file": bias_config,
+            #             "camerainfo_url": "",
+            #             "frame_id": "",
+            #             "event_message_time_threshold": 1.0e-3,
+            #         },
+            #     ],
+            #     remappings=[
+            #         ("~/events", 'event_camera/events'),
+            #     ],
+            #     extra_arguments=[{"use_intra_process_comms": True}],
+            # ),
             # Event Camera Renderer
             ComposableNode(
                 package='event_camera_renderer',

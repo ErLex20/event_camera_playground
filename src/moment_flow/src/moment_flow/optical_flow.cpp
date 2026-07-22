@@ -497,11 +497,13 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
   }
   const double select_ms = elapsed_ms(t_select);
   if (solve_samples.size() < 2) {
-    RCLCPP_INFO(
-      get_logger(),
-      "Flow profile: skipped moment flow, raw_events=%zu solve_events=%zu "
-      "stride=%zu select=%.3f ms",
-      total, solve_samples.size(), stride, select_ms);
+    if (debug_) {
+      RCLCPP_INFO(
+        get_logger(),
+        "Flow profile: skipped moment flow, raw_events=%zu solve_events=%zu "
+        "stride=%zu select=%.3f ms",
+        total, solve_samples.size(), stride, select_ms);
+    }
     return result;
   }
 
@@ -708,124 +710,134 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
   const double g_hi  = focus_contrast(focus_hi);
   const double focus_f = (g_lo + 2.0 * g_mid + g_hi) / (4.0 * g_id);
 
-  // FWL standard (single-reference, Stoffregen & Kleeman 2019): rapporto tra la
-  // varianza dell'IWE motion-compensated e quella dell'IWE identita'. E' la metrica
-  // riportata da Shiba et al. (Tabella II), quindi il termine di confronto diretto
-  // con la CMax. Niente GaussianBlur (a differenza di focus_f) e calcolata sull'IWE
-  // float grezza, prima di qualsiasi normalizzazione.
-  auto iwe_variance = [](const cv::Mat & iwe) {
-    cv::Scalar mean, stddev;
-    cv::meanStdDev(iwe, mean, stddev);   // stddev normalizzata per N -> Var = sigma^2 (eq. 3)
-    return stddev[0] * stddev[0];
-  };
-  const double var_id  = std::max(iwe_variance(focus_id), 1e-12);
-  const double var_mid = iwe_variance(focus_mid);
-  const double fwl = var_mid / var_id;
-
   const bool flow_rejected = !(focus_f > 1.0);
   const double focus_ms = elapsed_ms(t_focus);
 
   prev_flow_field_ = F;
   prev_flow_tiles_ = final_tiles;
 
-  const auto t_flow_image = ProfileClock::now();
-  cv::Mat angle(h, w, CV_32F);
-  cv::Mat magnitude(h, w, CV_32F);
+  // Dense flow field: the actual estimator output. Always computed, since
+  // it (and flow_events derived from it below) is the useful data this node
+  // exists to produce, regardless of `debug_`.
   result.flow_dense = cv::Mat(h, w, CV_32FC2);
-  double vx_sum = 0.0;
-  double vy_sum = 0.0;
-  double vx2_sum = 0.0;
-  double vy2_sum = 0.0;
-  #pragma omp parallel for schedule(static) \
-  reduction(+ : vx_sum, vy_sum, vx2_sum, vy2_sum)
+  #pragma omp parallel for schedule(static)
   for (int y = 0; y < h; ++y) {
-    float * arow = angle.ptr<float>(y);
-    float * mrow = magnitude.ptr<float>(y);
     cv::Vec2f * vrow = result.flow_dense.ptr<cv::Vec2f>(y);
     for (int x = 0; x < w; ++x) {
       float vx, vy;
       sample_tile_velocity(
         F, final_tiles, final_tiles, w, h,
         static_cast<float>(x), static_cast<float>(y), vx, vy);
-      vx = -vx;
-      vy = -vy;
-      vrow[x] = cv::Vec2f(vx, vy);
-      vx_sum += vx;
-      vy_sum += vy;
-      vx2_sum += static_cast<double>(vx) * vx;
-      vy2_sum += static_cast<double>(vy) * vy;
-      float a = std::atan2(vy, vx);
-      if (a < 0.0f) {
-        a += 2.0f * static_cast<float>(CV_PI);
-      }
-      arow[x] = a;
-      mrow[x] = std::hypot(vx, vy);
+      vrow[x] = cv::Vec2f(-vx, -vy);
     }
   }
 
-  std::vector<float> support_speeds;
-  support_speeds.reserve(static_cast<size_t>(w) * h);
-  double support_speed_sum = 0.0;
-  double support_max_speed = 0.0;
-  for (int y = 0; y < h; ++y) {
-    const float * mrow = magnitude.ptr<float>(y);
-    for (int x = 0; x < w; ++x) {
-      const float spd = mrow[x];
-      if (!std::isfinite(spd)) {
-        continue;
+  // ---- Debug-only: HSV flow visualization + speed stats/logging ----
+  double flow_image_ms = 0.0;
+  if (debug_) {
+    const auto t_flow_image = ProfileClock::now();
+    cv::Mat angle(h, w, CV_32F);
+    cv::Mat magnitude(h, w, CV_32F);
+    double vx_sum = 0.0;
+    double vy_sum = 0.0;
+    double vx2_sum = 0.0;
+    double vy2_sum = 0.0;
+    #pragma omp parallel for schedule(static) \
+    reduction(+ : vx_sum, vy_sum, vx2_sum, vy2_sum)
+    for (int y = 0; y < h; ++y) {
+      const cv::Vec2f * vrow = result.flow_dense.ptr<cv::Vec2f>(y);
+      float * arow = angle.ptr<float>(y);
+      float * mrow = magnitude.ptr<float>(y);
+      for (int x = 0; x < w; ++x) {
+        const float vx = vrow[x][0];
+        const float vy = vrow[x][1];
+        vx_sum += vx;
+        vy_sum += vy;
+        vx2_sum += static_cast<double>(vx) * vx;
+        vy2_sum += static_cast<double>(vy) * vy;
+        float a = std::atan2(vy, vx);
+        if (a < 0.0f) {
+          a += 2.0f * static_cast<float>(CV_PI);
+        }
+        arow[x] = a;
+        mrow[x] = std::hypot(vx, vy);
       }
-      support_speeds.push_back(spd);
-      support_speed_sum += spd;
-      support_max_speed = std::max(support_max_speed, static_cast<double>(spd));
     }
+
+    std::vector<float> support_speeds;
+    support_speeds.reserve(static_cast<size_t>(w) * h);
+    double support_speed_sum = 0.0;
+    double support_max_speed = 0.0;
+    for (int y = 0; y < h; ++y) {
+      const float * mrow = magnitude.ptr<float>(y);
+      for (int x = 0; x < w; ++x) {
+        const float spd = mrow[x];
+        if (!std::isfinite(spd)) {
+          continue;
+        }
+        support_speeds.push_back(spd);
+        support_speed_sum += spd;
+        support_max_speed = std::max(support_max_speed, static_cast<double>(spd));
+      }
+    }
+
+    cv::Mat hsv_parts[3];
+    cv::Mat hue = angle * (180.0f / (2.0f * static_cast<float>(CV_PI)));
+    hue.convertTo(hsv_parts[0], CV_8U);
+    hsv_parts[1] = cv::Mat(h, w, CV_8U, cv::Scalar(255));
+    double observed_max_speed = 0.0;
+    cv::minMaxLoc(magnitude, nullptr, &observed_max_speed);
+    double robust_max_speed = support_max_speed;
+    if (!support_speeds.empty()) {
+      const size_t nth = std::min(
+        support_speeds.size() - 1,
+        static_cast<size_t>(0.95 * static_cast<double>(support_speeds.size())));
+      std::nth_element(support_speeds.begin(), support_speeds.begin() + nth, support_speeds.end());
+      robust_max_speed = std::max<double>(support_speeds[nth], 0.05 * support_max_speed);
+    }
+    const double display_floor_speed = std::max(25.0, 0.10 * static_cast<double>(vis_speed_cap));
+    const double raw_display_max = (robust_max_speed > 1e-6)
+      ? robust_max_speed
+      : ((observed_max_speed > 1e-6) ? observed_max_speed : static_cast<double>(vis_speed_cap));
+    const double display_max_speed = std::clamp(
+      raw_display_max, display_floor_speed, static_cast<double>(vis_speed_cap));
+    const double support_mean_speed = support_speeds.empty()
+      ? 0.0
+      : support_speed_sum / static_cast<double>(support_speeds.size());
+    const double n_pix = static_cast<double>(std::max(1, w * h));
+    const double vx_mean = vx_sum / n_pix;
+    const double vy_mean = vy_sum / n_pix;
+    const double flow_var =
+      (vx2_sum + vy2_sum) / n_pix - (vx_mean * vx_mean + vy_mean * vy_mean);
+
+    RCLCPP_INFO_THROTTLE(
+      get_logger(), *get_clock(), 1000,
+      "Flow speed [px/s]: mean=%.3f max=%.3f display_max=%.3f var=%.3f pixels=%zu",
+      support_mean_speed, support_max_speed, display_max_speed, flow_var, support_speeds.size());
+
+    magnitude *= (255.0f / static_cast<float>(display_max_speed));
+    cv::threshold(magnitude, magnitude, 255.0, 255.0, cv::THRESH_TRUNC);
+    magnitude.convertTo(hsv_parts[2], CV_8U);
+    cv::Mat hsv;
+    cv::merge(hsv_parts, 3, hsv);
+    cv::cvtColor(hsv, result.flow_dense_debug, cv::COLOR_HSV2BGR);
+    flow_image_ms = elapsed_ms(t_flow_image);
   }
 
-  cv::Mat hsv_parts[3];
-  cv::Mat hue = angle * (180.0f / (2.0f * static_cast<float>(CV_PI)));
-  hue.convertTo(hsv_parts[0], CV_8U);
-  hsv_parts[1] = cv::Mat(h, w, CV_8U, cv::Scalar(255));
-  double observed_max_speed = 0.0;
-  cv::minMaxLoc(magnitude, nullptr, &observed_max_speed);
-  double robust_max_speed = support_max_speed;
-  if (!support_speeds.empty()) {
-    const size_t nth = std::min(
-      support_speeds.size() - 1,
-      static_cast<size_t>(0.95 * static_cast<double>(support_speeds.size())));
-    std::nth_element(support_speeds.begin(), support_speeds.begin() + nth, support_speeds.end());
-    robust_max_speed = std::max<double>(support_speeds[nth], 0.05 * support_max_speed);
-  }
-  const double display_floor_speed = std::max(25.0, 0.10 * static_cast<double>(vis_speed_cap));
-  const double raw_display_max = (robust_max_speed > 1e-6)
-    ? robust_max_speed
-    : ((observed_max_speed > 1e-6) ? observed_max_speed : static_cast<double>(vis_speed_cap));
-  const double display_max_speed = std::clamp(
-    raw_display_max, display_floor_speed, static_cast<double>(vis_speed_cap));
-  const double support_mean_speed = support_speeds.empty()
-    ? 0.0
-    : support_speed_sum / static_cast<double>(support_speeds.size());
-  const double n_pix = static_cast<double>(std::max(1, w * h));
-  const double vx_mean = vx_sum / n_pix;
-  const double vy_mean = vy_sum / n_pix;
-  const double flow_var =
-    (vx2_sum + vy2_sum) / n_pix - (vx_mean * vx_mean + vy_mean * vy_mean);
+  // The support mask must reflect every event at full resolution regardless of
+  // the subsampled focus renders above. flow_events (the event-supported flow
+  // field) is useful data, not a diagnostic: always computed.
+  const cv::Mat support_mask = render_support_mask(
+    render_ev, F, flow_rejected ? nullptr : accel_ptr,
+    final_tiles, w, h, /*warp=*/!flow_rejected);
+  result.flow_events = mask_flow_by_support(result.flow_dense, support_mask);
 
-  RCLCPP_INFO_THROTTLE(
-    get_logger(), *get_clock(), 1000,
-    "Flow speed [px/s]: mean=%.3f max=%.3f display_max=%.3f var=%.3f pixels=%zu",
-    support_mean_speed, support_max_speed, display_max_speed, flow_var, support_speeds.size());
-
-  magnitude *= (255.0f / static_cast<float>(display_max_speed));
-  cv::threshold(magnitude, magnitude, 255.0, 255.0, cv::THRESH_TRUNC);
-  magnitude.convertTo(hsv_parts[2], CV_8U);
-  cv::Mat hsv;
-  cv::merge(hsv_parts, 3, hsv);
-  cv::cvtColor(hsv, result.flow_dense_debug, cv::COLOR_HSV2BGR);
-  const double flow_image_ms = elapsed_ms(t_flow_image);
-
-  const auto t_iwe = ProfileClock::now();
-  // The published IWE is a visualization: the (subsampled, possibly
-  // downscaled) focus render is sufficient, upscaled back to sensor size.
-  {
+  // ---- Debug-only: IWE preview image + event-supported debug visualization ----
+  double iwe_ms = 0.0;
+  if (debug_) {
+    const auto t_iwe = ProfileClock::now();
+    // The published IWE is a visualization: the (subsampled, possibly
+    // downscaled) focus render is sufficient, upscaled back to sensor size.
     cv::Mat iwe_vis;
     cv::normalize(
       flow_rejected ? focus_id : focus_mid, iwe_vis, 0.0, 255.0, cv::NORM_MINMAX, CV_8U);
@@ -834,59 +846,74 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
     } else {
       result.iwe = iwe_vis;
     }
+    result.flow_events_debug = mask_debug_by_support(result.flow_dense_debug, support_mask);
+    iwe_ms = elapsed_ms(t_iwe);
   }
-  // The support mask must reflect every event at full resolution regardless of
-  // the subsampled focus renders above.
-  const cv::Mat support_mask = render_support_mask(
-    render_ev, F, flow_rejected ? nullptr : accel_ptr,
-    final_tiles, w, h, /*warp=*/!flow_rejected);
-  result.flow_events = mask_flow_by_support(result.flow_dense, support_mask);
-  result.flow_events_debug = mask_debug_by_support(result.flow_dense_debug, support_mask);
-  const double iwe_ms = elapsed_ms(t_iwe);
-  const double reg_modified_fraction =
-    (profile.reg_total_tiles > 0)
-      ? static_cast<double>(profile.reg_modified_tiles) /
-        static_cast<double>(profile.reg_total_tiles)
-      : 0.0;
 
-  RCLCPP_DEBUG(
-    get_logger(),
-    "Flow profile MomentFlow: ingest=%.3f ms stage_a=%.3f ms "
-    "stage_b=%.3f ms spatial=%.3f ms solve_total=%.3f ms total=%.3f ms events=%d "
-    "active_cells=%d valid_cells=%d reject(residual/speed)=%d/%d "
-    "tiles_total(full/aperture/fallback/prior)=%d/%d/%d/%d "
-    "tiles_final(full/aperture/fallback)=%d/%d/%d "
-    "reg(modified_frac/mean_delta legacy_geom/warped_geom) %.3f/%.3f %d/%d",
-    profile.ingest_ms, profile.stage_a_ms,
-    profile.stage_b_ms, profile.smooth_ms, profile.total_solve_ms, moment_ms,
-    profile.events_ingested, profile.active_cells, profile.valid_cells,
-    profile.residual_reject_cells, profile.speed_reject_cells,
-    profile.full_rank_tiles, profile.aperture_tiles, profile.fallback_tiles,
-    profile.prior_tiles,
-    profile.final_full_rank_tiles, profile.final_aperture_tiles, profile.final_fallback_tiles,
-    reg_modified_fraction, profile.reg_mean_delta_speed,
-    profile.reg_legacy_geometry_tiles, profile.reg_warped_geometry_tiles);
+  if (debug_) {
+    const double reg_modified_fraction =
+      (profile.reg_total_tiles > 0)
+        ? static_cast<double>(profile.reg_modified_tiles) /
+          static_cast<double>(profile.reg_total_tiles)
+        : 0.0;
 
-  RCLCPP_DEBUG(
-    get_logger(),
-    "Flow profile IWE: render_events=%zu focus_events=%zu event_pack=%.3f ms "
-    "focus=%.3f ms flow_image=%.3f ms "
-    "iwe_render_norm=%.3f ms solver=anisotropic focus_f=%.4f "
-    "(lo=%.6f mid=%.6f hi=%.6f id=%.6f) "
-    "fwl=%.4f (var_warp=%.6f var_id=%.6f) rejected=%d refine_iters=%d refine=%.3f ms",
-    render_ev.size(), focus_src->size(), render_events_ms, focus_ms, flow_image_ms, iwe_ms,
-    focus_f, g_lo, g_mid, g_hi, g_id,
-    fwl, var_mid, var_id,
-    flow_rejected ? 1 : 0, refine_done, refine_ms);
+    RCLCPP_DEBUG(
+      get_logger(),
+      "Flow profile MomentFlow: ingest=%.3f ms stage_a=%.3f ms "
+      "stage_b=%.3f ms spatial=%.3f ms solve_total=%.3f ms total=%.3f ms events=%d "
+      "active_cells=%d valid_cells=%d reject(residual/speed)=%d/%d "
+      "tiles_total(full/aperture/fallback/prior)=%d/%d/%d/%d "
+      "tiles_final(full/aperture/fallback)=%d/%d/%d "
+      "reg(modified_frac/mean_delta legacy_geom/warped_geom) %.3f/%.3f %d/%d",
+      profile.ingest_ms, profile.stage_a_ms,
+      profile.stage_b_ms, profile.smooth_ms, profile.total_solve_ms, moment_ms,
+      profile.events_ingested, profile.active_cells, profile.valid_cells,
+      profile.residual_reject_cells, profile.speed_reject_cells,
+      profile.full_rank_tiles, profile.aperture_tiles, profile.fallback_tiles,
+      profile.prior_tiles,
+      profile.final_full_rank_tiles, profile.final_aperture_tiles, profile.final_fallback_tiles,
+      reg_modified_fraction, profile.reg_mean_delta_speed,
+      profile.reg_legacy_geometry_tiles, profile.reg_warped_geometry_tiles);
 
-  RCLCPP_INFO_THROTTLE(
-    get_logger(), *get_clock(), 1000,
-    "Flow profile summary: raw_events=%zu solve_events=%zu stride=%zu span=%.3f ms "
-    "setup_select=%.3f ms setup_pack=%.3f ms "
-    "moment=%.3f ms render=%.3f ms total=%.3f ms achieved_hz=%.3f",
-    total, solve_samples.size(), stride, static_cast<double>(t_hi_us - t_lo_us) * 1e-3,
-    select_ms, pack_ms, moment_ms, render_events_ms + flow_image_ms + iwe_ms,
-    elapsed_ms(t_total), 1000.0 / std::max(1e-9, elapsed_ms(t_total)));
+    // FWL standard (single-reference, Stoffregen & Kleeman 2019): ratio between
+    // the motion-compensated IWE variance and the identity-IWE variance. It is
+    // the metric reported by Shiba et al. (Table II), i.e. the term directly
+    // comparable to CMax. No GaussianBlur (unlike focus_f), computed on the
+    // raw float IWE before any normalization. Diagnostic only: never affects
+    // flow_rejected or any published output.
+    auto iwe_variance = [](const cv::Mat & iwe) {
+      cv::Scalar mean, stddev;
+      cv::meanStdDev(iwe, mean, stddev);
+      return stddev[0] * stddev[0];
+    };
+    const double var_id  = std::max(iwe_variance(focus_id), 1e-12);
+    const double var_mid = iwe_variance(focus_mid);
+    const double fwl = var_mid / var_id;
+
+    RCLCPP_DEBUG(
+      get_logger(),
+      "Flow profile IWE: render_events=%zu focus_events=%zu event_pack=%.3f ms "
+      "focus=%.3f ms flow_image=%.3f ms "
+      "iwe_render_norm=%.3f ms solver=anisotropic focus_f=%.4f "
+      "(lo=%.6f mid=%.6f hi=%.6f id=%.6f) "
+      "fwl=%.4f (var_warp=%.6f var_id=%.6f) rejected=%d refine_iters=%d refine=%.3f ms",
+      render_ev.size(), focus_src->size(), render_events_ms, focus_ms, flow_image_ms, iwe_ms,
+      focus_f, g_lo, g_mid, g_hi, g_id,
+      fwl, var_mid, var_id,
+      flow_rejected ? 1 : 0, refine_done, refine_ms);
+
+    RCLCPP_INFO_THROTTLE(
+      get_logger(), *get_clock(), 1000,
+      "Flow profile summary: raw_events=%zu solve_events=%zu stride=%zu span=%.3f ms "
+      "setup_select=%.3f ms setup_pack=%.3f ms "
+      "moment=%.3f ms render=%.3f ms total=%.3f ms achieved_hz=%.3f",
+      total, solve_samples.size(), stride, static_cast<double>(t_hi_us - t_lo_us) * 1e-3,
+      select_ms, pack_ms, moment_ms, render_events_ms + flow_image_ms + iwe_ms,
+      elapsed_ms(t_total), 1000.0 / std::max(1e-9, elapsed_ms(t_total)));
+  }
+
+  // End-to-end timing CSV: useful data, always logged regardless of `debug_`.
+  log_timing(t_lo_us, t_hi_us, solve_samples.size(), elapsed_ms(t_total));
 
   return result;
 }

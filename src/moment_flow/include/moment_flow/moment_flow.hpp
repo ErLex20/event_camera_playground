@@ -27,7 +27,10 @@
 #include <algorithm>
 #include <atomic>
 #include <condition_variable>
+#include <cstddef>
+#include <cstdint>
 #include <deque>
+#include <fstream>
 #include <limits>
 #include <mutex>
 #include <optional>
@@ -158,6 +161,22 @@ private:
   FlowResult solve_flow_moment(
     const dv::EventStore & window,
     std::optional<int64_t> t_ref_override_us = std::nullopt);
+
+  /**
+   * @brief Opens the end-to-end timing CSV log, if `timing_log_path_` is set.
+   *
+   * Truncates any pre-existing file and writes the header row. No-op (log
+   * stays disabled) if the path is empty or cannot be opened.
+   */
+  void prepare_timing_log();
+
+  /**
+   * @brief Appends one row to the timing CSV log.
+   *
+   * No-op if the log is disabled. Always called regardless of `debug_`: the
+   * end-to-end solve time is useful data, not a debug diagnostic.
+   */
+  void log_timing(int64_t from_us, int64_t to_us, std::size_t num_events, double total_ms);
 
   /**
    * @brief Loads the optional benchmark-save timestamp schedule.
@@ -336,6 +355,7 @@ private:
   double  ba_filter_dt_ms_;
   bool    iwe_enabled_;
   bool    flow_enabled_;
+  bool    debug_;
   double  flow_max_window_ms_;
   int64_t flow_num_scales_;
   int64_t flow_cell_size_px_;
@@ -361,6 +381,11 @@ private:
   bool flow_save_clear_output_;
   int64_t flow_save_first_index_;
   int64_t flow_save_index_step_;
+  std::string timing_log_path_;
+
+  /* End-to-end timing CSV log (open for the lifetime of one activation). */
+  std::ofstream timing_log_stream_;
+  bool timing_log_ready_{false};
 
   /* Threads. */
   std::thread thread_worker_;
