@@ -26,6 +26,16 @@ ARG USER_UID=1000
 ENV DEBIAN_FRONTEND=noninteractive
 
 # IMAGE SETUP START #
+RUN git clone --single-branch --branch 2.0.3 --depth 1 \
+    https://gitlab.com/inivation/dv/dv-processing.git /opt/dv-processing && \
+    cd /opt/dv-processing && \
+    mkdir build && \
+    cd build && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/opt/dv-processing && \
+    make -j$(nproc) && \
+    make install && \
+    chgrp -R internal /opt/dv-processing && \
+    chmod -R g+rwX /opt/dv-processing
 # IMAGE SETUP END #
 
 # Copy user configuration files to /etc/skel
