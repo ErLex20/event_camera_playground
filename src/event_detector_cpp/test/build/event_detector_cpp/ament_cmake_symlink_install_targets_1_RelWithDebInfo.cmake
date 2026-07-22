@@ -1,1 +1,0 @@
-ament_cmake_symlink_install_targets("TARGET_FILES" "/home/neo/workspace/src/event_detector_cpp/test/build/event_detector_cpp/event_detector_cpp_app" "TARGETS" "event_detector_cpp_app" "DESTINATION" "lib/event_detector_cpp")

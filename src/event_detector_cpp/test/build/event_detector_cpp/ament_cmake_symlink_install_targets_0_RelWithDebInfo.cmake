@@ -1,1 +1,0 @@
-ament_cmake_symlink_install_targets("TARGET_FILES" "/home/neo/workspace/src/event_detector_cpp/test/build/event_detector_cpp/libevent_detector_cpp.so" "TARGETS" "event_detector_cpp" "ARCHIVE_DESTINATION" "lib" "LIBRARY_DESTINATION" "lib" "RUNTIME_DESTINATION" "bin")

@@ -1,1 +1,0 @@
-/home/neo/workspace/src/event_detector_cpp/launch/event_detector_cpp.launch.py

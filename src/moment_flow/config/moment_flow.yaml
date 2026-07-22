@@ -1,0 +1,40 @@
+/moment_flow:
+  ros__parameters:
+    dua:
+      tf_server:
+        get_transform: true
+        transform_pose: false
+        wait_servers: false
+    autostart: true
+    ba_filter_enabled: true        # background-activity noise filter (drops isolated hot/shot-noise events)
+    ba_filter_dt_ms: 1.0           # BA correlation time: an event survives only if a neighbor fired within this dt
+    iwe_enabled: true              # render the Image of Warped Events (alignment diagnostic / visualization)
+    flow_enabled: true             # run the MomentFlow optical-flow estimator
+    flow_max_window_ms: 100.0      # event time span accumulated per flow estimate (one estimate per GT row when saving)
+    flow_num_scales: 6      # tile-pyramid scales; final grid = 2^(N-1) per side (6 -> 32x32 tiles)
+    flow_cell_size_px: 4      # moment-grid cell size [px]; larger = more events/cell, stabler fits, coarser
+    flow_cell_min_mass: 3.0      # min accumulated event mass for a cell to be considered
+    flow_cell_min_lambda: 0.0005      # min dominant eigenvalue of the cell spatial covariance (rejects ill-posed cells)
+    flow_cell_max_residual_ratio: 0.95      # max unexplained temporal-variance ratio of the plane fit (0.7: reject noisy fits -> kills random tiles & cuts EPE)
+
+    flow_tile_min_mass: 5.0      # min summed confidence (Σρ) for a tile to be solved from data
+    flow_tile_min_cells: 2      # min number of valid cells per tile (5: reject sparse/noisy tiles)
+    flow_tile_min_lambda: 0.00001      # min tile geometry eigenvalue (else fall back to prior)
+    flow_aperture_ratio: 0.04      # ratio lmin/lmax below which a tile is aperture-limited (tangential taken from prior)
+    flow_tikhonov_eps: 0.0005      # Tikhonov regularization coefficient (scaled by the tile's dominant eigenvalue)
+
+    flow_prior_lambda: 0.7      # pull toward the prior (coarser scale / warm-start); high = more stable but shrinks fast motion
+    flow_reg_lambda: 5.0      # spatial coupling strength of the data-coupled regularizer (0 = exact no-op)
+    flow_reg_sweeps: 12      # Gauss-Seidel sweeps for the coupled regularizer (0 = exact no-op)
+    flow_reg_sigma: 60.0      # Charbonnier edge-preserving threshold [px/s]; large = nearly isotropic coupling
+
+    flow_refine_enabled: true      # Stage C: compositional warped re-solve (CMax-style iterations)
+    flow_refine_iters: 4           # max outer warped re-solve iterations (early-stops at sub-pixel residual)
+    flow_iwe_scale: 1      # downscale factor for the IWE focus diagnostic (>1 = faster/lower-res; does not affect saved flow)
+    flow_max_speed_px_s: 3000.0      # speed clamp [px/s] and upper saturation for the flow visualization
+    flow_save_enabled: false        # export the flow as DSEC-format 16-bit PNG
+    flow_save_output_dir: /home/neo/workspace/logs/moment_flow/thun_00_a   # output directory for the exported flow PNGs
+    flow_save_timestamp_file: /home/neo/workspace/logs/dsec/thun_00_a/optical_flow_forward/thun_00_a_optical_flow_forward_timestamps.txt   # DSEC (from_us, to_us, index) save schedule
+    flow_save_clear_output: true   # delete stale PNGs in the output dir before saving
+    flow_save_first_index: 2       # first DSEC GT file index to save
+    flow_save_index_step: 2        # DSEC GT file index step (matches the 100 ms / 10 Hz GT cadence)
