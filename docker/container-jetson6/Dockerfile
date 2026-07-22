@@ -1,0 +1,79 @@
+# DUA environment image.
+#
+# Roberto Masocco <r.masocco@dotxautomation.com>
+#
+# March 9, 2026
+
+# Copyright 2026 dotX Automation s.r.l.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+FROM dotxautomation/dua-foundation:jetson6
+
+# Change this to match the UID of the owner of this file on the system
+ARG USER_UID=1000
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# IMAGE SETUP START #
+# IMAGE SETUP END #
+
+# Copy user configuration files to /etc/skel
+COPY ./aliases.sh \
+  ./bashrc \
+  ./colcon-defaults.yaml \
+  ./commands.sh \
+  ./nanorc \
+  ./p10k.zsh \
+  ./ros2.sh \
+  ./vimrc \
+  ./zshrc \
+  /etc/skel/staging/
+
+# Do the following:
+# - Populate /etc/skel with dot-named config files and needed directories, all mount points
+# - Handle existing user conflicts and create the internal user
+# - Grant passwordless sudo to internal user and suppress hostname resolution warning
+# - Create mount point for remote filesystems
+RUN mkdir -p /etc/skel/.colcon /etc/skel/.ssh && \
+  chmod -R 700 /etc/skel/.ssh && \
+  mkdir /etc/skel/workspace /etc/skel/zsh_history && \
+  mv /etc/skel/staging/colcon-defaults.yaml /etc/skel/.colcon/defaults.yaml && \
+  for f in /etc/skel/staging/*; do mv "$f" "/etc/skel/.$(basename $f)"; done && \
+  rmdir /etc/skel/staging; \
+  (getent passwd ${USER_UID} || true) && userdel -r $(getent passwd ${USER_UID} | cut -d: -f1) 2>/dev/null || true; \
+  useradd -r -m -s /usr/bin/zsh -u ${USER_UID} -G adm,dialout,internal,plugdev,sudo,tty,video neo && \
+  printf 'Defaults !fqdn\nneo ALL=(ALL) NOPASSWD:ALL\n' > /etc/sudoers.d/neo && \
+  chmod 0440 /etc/sudoers.d/neo && \
+  mkdir -p /mnt/remote && \
+  chown -R neo:neo /mnt/remote
+
+# Switch to internal user
+USER neo
+ENV HOME=/home/neo
+WORKDIR ${HOME}
+
+# Configure Zsh for internal user
+ENV ZSH=${HOME}/.oh-my-zsh
+ENV ZSH_CUSTOM=${ZSH}/custom
+ENV ZSH_PLUGINS=${ZSH_CUSTOM}/plugins
+ENV ZSH_THEMES=${ZSH_CUSTOM}/themes
+RUN wget -qO- https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh | zsh || true; \
+  git clone --single-branch --branch 'master' --depth 1 https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH_PLUGINS}/zsh-syntax-highlighting; \
+  git clone --single-branch --branch 'master' --depth 1 https://github.com/zsh-users/zsh-autosuggestions ${ZSH_PLUGINS}/zsh-autosuggestions; \
+  git clone --single-branch --depth 1 https://github.com/romkatv/powerlevel10k.git ${ZSH_THEMES}/powerlevel10k
+
+ENV DEBIAN_FRONTEND=dialog
+
+# By default, start a basic shell
+CMD ["bash"]
