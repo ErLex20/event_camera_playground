@@ -459,6 +459,77 @@ cv::Mat mask_debug_by_support(const cv::Mat & flow_debug, const cv::Mat & suppor
   return flow_events_debug;
 }
 
+cv::Mat render_flow_hsv_debug(
+  const cv::Mat & flow,
+  double vis_speed_cap,
+  const cv::Size & output_size = cv::Size())
+{
+  if (flow.empty() || flow.type() != CV_32FC2) {
+    return cv::Mat();
+  }
+
+  cv::Mat angle(flow.rows, flow.cols, CV_32F, cv::Scalar(0.0f));
+  cv::Mat magnitude(flow.rows, flow.cols, CV_32F, cv::Scalar(0.0f));
+  std::vector<float> speeds;
+  speeds.reserve(static_cast<size_t>(flow.rows) * flow.cols);
+  double max_speed = 0.0;
+
+  for (int y = 0; y < flow.rows; ++y) {
+    const cv::Vec2f * vrow = flow.ptr<cv::Vec2f>(y);
+    float * arow = angle.ptr<float>(y);
+    float * mrow = magnitude.ptr<float>(y);
+    for (int x = 0; x < flow.cols; ++x) {
+      const float vx = vrow[x][0];
+      const float vy = vrow[x][1];
+      if (!std::isfinite(vx) || !std::isfinite(vy)) {
+        continue;
+      }
+      float a = std::atan2(vy, vx);
+      if (a < 0.0f) {
+        a += 2.0f * static_cast<float>(CV_PI);
+      }
+      const float spd = std::hypot(vx, vy);
+      arow[x] = a;
+      mrow[x] = spd;
+      speeds.push_back(spd);
+      max_speed = std::max(max_speed, static_cast<double>(spd));
+    }
+  }
+
+  double robust_max_speed = max_speed;
+  if (!speeds.empty()) {
+    const size_t nth = std::min(
+      speeds.size() - 1,
+      static_cast<size_t>(0.95 * static_cast<double>(speeds.size())));
+    std::nth_element(speeds.begin(), speeds.begin() + nth, speeds.end());
+    robust_max_speed = std::max<double>(speeds[nth], 0.05 * max_speed);
+  }
+  const double speed_cap = std::max(1e-6, vis_speed_cap);
+  const double display_floor_speed = std::max(25.0, 0.10 * speed_cap);
+  const double raw_display_max = (robust_max_speed > 1e-6) ? robust_max_speed : speed_cap;
+  const double display_max_speed =
+    std::clamp(raw_display_max, display_floor_speed, speed_cap);
+
+  cv::Mat hsv_parts[3];
+  cv::Mat hue = angle * (180.0f / (2.0f * static_cast<float>(CV_PI)));
+  hue.convertTo(hsv_parts[0], CV_8U);
+  hsv_parts[1] = cv::Mat(flow.rows, flow.cols, CV_8U, cv::Scalar(255));
+  magnitude *= (255.0f / static_cast<float>(display_max_speed));
+  cv::threshold(magnitude, magnitude, 255.0, 255.0, cv::THRESH_TRUNC);
+  magnitude.convertTo(hsv_parts[2], CV_8U);
+
+  cv::Mat hsv;
+  cv::Mat bgr;
+  cv::merge(hsv_parts, 3, hsv);
+  cv::cvtColor(hsv, bgr, cv::COLOR_HSV2BGR);
+  if (output_size.width > 0 && output_size.height > 0 && bgr.size() != output_size) {
+    cv::Mat resized;
+    cv::resize(bgr, resized, output_size, 0.0, 0.0, cv::INTER_NEAREST);
+    return resized;
+  }
+  return bgr;
+}
+
 }  // namespace
 
 EventDetector::FlowResult EventDetector::solve_flow_moment(
@@ -635,21 +706,27 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
   timing.solve_moments_ms = elapsed_ms(t_moment);
   const auto profile = moment_flow_->profile();
 
-  const auto t_render_events = ProfileClock::now();
+  const bool need_iwe = iwe_enabled_ || debug_;
+  const bool need_event_mask = flow_events_enabled_;
+  const bool need_render_events = need_iwe || need_event_mask;
+
   Events render_ev;
-  render_ev.t_ref_us = t_ref_us;
-  render_ev.x.reserve(total);
-  render_ev.y.reserve(total);
-  render_ev.t.reserve(total);
-  for (const auto & e : window) {
-    if (e.x() < 0 || e.y() < 0 || e.x() >= w || e.y() >= h) {
-      continue;
+  if (need_render_events) {
+    const auto t_render_events = ProfileClock::now();
+    render_ev.t_ref_us = t_ref_us;
+    render_ev.x.reserve(total);
+    render_ev.y.reserve(total);
+    render_ev.t.reserve(total);
+    for (const auto & e : window) {
+      if (e.x() < 0 || e.y() < 0 || e.x() >= w || e.y() >= h) {
+        continue;
+      }
+      render_ev.x.push_back(static_cast<float>(e.x()));
+      render_ev.y.push_back(static_cast<float>(e.y()));
+      render_ev.t.push_back(static_cast<float>(e.timestamp() - t_ref_us) * 1e-6f);
     }
-    render_ev.x.push_back(static_cast<float>(e.x()));
-    render_ev.y.push_back(static_cast<float>(e.y()));
-    render_ev.t.push_back(static_cast<float>(e.timestamp() - t_ref_us) * 1e-6f);
+    timing.render_events_ms = elapsed_ms(t_render_events);
   }
-  timing.render_events_ms = elapsed_ms(t_render_events);
 
   // ---- Field-level multi-reference focus diagnostic ----
   // Warp to explicit target times in the event window coordinate system,
@@ -661,60 +738,83 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
   const int iwe_scale = std::max<int>(1, static_cast<int>(flow_iwe_scale_));
   const float t_lo_ref_s = static_cast<float>(t_lo_us - t_ref_us) * 1e-6f;
   const float t_hi_ref_s = static_cast<float>(t_hi_us - t_ref_us) * 1e-6f;
+  double g_id = 0.0;
+  double g_mid = 0.0;
+  double g_lo = 0.0;
+  double g_hi = 0.0;
+  double focus_f = 1.0;
+  bool flow_rejected = false;
 
   // The focus diagnostic uses contrast ratios, which are stable under event
   // subsampling: cap the events fed to the four focus renders so the
   // diagnostic cost stays bounded on busy windows.
   constexpr std::size_t kMaxFocusEvents = 150000;
-  const auto t_focus = ProfileClock::now();
+  cv::Mat focus_id, focus_mid, focus_lo, focus_hi;
   Events focus_ev;
   const Events * focus_src = &render_ev;
-  if (render_ev.size() > kMaxFocusEvents) {
-    const std::size_t fstride = (render_ev.size() + kMaxFocusEvents - 1) / kMaxFocusEvents;
-    focus_ev.t_ref_us = render_ev.t_ref_us;
-    focus_ev.x.reserve(render_ev.size() / fstride + 1);
-    focus_ev.y.reserve(render_ev.size() / fstride + 1);
-    focus_ev.t.reserve(render_ev.size() / fstride + 1);
-    for (size_t k = 0; k < render_ev.size(); k += fstride) {
-      focus_ev.x.push_back(render_ev.x[k]);
-      focus_ev.y.push_back(render_ev.y[k]);
-      focus_ev.t.push_back(render_ev.t[k]);
+  if (need_iwe) {
+    const auto t_focus = ProfileClock::now();
+    if (render_ev.size() > kMaxFocusEvents) {
+      const std::size_t fstride = (render_ev.size() + kMaxFocusEvents - 1) / kMaxFocusEvents;
+      focus_ev.t_ref_us = render_ev.t_ref_us;
+      focus_ev.x.reserve(render_ev.size() / fstride + 1);
+      focus_ev.y.reserve(render_ev.size() / fstride + 1);
+      focus_ev.t.reserve(render_ev.size() / fstride + 1);
+      for (size_t k = 0; k < render_ev.size(); k += fstride) {
+        focus_ev.x.push_back(render_ev.x[k]);
+        focus_ev.y.push_back(render_ev.y[k]);
+        focus_ev.t.push_back(render_ev.t[k]);
+      }
+      focus_src = &focus_ev;
     }
-    focus_src = &focus_ev;
+
+    render_iwe_bilinear(
+      *focus_src, F, nullptr, final_tiles, w, h, iwe_scale, false, 0.0f,
+      kFocusSplatOffsetIwePx, focus_id);
+    render_iwe_bilinear(
+      *focus_src, F, accel_ptr, final_tiles, w, h, iwe_scale, true, 0.0f,
+      kFocusSplatOffsetIwePx, focus_mid);
+    render_iwe_bilinear(
+      *focus_src, F, accel_ptr, final_tiles, w, h, iwe_scale, true, t_lo_ref_s,
+      kFocusSplatOffsetIwePx, focus_lo);
+    render_iwe_bilinear(
+      *focus_src, F, accel_ptr, final_tiles, w, h, iwe_scale, true, t_hi_ref_s,
+      kFocusSplatOffsetIwePx, focus_hi);
+    // The common sub-pixel offset gives integer identity splats variance
+    // eps*(1-eps) ~= 1/6, the average bilinear variance of fractional warps.
+    // Applying it to every focus render keeps zero-motion focus_f exactly neutral.
+    auto focus_contrast = [](const cv::Mat & iwe) {
+      cv::Mat b;
+      cv::GaussianBlur(iwe, b, cv::Size(0, 0), 1.0);
+      return iwe_contrast(b);
+    };
+    g_id  = std::max(focus_contrast(focus_id), 1e-12);
+    g_mid = focus_contrast(focus_mid);
+    g_lo  = focus_contrast(focus_lo);
+    g_hi  = focus_contrast(focus_hi);
+    focus_f = (g_lo + 2.0 * g_mid + g_hi) / (4.0 * g_id);
+    flow_rejected = !(focus_f > 1.0);
+    timing.iwe_focus_ms = elapsed_ms(t_focus);
   }
-
-  cv::Mat focus_id, focus_mid, focus_lo, focus_hi;
-  render_iwe_bilinear(
-    *focus_src, F, nullptr, final_tiles, w, h, iwe_scale, false, 0.0f,
-    kFocusSplatOffsetIwePx, focus_id);
-  render_iwe_bilinear(
-    *focus_src, F, accel_ptr, final_tiles, w, h, iwe_scale, true, 0.0f,
-    kFocusSplatOffsetIwePx, focus_mid);
-  render_iwe_bilinear(
-    *focus_src, F, accel_ptr, final_tiles, w, h, iwe_scale, true, t_lo_ref_s,
-    kFocusSplatOffsetIwePx, focus_lo);
-  render_iwe_bilinear(
-    *focus_src, F, accel_ptr, final_tiles, w, h, iwe_scale, true, t_hi_ref_s,
-    kFocusSplatOffsetIwePx, focus_hi);
-  // The common sub-pixel offset gives integer identity splats variance
-  // eps*(1-eps) ~= 1/6, the average bilinear variance of fractional warps.
-  // Applying it to every focus render keeps zero-motion focus_f exactly neutral.
-  auto focus_contrast = [](const cv::Mat & iwe) {
-    cv::Mat b;
-    cv::GaussianBlur(iwe, b, cv::Size(0, 0), 1.0);
-    return iwe_contrast(b);
-  };
-  const double g_id  = std::max(focus_contrast(focus_id), 1e-12);
-  const double g_mid = focus_contrast(focus_mid);
-  const double g_lo  = focus_contrast(focus_lo);
-  const double g_hi  = focus_contrast(focus_hi);
-  const double focus_f = (g_lo + 2.0 * g_mid + g_hi) / (4.0 * g_id);
-
-  const bool flow_rejected = !(focus_f > 1.0);
-  timing.iwe_focus_ms = elapsed_ms(t_focus);
 
   prev_flow_field_ = F;
   prev_flow_tiles_ = final_tiles;
+
+  const auto t_tile_flow = ProfileClock::now();
+  result.flow_tiles = cv::Mat(final_tiles, final_tiles, CV_32FC2);
+  for (int ty = 0; ty < final_tiles; ++ty) {
+    cv::Vec2f * row = result.flow_tiles.ptr<cv::Vec2f>(ty);
+    for (int tx = 0; tx < final_tiles; ++tx) {
+      const int k = ty * final_tiles + tx;
+      row[tx] = cv::Vec2f(-F[2 * k], -F[2 * k + 1]);
+    }
+  }
+  timing.tile_flow_ms = elapsed_ms(t_tile_flow);
+
+  const auto t_tile_debug = ProfileClock::now();
+  result.flow_tile_debug =
+    render_flow_hsv_debug(result.flow_tiles, vis_speed_cap, cv::Size(w, h));
+  timing.tile_debug_ms = elapsed_ms(t_tile_debug);
 
   // Dense flow field: the actual estimator output. Always computed, since
   // it (and flow_events derived from it below) is the useful data this node
@@ -825,21 +925,23 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
     timing.flow_debug_ms = elapsed_ms(t_flow_image);
   }
 
-  // The support mask must reflect every event at full resolution regardless of
-  // the subsampled focus renders above. flow_events (the event-supported flow
-  // field) is useful data, not a diagnostic: always computed.
-  const auto t_support_mask = ProfileClock::now();
-  const cv::Mat support_mask = render_support_mask(
-    render_ev, F, flow_rejected ? nullptr : accel_ptr,
-    final_tiles, w, h, /*warp=*/!flow_rejected);
-  timing.support_mask_ms = elapsed_ms(t_support_mask);
+  // The event-supported flow is a sparse benchmark/diagnostic product. It is
+  // intentionally optional because splatting every event is expensive.
+  cv::Mat support_mask;
+  if (need_event_mask) {
+    const auto t_support_mask = ProfileClock::now();
+    support_mask = render_support_mask(
+      render_ev, F, flow_rejected ? nullptr : accel_ptr,
+      final_tiles, w, h, /*warp=*/!flow_rejected);
+    timing.support_mask_ms = elapsed_ms(t_support_mask);
 
-  const auto t_events_mask = ProfileClock::now();
-  result.flow_events = mask_flow_by_support(result.flow_dense, support_mask);
-  timing.events_mask_ms = elapsed_ms(t_events_mask);
+    const auto t_events_mask = ProfileClock::now();
+    result.flow_events = mask_flow_by_support(result.flow_dense, support_mask);
+    timing.events_mask_ms = elapsed_ms(t_events_mask);
+  }
 
   // ---- Debug-only: IWE preview image + event-supported debug visualization ----
-  if (debug_) {
+  if (need_iwe) {
     const auto t_iwe = ProfileClock::now();
     // The published IWE is a visualization: the (subsampled, possibly
     // downscaled) focus render is sufficient, upscaled back to sensor size.
@@ -851,7 +953,9 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
     } else {
       result.iwe = iwe_vis;
     }
-    result.flow_events_debug = mask_debug_by_support(result.flow_dense_debug, support_mask);
+    if (debug_ && need_event_mask) {
+      result.flow_events_debug = mask_debug_by_support(result.flow_dense_debug, support_mask);
+    }
     timing.iwe_debug_ms = elapsed_ms(t_iwe);
   }
 
@@ -916,8 +1020,9 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
       "moment=%.3f ms render=%.3f ms total=%.3f ms achieved_hz=%.3f",
       total, solve_samples.size(), stride, static_cast<double>(t_hi_us - t_lo_us) * 1e-3,
       timing.select_events_ms, timing.pack_events_ms, timing.solve_moments_ms,
-      timing.render_events_ms + timing.iwe_focus_ms + timing.dense_flow_ms +
-      timing.flow_debug_ms + timing.support_mask_ms + timing.events_mask_ms + timing.iwe_debug_ms,
+      timing.render_events_ms + timing.iwe_focus_ms + timing.tile_flow_ms +
+      timing.tile_debug_ms + timing.dense_flow_ms + timing.flow_debug_ms +
+      timing.support_mask_ms + timing.events_mask_ms + timing.iwe_debug_ms,
       timing.total_ms, 1000.0 / std::max(1e-9, timing.total_ms));
   }
 

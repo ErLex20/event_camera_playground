@@ -71,6 +71,14 @@ void EventDetector::init_publishers()
     "~/flow_dense",
     dua_qos::BestEffort::get_image_qos(1));
 
+  pub_flow_tiles_ = dua_create_publisher<sensor_msgs::msg::Image>(
+    "~/flow_tiles",
+    dua_qos::BestEffort::get_image_qos(1));
+
+  pub_flow_tile_debug_ = dua_create_publisher<sensor_msgs::msg::Image>(
+    "~/flow_tile_debug",
+    dua_qos::BestEffort::get_image_qos(1));
+
   pub_flow_events_debug_ = dua_create_publisher<sensor_msgs::msg::Image>(
     "~/flow_events_debug",
     dua_qos::BestEffort::get_image_qos(1));

@@ -10,7 +10,8 @@
     ba_filter_dt_ms: 1.0           # BA correlation time: an event survives only if a neighbor fired within this dt
     iwe_enabled: true              # render the Image of Warped Events (alignment diagnostic / visualization)
     flow_enabled: true             # run the MomentFlow optical-flow estimator
-    debug: false                   # disable debug images/logging/diagnostics-only metrics for lean benchmark runs (flow_dense/flow_events and the timing CSV are unaffected)
+    flow_events_enabled: true       # publish/save event-supported sparse flow via a warped-event support mask
+    debug: false                   # disable debug images/logging/diagnostics-only metrics for lean benchmark runs (flow_dense/flow_tiles and the timing CSV are unaffected)
     flow_max_window_ms: 100.0      # event time span accumulated per flow estimate (one estimate per GT row when saving)
     flow_num_scales: 6      # tile-pyramid scales; final grid = 2^(N-1) per side (6 -> 32x32 tiles)
     flow_cell_size_px: 4      # moment-grid cell size [px]; larger = more events/cell, stabler fits, coarser

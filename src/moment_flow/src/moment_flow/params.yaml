@@ -30,21 +30,28 @@ params:
   iwe_enabled:
     type: bool
     default_value: true
-    description: "Enable global Image of Warped Events rendering and publishing."
+    description: "Enable Image of Warped Events focus rendering and publishing."
     constraints: "Cannot be changed at runtime."
     read_only: true
     var_name: iwe_enabled_
   flow_enabled:
     type: bool
     default_value: true
-    description: "Enable dense optical-flow estimation via moment-based incremental alignment."
+    description: "Enable optical-flow estimation and publish dense plus native tile-grid flow."
     constraints: "Cannot be changed at runtime."
     read_only: true
     var_name: flow_enabled_
+  flow_events_enabled:
+    type: bool
+    default_value: false
+    description: "Enable event-supported sparse flow output by splatting warped events into a support mask."
+    constraints: "Disable for lean dense/tile optical-flow runtime; enable for sparse benchmarking."
+    read_only: false
+    var_name: flow_events_enabled_
   debug:
     type: bool
     default_value: true
-    description: "Enable debug-only work: flow/IWE visualization images, per-window profiling logs, and diagnostic-only metrics (e.g. FWL). The estimated flow (flow_dense, flow_events) and the end-to-end timing CSV (timing_log_path) are always produced regardless of this flag."
+    description: "Enable heavy debug-only work: dense/event flow visualization images, per-window profiling logs, and diagnostic-only metrics (e.g. FWL). The estimated flow (flow_dense, flow_tiles), lightweight flow_tile_debug image, and end-to-end timing CSV (timing_log_path) are always produced regardless of this flag."
     constraints: "Disable for lean, benchmark-ready operation; does not change the estimated flow."
     read_only: false
     var_name: debug_
@@ -286,7 +293,7 @@ params:
   timing_log_path:
     type: string
     default_value: ""
-    description: "CSV file logging the end-to-end MomentFlow solve time for every processed window: from_us,to_us,num_events,total_ms."
+    description: "CSV file logging end-to-end MomentFlow timing and coarse per-stage timing for every processed window."
     constraints: "Parent directory is created automatically. Empty disables the log. Always written when set, independent of 'debug'."
     read_only: true
     var_name: timing_log_path_

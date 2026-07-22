@@ -178,11 +178,19 @@ void EventDetector::worker_thread_routine()
             pub_flow_dense_, res.flow_dense,
             sensor_msgs::image_encodings::TYPE_32FC2, chunk.header);
           publish_image(
-            pub_flow_events_debug_, res.flow_events_debug,
-            sensor_msgs::image_encodings::BGR8, chunk.header);
-          publish_image(
-            pub_flow_events_, res.flow_events,
+            pub_flow_tiles_, res.flow_tiles,
             sensor_msgs::image_encodings::TYPE_32FC2, chunk.header);
+          publish_image(
+            pub_flow_tile_debug_, res.flow_tile_debug,
+            sensor_msgs::image_encodings::BGR8, chunk.header);
+          if (flow_events_enabled_) {
+            publish_image(
+              pub_flow_events_debug_, res.flow_events_debug,
+              sensor_msgs::image_encodings::BGR8, chunk.header);
+            publish_image(
+              pub_flow_events_, res.flow_events,
+              sensor_msgs::image_encodings::TYPE_32FC2, chunk.header);
+          }
         }
       }
     }
@@ -268,9 +276,16 @@ dv::EventStore EventDetector::accumulate_scheduled_flow(
       publish_image(
         pub_flow_dense_, res.flow_dense, sensor_msgs::image_encodings::TYPE_32FC2, header);
       publish_image(
-        pub_flow_events_debug_, res.flow_events_debug, sensor_msgs::image_encodings::BGR8, header);
+        pub_flow_tiles_, res.flow_tiles, sensor_msgs::image_encodings::TYPE_32FC2, header);
       publish_image(
-        pub_flow_events_, res.flow_events, sensor_msgs::image_encodings::TYPE_32FC2, header);
+        pub_flow_tile_debug_, res.flow_tile_debug, sensor_msgs::image_encodings::BGR8, header);
+      if (flow_events_enabled_) {
+        publish_image(
+          pub_flow_events_debug_, res.flow_events_debug,
+          sensor_msgs::image_encodings::BGR8, header);
+        publish_image(
+          pub_flow_events_, res.flow_events, sensor_msgs::image_encodings::TYPE_32FC2, header);
+      }
     }
 
     flow_accum_ = dv::EventStore();

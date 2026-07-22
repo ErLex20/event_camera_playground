@@ -136,8 +136,8 @@ void EventDetector::prepare_timing_log()
 
   timing_log_stream_
     << "from_us,to_us,num_events,total_ms,"
-    << "select_events_ms,pack_events_ms,solve_moments_ms,refine_ms,"
-    << "render_events_ms,iwe_focus_ms,dense_flow_ms,flow_debug_ms,"
+    << "select_events_ms,pack_events_ms,solve_moments_ms,refine_sub_ms,"
+    << "render_events_ms,iwe_focus_ms,tile_flow_ms,tile_debug_ms,dense_flow_ms,flow_debug_ms,"
     << "support_mask_ms,events_mask_ms,iwe_debug_ms\n";
   timing_log_ready_ = true;
 }
@@ -162,6 +162,8 @@ void EventDetector::log_timing(
     << timing.refine_ms << ','
     << timing.render_events_ms << ','
     << timing.iwe_focus_ms << ','
+    << timing.tile_flow_ms << ','
+    << timing.tile_debug_ms << ','
     << timing.dense_flow_ms << ','
     << timing.flow_debug_ms << ','
     << timing.support_mask_ms << ','
@@ -326,7 +328,9 @@ void EventDetector::save_flow_results(
   // Dense keeps its original behavior on degenerate windows (all-valid zeros);
   // only the sparse field treats a missing estimate as invalid.
   save_flow_png(res.flow_dense, "dense", /*empty_is_invalid=*/false, file_index, from_us, to_us);
-  save_flow_png(res.flow_events, "sparse", /*empty_is_invalid=*/true, file_index, from_us, to_us);
+  if (flow_events_enabled_) {
+    save_flow_png(res.flow_events, "sparse", /*empty_is_invalid=*/true, file_index, from_us, to_us);
+  }
 }
 
 void EventDetector::save_flow_png(

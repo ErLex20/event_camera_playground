@@ -133,8 +133,10 @@ private:
   {
     cv::Mat flow_dense_debug;   // dense flow visualization, BGR8
     cv::Mat flow_dense;         // dense image-flow velocity, CV_32FC2 [px/s]
+    cv::Mat flow_tiles;         // native tile-grid image-flow velocity, CV_32FC2 [px/s]
+    cv::Mat flow_tile_debug;    // native tile-grid flow visualization, BGR8
     cv::Mat flow_events_debug;  // event-supported flow visualization, BGR8
-    cv::Mat flow_events;        // flow_dense only where IWE is active, CV_32FC2 [px/s]
+    cv::Mat flow_events;        // flow_dense only where event support exists, CV_32FC2 [px/s]
     cv::Mat iwe;                // Image of Warped Events at the window midpoint, MONO8
   };
 
@@ -147,6 +149,8 @@ private:
     double refine_ms = 0.0;
     double render_events_ms = 0.0;
     double iwe_focus_ms = 0.0;
+    double tile_flow_ms = 0.0;
+    double tile_debug_ms = 0.0;
     double dense_flow_ms = 0.0;
     double flow_debug_ms = 0.0;
     double support_mask_ms = 0.0;
@@ -228,9 +232,8 @@ private:
   /**
    * @brief Saves both the dense and event-sparse flow fields as DSEC PNGs.
    *
-   * Writes flow_dense to the "dense" subdirectory and flow_events to the
-   * "sparse" subdirectory of flow_save_output_dir_, so both benchmarks (dense
-   * and sparse) can be run from a single node run.
+   * Writes flow_dense to the "dense" subdirectory. When flow_events_enabled_
+   * is true, also writes flow_events to the "sparse" subdirectory.
    */
   void save_flow_results(
     const FlowResult & res,
@@ -336,6 +339,8 @@ private:
   /* Publishers. */
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr pub_flow_dense_debug_;
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr pub_flow_dense_;
+  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr pub_flow_tiles_;
+  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr pub_flow_tile_debug_;
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr pub_flow_events_debug_;
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr pub_flow_events_;
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr pub_iwe_;
@@ -376,6 +381,7 @@ private:
   double  ba_filter_dt_ms_;
   bool    iwe_enabled_;
   bool    flow_enabled_;
+  bool    flow_events_enabled_;
   bool    debug_;
   double  flow_max_window_ms_;
   int64_t flow_num_scales_;
