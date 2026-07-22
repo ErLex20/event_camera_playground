@@ -467,6 +467,7 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
 {
   const auto t_total = ProfileClock::now();
   FlowResult result;
+  FlowTiming timing;
   if (window.isEmpty() || res_.width <= 0 || res_.height <= 0) {
     return result;
   }
@@ -495,14 +496,14 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
       static_cast<float>(e.y()),
       e.timestamp()});
   }
-  const double select_ms = elapsed_ms(t_select);
+  timing.select_events_ms = elapsed_ms(t_select);
   if (solve_samples.size() < 2) {
     if (debug_) {
       RCLCPP_INFO(
         get_logger(),
         "Flow profile: skipped moment flow, raw_events=%zu solve_events=%zu "
         "stride=%zu select=%.3f ms",
-        total, solve_samples.size(), stride, select_ms);
+        total, solve_samples.size(), stride, timing.select_events_ms);
     }
     return result;
   }
@@ -527,7 +528,7 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
     ev.y.push_back(e.y);
     ev.t.push_back(static_cast<float>(e.t_us - t_ref_us) * 1e-6f);
   }
-  const double pack_ms = elapsed_ms(t_pack);
+  timing.pack_events_ms = elapsed_ms(t_pack);
 
   MomentFlowParams params;
   params.num_scales = n_scales;
@@ -585,7 +586,6 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
   // field shrinks, and the composition F <- F + dF converges to the dispersion
   // optimum without the truncation bias.
   int refine_done = 0;
-  double refine_ms = 0.0;
   if (flow_refine_enabled_ && flow_refine_iters_ > 0) {
     const auto t_refine = ProfileClock::now();
     // Residual speeds below this leave sub-pixel displacement over the window:
@@ -623,7 +623,7 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
     }
     moment_flow_->set_prior_scale(1.0f);
     clamp_field_speed(F, static_cast<float>(flow_max_speed_px_s_));
-    refine_ms = elapsed_ms(t_refine);
+    timing.refine_ms = elapsed_ms(t_refine);
   }
   {
     // Regularize the composed field: the in-solve regularizer only saw the
@@ -632,7 +632,7 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
     moment_flow_->final_tile_confidence(smooth_conf);
     smooth_field_confidence(F, smooth_conf, final_tiles, 4, 0.5f);
   }
-  const double moment_ms = elapsed_ms(t_moment);
+  timing.solve_moments_ms = elapsed_ms(t_moment);
   const auto profile = moment_flow_->profile();
 
   const auto t_render_events = ProfileClock::now();
@@ -649,7 +649,7 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
     render_ev.y.push_back(static_cast<float>(e.y()));
     render_ev.t.push_back(static_cast<float>(e.timestamp() - t_ref_us) * 1e-6f);
   }
-  const double render_events_ms = elapsed_ms(t_render_events);
+  timing.render_events_ms = elapsed_ms(t_render_events);
 
   // ---- Field-level multi-reference focus diagnostic ----
   // Warp to explicit target times in the event window coordinate system,
@@ -711,7 +711,7 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
   const double focus_f = (g_lo + 2.0 * g_mid + g_hi) / (4.0 * g_id);
 
   const bool flow_rejected = !(focus_f > 1.0);
-  const double focus_ms = elapsed_ms(t_focus);
+  timing.iwe_focus_ms = elapsed_ms(t_focus);
 
   prev_flow_field_ = F;
   prev_flow_tiles_ = final_tiles;
@@ -719,6 +719,7 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
   // Dense flow field: the actual estimator output. Always computed, since
   // it (and flow_events derived from it below) is the useful data this node
   // exists to produce, regardless of `debug_`.
+  const auto t_dense_flow = ProfileClock::now();
   result.flow_dense = cv::Mat(h, w, CV_32FC2);
   #pragma omp parallel for schedule(static)
   for (int y = 0; y < h; ++y) {
@@ -731,9 +732,9 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
       vrow[x] = cv::Vec2f(-vx, -vy);
     }
   }
+  timing.dense_flow_ms = elapsed_ms(t_dense_flow);
 
   // ---- Debug-only: HSV flow visualization + speed stats/logging ----
-  double flow_image_ms = 0.0;
   if (debug_) {
     const auto t_flow_image = ProfileClock::now();
     cv::Mat angle(h, w, CV_32F);
@@ -821,19 +822,23 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
     cv::Mat hsv;
     cv::merge(hsv_parts, 3, hsv);
     cv::cvtColor(hsv, result.flow_dense_debug, cv::COLOR_HSV2BGR);
-    flow_image_ms = elapsed_ms(t_flow_image);
+    timing.flow_debug_ms = elapsed_ms(t_flow_image);
   }
 
   // The support mask must reflect every event at full resolution regardless of
   // the subsampled focus renders above. flow_events (the event-supported flow
   // field) is useful data, not a diagnostic: always computed.
+  const auto t_support_mask = ProfileClock::now();
   const cv::Mat support_mask = render_support_mask(
     render_ev, F, flow_rejected ? nullptr : accel_ptr,
     final_tiles, w, h, /*warp=*/!flow_rejected);
+  timing.support_mask_ms = elapsed_ms(t_support_mask);
+
+  const auto t_events_mask = ProfileClock::now();
   result.flow_events = mask_flow_by_support(result.flow_dense, support_mask);
+  timing.events_mask_ms = elapsed_ms(t_events_mask);
 
   // ---- Debug-only: IWE preview image + event-supported debug visualization ----
-  double iwe_ms = 0.0;
   if (debug_) {
     const auto t_iwe = ProfileClock::now();
     // The published IWE is a visualization: the (subsampled, possibly
@@ -847,7 +852,7 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
       result.iwe = iwe_vis;
     }
     result.flow_events_debug = mask_debug_by_support(result.flow_dense_debug, support_mask);
-    iwe_ms = elapsed_ms(t_iwe);
+    timing.iwe_debug_ms = elapsed_ms(t_iwe);
   }
 
   if (debug_) {
@@ -866,7 +871,7 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
       "tiles_final(full/aperture/fallback)=%d/%d/%d "
       "reg(modified_frac/mean_delta legacy_geom/warped_geom) %.3f/%.3f %d/%d",
       profile.ingest_ms, profile.stage_a_ms,
-      profile.stage_b_ms, profile.smooth_ms, profile.total_solve_ms, moment_ms,
+      profile.stage_b_ms, profile.smooth_ms, profile.total_solve_ms, timing.solve_moments_ms,
       profile.events_ingested, profile.active_cells, profile.valid_cells,
       profile.residual_reject_cells, profile.speed_reject_cells,
       profile.full_rank_tiles, profile.aperture_tiles, profile.fallback_tiles,
@@ -897,23 +902,28 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
       "iwe_render_norm=%.3f ms solver=anisotropic focus_f=%.4f "
       "(lo=%.6f mid=%.6f hi=%.6f id=%.6f) "
       "fwl=%.4f (var_warp=%.6f var_id=%.6f) rejected=%d refine_iters=%d refine=%.3f ms",
-      render_ev.size(), focus_src->size(), render_events_ms, focus_ms, flow_image_ms, iwe_ms,
+      render_ev.size(), focus_src->size(), timing.render_events_ms, timing.iwe_focus_ms,
+      timing.flow_debug_ms, timing.iwe_debug_ms,
       focus_f, g_lo, g_mid, g_hi, g_id,
       fwl, var_mid, var_id,
-      flow_rejected ? 1 : 0, refine_done, refine_ms);
+      flow_rejected ? 1 : 0, refine_done, timing.refine_ms);
 
+    timing.total_ms = elapsed_ms(t_total);
     RCLCPP_INFO_THROTTLE(
       get_logger(), *get_clock(), 1000,
       "Flow profile summary: raw_events=%zu solve_events=%zu stride=%zu span=%.3f ms "
       "setup_select=%.3f ms setup_pack=%.3f ms "
       "moment=%.3f ms render=%.3f ms total=%.3f ms achieved_hz=%.3f",
       total, solve_samples.size(), stride, static_cast<double>(t_hi_us - t_lo_us) * 1e-3,
-      select_ms, pack_ms, moment_ms, render_events_ms + flow_image_ms + iwe_ms,
-      elapsed_ms(t_total), 1000.0 / std::max(1e-9, elapsed_ms(t_total)));
+      timing.select_events_ms, timing.pack_events_ms, timing.solve_moments_ms,
+      timing.render_events_ms + timing.iwe_focus_ms + timing.dense_flow_ms +
+      timing.flow_debug_ms + timing.support_mask_ms + timing.events_mask_ms + timing.iwe_debug_ms,
+      timing.total_ms, 1000.0 / std::max(1e-9, timing.total_ms));
   }
 
   // End-to-end timing CSV: useful data, always logged regardless of `debug_`.
-  log_timing(t_lo_us, t_hi_us, solve_samples.size(), elapsed_ms(t_total));
+  timing.total_ms = elapsed_ms(t_total);
+  log_timing(t_lo_us, t_hi_us, solve_samples.size(), timing);
 
   return result;
 }

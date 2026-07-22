@@ -138,6 +138,22 @@ private:
     cv::Mat iwe;                // Image of Warped Events at the window midpoint, MONO8
   };
 
+  struct FlowTiming
+  {
+    double total_ms = 0.0;
+    double select_events_ms = 0.0;
+    double pack_events_ms = 0.0;
+    double solve_moments_ms = 0.0;
+    double refine_ms = 0.0;
+    double render_events_ms = 0.0;
+    double iwe_focus_ms = 0.0;
+    double dense_flow_ms = 0.0;
+    double flow_debug_ms = 0.0;
+    double support_mask_ms = 0.0;
+    double events_mask_ms = 0.0;
+    double iwe_debug_ms = 0.0;
+  };
+
   struct FlowSaveWindow
   {
     int64_t from_us;
@@ -174,9 +190,14 @@ private:
    * @brief Appends one row to the timing CSV log.
    *
    * No-op if the log is disabled. Always called regardless of `debug_`: the
-   * end-to-end solve time is useful data, not a debug diagnostic.
+   * end-to-end solve time and coarse timing breakdown are useful data, not
+   * debug diagnostics.
    */
-  void log_timing(int64_t from_us, int64_t to_us, std::size_t num_events, double total_ms);
+  void log_timing(
+    int64_t from_us,
+    int64_t to_us,
+    std::size_t num_events,
+    const FlowTiming & timing);
 
   /**
    * @brief Loads the optional benchmark-save timestamp schedule.

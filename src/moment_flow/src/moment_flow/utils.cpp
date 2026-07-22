@@ -134,17 +134,39 @@ void EventDetector::prepare_timing_log()
     return;
   }
 
-  timing_log_stream_ << "from_us,to_us,num_events,total_ms\n";
+  timing_log_stream_
+    << "from_us,to_us,num_events,total_ms,"
+    << "select_events_ms,pack_events_ms,solve_moments_ms,refine_ms,"
+    << "render_events_ms,iwe_focus_ms,dense_flow_ms,flow_debug_ms,"
+    << "support_mask_ms,events_mask_ms,iwe_debug_ms\n";
   timing_log_ready_ = true;
 }
 
 void EventDetector::log_timing(
-  int64_t from_us, int64_t to_us, std::size_t num_events, double total_ms)
+  int64_t from_us,
+  int64_t to_us,
+  std::size_t num_events,
+  const FlowTiming & timing)
 {
   if (!timing_log_ready_) {
     return;
   }
-  timing_log_stream_ << from_us << ',' << to_us << ',' << num_events << ',' << total_ms << '\n';
+  timing_log_stream_
+    << from_us << ','
+    << to_us << ','
+    << num_events << ','
+    << timing.total_ms << ','
+    << timing.select_events_ms << ','
+    << timing.pack_events_ms << ','
+    << timing.solve_moments_ms << ','
+    << timing.refine_ms << ','
+    << timing.render_events_ms << ','
+    << timing.iwe_focus_ms << ','
+    << timing.dense_flow_ms << ','
+    << timing.flow_debug_ms << ','
+    << timing.support_mask_ms << ','
+    << timing.events_mask_ms << ','
+    << timing.iwe_debug_ms << '\n';
   timing_log_stream_.flush();
 }
 
