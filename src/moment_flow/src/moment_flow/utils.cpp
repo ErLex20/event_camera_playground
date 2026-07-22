@@ -175,18 +175,19 @@ void EventDetector::log_timing(
 void EventDetector::lazy_init(int width, int height)
 {
   res_ = cv::Size(width, height);
-  if (ba_filter_enabled_) {
-    ba_filter_.emplace(res_, dv::Duration(static_cast<int64_t>(ba_filter_dt_ms_ * 1000.0)));
-  }
+  ba_last_us_.assign(
+    static_cast<std::size_t>(std::max(0, width) * std::max(0, height)),
+    std::numeric_limits<int64_t>::lowest());
 }
 
 void EventDetector::reset_state()
 {
-  if (ba_filter_enabled_) {
-    ba_filter_.emplace(res_, dv::Duration(static_cast<int64_t>(ba_filter_dt_ms_ * 1000.0)));
-  }
+  std::fill(
+    ba_last_us_.begin(),
+    ba_last_us_.end(),
+    std::numeric_limits<int64_t>::lowest());
   filter_high_us_ = std::numeric_limits<int64_t>::lowest();
-  flow_accum_ = dv::EventStore();
+  flow_accum_ = EventStore();
   flow_accum_first_us_ = std::numeric_limits<int64_t>::max();
   flow_accum_last_us_ = std::numeric_limits<int64_t>::lowest();
   prev_flow_field_ = Eigen::VectorXf();

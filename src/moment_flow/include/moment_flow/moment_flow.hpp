@@ -31,11 +31,14 @@
 #include <cstdint>
 #include <deque>
 #include <fstream>
+#include <iterator>
 #include <limits>
 #include <mutex>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include <dua_node_cpp/dua_node.hpp>
@@ -52,9 +55,6 @@
 #include <opencv2/core/mat.hpp>
 #include <opencv2/core/types.hpp>
 
-#include <dv-processing/core/core.hpp>
-#include <dv-processing/noise/background_activity_noise_filter.hpp>
-
 #include <event_camera_codecs/decoder_factory.h>
 #include <event_camera_msgs/msg/event_packet.hpp>
 #include <sensor_msgs/msg/image.hpp>
@@ -66,6 +66,114 @@ using namespace event_camera_msgs::msg;
 
 namespace moment_flow
 {
+
+struct Event
+{
+  int64_t t_us;
+  int16_t x_px;
+  int16_t y_px;
+  bool polarity;
+
+  Event() = default;
+
+  Event(int64_t timestamp_us, int16_t x, int16_t y, bool p)
+  : t_us(timestamp_us),
+    x_px(x),
+    y_px(y),
+    polarity(p)
+  {}
+
+  int64_t timestamp() const { return t_us; }
+  int16_t x() const { return x_px; }
+  int16_t y() const { return y_px; }
+};
+
+class EventStore
+{
+public:
+  using container_type = std::vector<Event>;
+  using iterator = container_type::iterator;
+  using const_iterator = container_type::const_iterator;
+
+  EventStore() = default;
+
+  explicit EventStore(container_type events)
+  : events_(std::move(events))
+  {}
+
+  bool isEmpty() const { return events_.empty(); }
+  std::size_t size() const { return events_.size(); }
+  void clear() { events_.clear(); }
+  void reserve(std::size_t n) { events_.reserve(n); }
+
+  iterator begin() { return events_.begin(); }
+  iterator end() { return events_.end(); }
+  const_iterator begin() const { return events_.begin(); }
+  const_iterator end() const { return events_.end(); }
+
+  const Event & front() const { return events_.front(); }
+  const Event & back() const { return events_.back(); }
+
+  void push_back(const Event & event) { events_.push_back(event); }
+  void push_back(Event && event) { events_.push_back(std::move(event)); }
+  void push_back(int64_t timestamp_us, int16_t x, int16_t y, bool polarity)
+  {
+    events_.emplace_back(timestamp_us, x, y, polarity);
+  }
+
+  int64_t getLowestTime() const
+  {
+    return events_.empty() ? std::numeric_limits<int64_t>::max() : events_.front().timestamp();
+  }
+
+  int64_t getHighestTime() const
+  {
+    return events_.empty() ? std::numeric_limits<int64_t>::lowest() : events_.back().timestamp();
+  }
+
+  EventStore sliceTime(int64_t from_us) const
+  {
+    const auto first = std::lower_bound(
+      events_.begin(), events_.end(), from_us,
+      [](const Event & event, int64_t t_us) {
+        return event.timestamp() < t_us;
+      });
+    return EventStore(container_type(first, events_.end()));
+  }
+
+  void add(const EventStore & other)
+  {
+    if (other.isEmpty()) {
+      return;
+    }
+    if (!events_.empty() && other.getLowestTime() < getHighestTime()) {
+      throw std::out_of_range("EventStore::add received out-of-order events");
+    }
+    events_.insert(events_.end(), other.begin(), other.end());
+  }
+
+  void add(EventStore && other)
+  {
+    if (other.isEmpty()) {
+      return;
+    }
+    if (!events_.empty() && other.getLowestTime() < getHighestTime()) {
+      throw std::out_of_range("EventStore::add received out-of-order events");
+    }
+    if (events_.empty()) {
+      events_ = std::move(other.events_);
+      return;
+    }
+    events_.insert(
+      events_.end(),
+      std::make_move_iterator(other.events_.begin()),
+      std::make_move_iterator(other.events_.end()));
+    other.events_.clear();
+  }
+
+private:
+  container_type events_;
+};
 
 class EventDetector : public dua_node::NodeBase
 {
@@ -100,7 +208,7 @@ private:
   /**
    * @brief Event-packet subscription callback (executor thread).
    *
-   * Decodes the packet into a dv::EventStore and hands it to the worker thread
+   * Decodes the packet into an EventStore and hands it to the worker thread
    * via the bounded queue; performs no feature processing itself.
    *
    * @param msg The incoming event packet.
@@ -126,7 +234,7 @@ private:
    * @param raw Decoded events for one packet.
    * @return The filtered events (possibly empty).
    */
-  dv::EventStore compute_ba(const dv::EventStore & raw);
+  EventStore compute_ba(const EventStore & raw);
 
   /* Outputs of one dense optical-flow solve over a window. */
   struct FlowResult
@@ -179,7 +287,7 @@ private:
    * event-supported flow (CV_32FC2), and IWE (MONO8) images.
    */
   FlowResult solve_flow_moment(
-    const dv::EventStore & window,
+    const EventStore & window,
     std::optional<int64_t> t_ref_override_us = std::nullopt);
 
   /**
@@ -225,8 +333,8 @@ private:
    * @return Events after the final scheduled save, so ordinary publishing can
    * continue after benchmark output is complete.
    */
-  dv::EventStore accumulate_scheduled_flow(
-    const dv::EventStore & events,
+  EventStore accumulate_scheduled_flow(
+    const EventStore & events,
     const std_msgs::msg::Header & header);
 
   /**
@@ -285,18 +393,16 @@ private:
     const std::string & encoding,
     const std_msgs::msg::Header & header);
 
-  /* Builds a dv::EventStore from event_camera_codecs decoded events (ns → µs).
-   * Accumulates into a dv::EventPacket to avoid the strict ordering requirement
-   * of dv::EventStore::push_back(), then sorts before constructing the store. */
+  /* Builds an EventStore from event_camera_codecs decoded events (ns -> us).
+   * Accumulates into a vector, then sorts before handing it to the worker. */
   class EventStoreBuilder : public event_camera_codecs::EventProcessor
   {
   public:
-    EventStoreBuilder()
-    : packet_(std::make_shared<dv::EventPacket>()) {}
+    EventStoreBuilder() = default;
 
     void eventCD(uint64_t sensor_time, uint16_t ex, uint16_t ey, uint8_t polarity) override
     {
-      packet_->elements.emplace_back(
+      events_.emplace_back(
         static_cast<int64_t>(sensor_time / 1000),
         static_cast<int16_t>(ex),
         static_cast<int16_t>(ey),
@@ -307,19 +413,18 @@ private:
     void finished() override {}
     void rawData(const char *, size_t) override {}
 
-    dv::EventStore takeStore()
+    EventStore takeStore()
     {
       std::stable_sort(
-        packet_->elements.begin(), packet_->elements.end(),
-        [](const dv::Event & a, const dv::Event & b) {
+        events_.begin(), events_.end(),
+        [](const Event & a, const Event & b) {
           return a.timestamp() < b.timestamp();
         });
-      return dv::EventStore(
-        std::const_pointer_cast<const dv::EventPacket>(packet_));
+      return EventStore(std::move(events_));
     }
 
   private:
-    std::shared_ptr<dv::EventPacket> packet_;
+    std::vector<Event> events_;
   };
 
   /* One unit of work transferred from the subscription callback to the worker
@@ -327,7 +432,7 @@ private:
    * the outputs. */
   struct EventChunk
   {
-    dv::EventStore events;
+    EventStore events;
     std_msgs::msg::Header header;
     int width;
     int height;
@@ -352,16 +457,16 @@ private:
   event_camera_codecs::DecoderFactory<EventPacket, EventStoreBuilder> decoder_factory_;
 
   /* Filter / resolution state. */
-  std::optional<dv::noise::BackgroundActivityNoiseFilter<>> ba_filter_;
   cv::Size res_;
-  /* Mirrors the BA filter's private highest-processed time so we can keep the
-   * packet stream monotonic before accept() (which throws on out-of-order input). */
+  std::vector<int64_t> ba_last_us_;
+  /* Highest BA-filter input time, used to keep packet overlaps monotonic and
+   * detect stream discontinuities. */
   int64_t filter_high_us_{std::numeric_limits<int64_t>::lowest()};
 
   /* Optical-flow state. Events accumulate here until the time span reaches
    * flow_max_window_ms_, at which point the moment-flow estimator solves the
    * whole batch. */
-  dv::EventStore flow_accum_;
+  EventStore flow_accum_;
   int64_t flow_accum_first_us_{std::numeric_limits<int64_t>::max()};
   int64_t flow_accum_last_us_{std::numeric_limits<int64_t>::lowest()};
   /* Previous window's finest-scale tile flow field and its per-side tile count,

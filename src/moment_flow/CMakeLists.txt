@@ -35,7 +35,6 @@ find_package(dua_geometry_interfaces REQUIRED)
 find_package(dua_hardware_interfaces REQUIRED)
 find_package(dua_node_cpp REQUIRED)
 find_package(dua_qos_cpp REQUIRED)
-find_package(dv-processing REQUIRED)
 find_package(Eigen3 3.4 REQUIRED)
 find_package(eigen3_cmake_module REQUIRED)
 find_package(event_camera_codecs REQUIRED)
@@ -75,16 +74,12 @@ target_include_directories(moment_flow PUBLIC
   ${EIGEN3_INCLUDE_DIR}
   ${OpenCV_INCLUDE_DIRS}
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/moment_flow>)
-# dv-processing headers contain two-phase name lookup issues; treat as system to suppress errors.
-get_target_property(_DV_INCLUDES dv::processing INTERFACE_INCLUDE_DIRECTORIES)
-target_include_directories(moment_flow SYSTEM PUBLIC ${_DV_INCLUDES})
 target_compile_features(moment_flow PUBLIC c_std_99 cxx_std_17) # Require C99 and C++17
 target_link_libraries(moment_flow
   Eigen3::Eigen
   ${OpenCV_LIBS}
   OpenMP::OpenMP_CXX
   Threads::Threads
-  dv::processing
 )
 ament_target_dependencies(moment_flow
   dua_common_interfaces

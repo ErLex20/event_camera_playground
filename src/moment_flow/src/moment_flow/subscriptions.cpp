@@ -50,7 +50,7 @@ void EventDetector::callback_event_packet(EventPacket::ConstSharedPtr msg)
   // Decode into an EventStore; the worker thread does all feature processing.
   EventStoreBuilder builder;
   decoder->decode(*msg, &builder);
-  dv::EventStore events = builder.takeStore();
+  EventStore events = builder.takeStore();
   if (events.isEmpty()) {
     return;
   }

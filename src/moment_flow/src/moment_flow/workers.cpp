@@ -28,27 +28,11 @@
 #include <cinttypes>
 #include <cmath>
 #include <limits>
-#include <memory>
 #include <mutex>
 #include <utility>
 
 namespace moment_flow
 {
-
-namespace
-{
-
-std::shared_ptr<dv::EventPacket> make_event_packet()
-{
-  return std::make_shared<dv::EventPacket>();
-}
-
-dv::EventStore make_event_store(const std::shared_ptr<dv::EventPacket> & packet)
-{
-  return dv::EventStore(std::const_pointer_cast<const dv::EventPacket>(packet));
-}
-
-}  // namespace
 
 void EventDetector::worker_thread_routine()
 {
@@ -80,8 +64,12 @@ void EventDetector::worker_thread_routine()
 
     // Background-activity filtering (per packet).
     const auto t_ba = std::chrono::high_resolution_clock::now();
-    dv::EventStore filtered = ba_filter_enabled_ ? compute_ba(chunk.events) : chunk.events;
-    if (filtered.isEmpty() && !(iwe_enabled_ || flow_enabled_ || flow_save_enabled_)) {
+    bool filtered_empty = chunk.events.isEmpty();
+    if (ba_filter_enabled_) {
+      EventStore filtered = compute_ba(chunk.events);
+      filtered_empty = filtered.isEmpty();
+    }
+    if (filtered_empty && !(iwe_enabled_ || flow_enabled_ || flow_save_enabled_)) {
       continue;
     }
     if (debug_) {
@@ -94,7 +82,7 @@ void EventDetector::worker_thread_routine()
     // benchmark timestamp schedule is configured, it only controls which
     // windows are saved and how they are named.
     if (iwe_enabled_ || flow_enabled_ || flow_save_enabled_) {
-      dv::EventStore flow_events = chunk.events;
+      EventStore flow_events;
       const bool scheduled_flow_active =
         flow_save_enabled_ &&
         flow_save_prepared_ &&
@@ -105,6 +93,8 @@ void EventDetector::worker_thread_routine()
         if (flow_events.isEmpty()) {
           continue;
         }
+      } else {
+        flow_events = std::move(chunk.events);
       }
 
       int64_t chunk_first_us = std::numeric_limits<int64_t>::max();
@@ -115,11 +105,10 @@ void EventDetector::worker_thread_routine()
       }
       if (!flow_events.isEmpty()) {
         // Some RMW implementations (e.g. rmw_zenoh) do not guarantee in-order
-        // delivery of consecutive messages from the same publisher; dv::EventStore::add()
-        // requires ascending order and throws std::out_of_range otherwise. Drop the
+        // delivery of consecutive messages from the same publisher. Drop the
         // offending chunk rather than crash the whole component.
         try {
-          flow_accum_.add(flow_events);
+          flow_accum_.add(std::move(flow_events));
           flow_accum_first_us_ = std::min(flow_accum_first_us_, chunk_first_us);
           flow_accum_last_us_ = std::max(flow_accum_last_us_, chunk_last_us);
         } catch (const std::out_of_range &) {
@@ -152,8 +141,8 @@ void EventDetector::worker_thread_routine()
         }
         const int64_t save_from_us = flow_accum_first_us_;
         const int64_t save_to_us = flow_accum_last_us_;
-        dv::EventStore window = flow_accum_;
-        flow_accum_ = dv::EventStore();
+        EventStore window = flow_accum_;
+        flow_accum_ = EventStore();
         flow_accum_first_us_ = std::numeric_limits<int64_t>::max();
         flow_accum_last_us_ = std::numeric_limits<int64_t>::lowest();
 
@@ -199,16 +188,16 @@ void EventDetector::worker_thread_routine()
   RCLCPP_WARN(this->get_logger(), "Worker STOP");
 }
 
-dv::EventStore EventDetector::accumulate_scheduled_flow(
-  const dv::EventStore & events,
+EventStore EventDetector::accumulate_scheduled_flow(
+  const EventStore & events,
   const std_msgs::msg::Header & header)
 {
   if (events.isEmpty() || flow_save_next_window_ >= flow_save_windows_.size()) {
     return events;
   }
 
-  auto packet = make_event_packet();
-  auto unscheduled_packet = make_event_packet();
+  EventStore packet;
+  EventStore unscheduled_packet;
 
   auto estimate_to_us = [this](const FlowSaveWindow & window) -> int64_t {
     const int64_t requested_us = std::max<int64_t>(
@@ -218,21 +207,21 @@ dv::EventStore EventDetector::accumulate_scheduled_flow(
   };
 
   auto flush_packet = [&]() {
-    if (packet->elements.empty()) {
+    if (packet.isEmpty()) {
       return;
     }
     // See the worker_thread_routine() note above: guard against out-of-order
     // delivery across messages (observed with rmw_zenoh).
     try {
-      flow_accum_.add(make_event_store(packet));
+      flow_accum_.add(std::move(packet));
     } catch (const std::out_of_range &) {
       RCLCPP_WARN_THROTTLE(
         get_logger(), *get_clock(), 1000,
         "Dropping scheduled-flow packet delivered out of temporal order (span [%" PRId64
         ", %" PRId64 "] us)",
-        packet->elements.front().timestamp(), packet->elements.back().timestamp());
+        packet.front().timestamp(), packet.back().timestamp());
     }
-    packet = make_event_packet();
+    packet = EventStore();
   };
 
   auto close_current_window = [&]() {
@@ -288,7 +277,7 @@ dv::EventStore EventDetector::accumulate_scheduled_flow(
       }
     }
 
-    flow_accum_ = dv::EventStore();
+    flow_accum_ = EventStore();
     flow_accum_first_us_ = std::numeric_limits<int64_t>::max();
     flow_accum_last_us_ = std::numeric_limits<int64_t>::lowest();
     flow_save_next_window_ += 1;
@@ -303,7 +292,7 @@ dv::EventStore EventDetector::accumulate_scheduled_flow(
       close_current_window();
     }
     if (flow_save_next_window_ >= flow_save_windows_.size()) {
-      unscheduled_packet->elements.push_back(event);
+      unscheduled_packet.push_back(event);
       continue;
     }
 
@@ -316,16 +305,16 @@ dv::EventStore EventDetector::accumulate_scheduled_flow(
       continue;
     }
 
-    packet->elements.push_back(event);
+    packet.push_back(event);
     flow_accum_first_us_ = std::min(flow_accum_first_us_, t_us);
     flow_accum_last_us_ = std::max(flow_accum_last_us_, t_us);
   }
 
   flush_packet();
-  if (unscheduled_packet->elements.empty()) {
-    return dv::EventStore();
+  if (unscheduled_packet.isEmpty()) {
+    return EventStore();
   }
-  return make_event_store(unscheduled_packet);
+  return unscheduled_packet;
 }
 
 } // namespace moment_flow

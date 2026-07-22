@@ -26,18 +26,6 @@ ARG USER_UID=1000
 ENV DEBIAN_FRONTEND=noninteractive
 
 # IMAGE SETUP START #
-# Install dv-processing
-RUN git clone --single-branch --branch 2.0.3 --depth 1 \
-    https://gitlab.com/inivation/dv/dv-processing.git /opt/dv-processing && \
-    cd /opt/dv-processing && \
-    mkdir build && \
-    cd build && \
-    cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/opt/dv-processing && \
-    make -j$(nproc) && \
-    make install && \
-    chgrp -R internal /opt/dv-processing && \
-    chmod -R g+rwX /opt/dv-processing
-
 # Install DAGr and dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     cmake \
@@ -46,6 +34,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1 \
     libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
+
+# Install E2Calib runtime dependencies into the default DUA Python environment.
+RUN /opt/dua-venv/bin/python -m pip install --no-cache-dir \
+    "numpy>=1.24,<2" \
+    "h5py>=3.10" \
+    scipy \
+    opencv-python \
+    tqdm
 
 RUN unset PYTHONPATH && \
     /usr/bin/python3.12 -m venv /opt/dagr-venv && \

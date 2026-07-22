@@ -24,37 +24,95 @@
 
 #include "moment_flow/moment_flow.hpp"
 
+#include <algorithm>
+#include <cmath>
+#include <cstddef>
+#include <limits>
+
 namespace moment_flow
 {
 
 // A backward time step larger than any plausible packet overlap means a stream
 // discontinuity (e.g. camera reconnect), not a boundary overlap.
+namespace
+{
+
 constexpr int64_t kTimeResetThresholdUs = 100'000;  // 100 ms
 
-dv::EventStore EventDetector::compute_ba(const dv::EventStore & raw_in)
-{
-  dv::EventStore raw = raw_in;
+}  // namespace
 
-  // dv::EventFilterBase::accept() requires incoming lowest time >= previously
-  // processed highest time. EVK4 packets can overlap slightly at boundaries.
-  if (raw.getLowestTime() < filter_high_us_) {
-    if (filter_high_us_ - raw.getLowestTime() > kTimeResetThresholdUs) {
+EventStore EventDetector::compute_ba(const EventStore & raw_in)
+{
+  const EventStore * raw = &raw_in;
+  EventStore clipped;
+
+  // EVK4 packets can overlap slightly at boundaries. Keep the in-order tail
+  // for small overlaps and reset state on real stream discontinuities.
+  if (raw->getLowestTime() < filter_high_us_) {
+    if (filter_high_us_ - raw->getLowestTime() > kTimeResetThresholdUs) {
       // Stream discontinuity: rebuild stateful processors and re-baseline.
       RCLCPP_WARN(get_logger(), "Event timestamps jumped back; resetting state");
       reset_state();
     } else {
-      raw = raw.sliceTime(filter_high_us_);  // shallow, zero-copy; keep in-order tail
-      if (raw.isEmpty()) {
-        return dv::EventStore();
+      clipped = raw->sliceTime(filter_high_us_);
+      raw = &clipped;
+      if (raw->isEmpty()) {
+        return EventStore();
       }
     }
   }
 
-  // Call accept() directly to avoid a bug in operator<< in dv-processing.
-  ba_filter_.value().accept(raw);
-  dv::EventStore events = ba_filter_.value().generateEvents();
-  filter_high_us_ = raw.getHighestTime();
-  return events;
+  if (res_.width <= 0 || res_.height <= 0 || ba_last_us_.empty()) {
+    filter_high_us_ = raw->getHighestTime();
+    return *raw;
+  }
+
+  const int w = res_.width;
+  const int h = res_.height;
+  const int64_t dt_us = std::max<int64_t>(
+    1,
+    static_cast<int64_t>(std::llround(ba_filter_dt_ms_ * 1000.0)));
+  EventStore filtered;
+  filtered.reserve(raw->size());
+
+  for (const auto & event : *raw) {
+    const int x = event.x();
+    const int y = event.y();
+    const int64_t t_us = event.timestamp();
+    if (x < 0 || y < 0 || x >= w || y >= h) {
+      continue;
+    }
+
+    bool supported = false;
+    for (int dy = -1; dy <= 1 && !supported; ++dy) {
+      const int ny = y + dy;
+      if (ny < 0 || ny >= h) {
+        continue;
+      }
+      for (int dx = -1; dx <= 1; ++dx) {
+        const int nx = x + dx;
+        if (nx < 0 || nx >= w || (dx == 0 && dy == 0)) {
+          continue;
+        }
+        const int64_t last_us = ba_last_us_[static_cast<std::size_t>(ny * w + nx)];
+        if (last_us != std::numeric_limits<int64_t>::lowest() &&
+          t_us >= last_us &&
+          t_us - last_us <= dt_us)
+        {
+          supported = true;
+          break;
+        }
+      }
+    }
+
+    ba_last_us_[static_cast<std::size_t>(y * w + x)] = t_us;
+    if (supported) {
+      filtered.push_back(event);
+    }
+  }
+
+  filter_high_us_ = raw->getHighestTime();
+  return filtered;
 }
 
 }  // namespace moment_flow

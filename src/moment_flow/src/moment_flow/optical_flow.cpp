@@ -533,7 +533,7 @@ cv::Mat render_flow_hsv_debug(
 }  // namespace
 
 EventDetector::FlowResult EventDetector::solve_flow_moment(
-  const dv::EventStore & window,
+  const EventStore & window,
   std::optional<int64_t> t_ref_override_us)
 {
   const auto t_total = ProfileClock::now();
