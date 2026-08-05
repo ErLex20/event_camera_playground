@@ -37,6 +37,10 @@
 #include <limits>
 #include <vector>
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 #include <Eigen/Core>
 
 namespace moment_flow::flow
@@ -152,6 +156,7 @@ public:
     final_vars_(2 * final_tiles_ * final_tiles_),
     cells_(static_cast<size_t>(cells_x_) * cells_y_),
     fits_(cells_.size()),
+    cell_normals_(cells_.size()),
     cell_center_x_(cells_.size(), 0.0f),
     cell_center_y_(cells_.size(), 0.0f),
     tile_accum_(static_cast<size_t>(final_tiles_) * final_tiles_),
@@ -203,6 +208,13 @@ public:
   void set_mass_scale(float s) { mass_scale_ = std::clamp(s, 1e-3f, 1.0f); }
   float mass_scale() const { return mass_scale_; }
 
+  /// Threads for the per-event loops (accumulation, warping). 0 (the default)
+  /// leaves the choice to the OpenMP runtime. Results do not depend on it: the
+  /// work is partitioned so that every cell keeps the serial accumulation
+  /// order, so any value yields bit-identical moments.
+  void set_max_threads(int t) { max_threads_ = std::max(0, t); }
+  int max_threads() const { return max_threads_; }
+
   void reset()
   {
     for (CellMoments & c : cells_) {
@@ -233,39 +245,17 @@ public:
       rebase_time_origin(events.t_ref_us);
     }
 
-    for (size_t k = 0; k < events.size(); ++k) {
-      const float x = events.x[k];
-      const float y = events.y[k];
-      if (!(x >= 0.0f && y >= 0.0f && x < img_w_ && y < img_h_)) {
-        continue;
-      }
-      const int cx = std::clamp(
-        static_cast<int>(x) / params_.cell_size_px, 0, cells_x_ - 1);
-      const int cy = std::clamp(
-        static_cast<int>(y) / params_.cell_size_px, 0, cells_y_ - 1);
-      CellMoments & c = cells_[cell_index(cx, cy)];
-      const int64_t t_us = events.t_ref_us +
-        static_cast<int64_t>(std::llround(static_cast<double>(events.t[k]) * 1e6));
-      if (std::llabs(t_us - time_origin_us_) > kRebaseThresholdUs) {
-        rebase_time_origin(t_us);
-      }
-      const float a = 1.0f;
-
-      const float dx = x - cell_center_x_[cell_index(cx, cy)];
-      const float dy = y - cell_center_y_[cell_index(cx, cy)];
-      const float dt = static_cast<float>(t_us - time_origin_us_) * 1e-6f;
-
-      c.w += a;
-      c.sx += a * dx;
-      c.sy += a * dy;
-      c.st += a * dt;
-      c.sxx += a * dx * dx;
-      c.sxy += a * dx * dy;
-      c.syy += a * dy * dy;
-      c.sxt += a * dx * dt;
-      c.syt += a * dy * dt;
-      c.stt += a * dt * dt;
-      profile_.events_ingested += 1;
+    // A mid-loop time rebase rewrites every cell, so it cannot happen while
+    // threads accumulate concurrently. The window's largest |t| bounds the
+    // reachable distance from the origin: when no event can trigger a rebase
+    // the banded path is taken, otherwise the serial loop keeps the exact
+    // original semantics (a rebase mid-window changes all later dt values).
+    const int n_bands =
+      (events.size() >= kMinParallelEvents) ? accumulation_bands() : 1;
+    if (n_bands > 1 && !rebase_reachable(events, n_bands)) {
+      ingest_banded(events, n_bands);
+    } else {
+      ingest_serial(events);
     }
 
     profile_.ingest_ms = elapsed_ms(t0, Clock::now());
@@ -302,6 +292,7 @@ public:
 
     const auto t_a = Clock::now();
     compute_cell_fits();
+    compute_cell_normals();
     profile_.stage_a_ms = elapsed_ms(t_a, Clock::now());
 
     const bool have_warm = warm_start.size() == final_vars_;
@@ -387,6 +378,7 @@ public:
         ingest_ms_acc += elapsed_ms(t_i, Clock::now());
         const auto t_a = Clock::now();
         compute_cell_fits();
+        compute_cell_normals();
         stage_a_ms_acc += elapsed_ms(t_a, Clock::now());
       };
 
@@ -538,6 +530,16 @@ private:
     int count = 0;
   };
 
+  /// Tile-grid-independent part of a cell's contribution to the anisotropic
+  /// GLS: computed once per ingest, then binned by every pyramid scale.
+  struct CellNormal
+  {
+    double mxx = 0.0, mxy = 0.0, myy = 0.0;
+    double bx = 0.0, by = 0.0;
+    double mass = 0.0;
+    bool valid = false;
+  };
+
   struct TileWarpGeometry
   {
     bool valid = false;
@@ -560,6 +562,9 @@ private:
     float data_by = 0.0f;
   };
 
+  // Below this many events a window is not worth a thread team: spawning one
+  // costs more than the work it removes from the critical path.
+  static constexpr size_t kMinParallelEvents = 20000;
   static constexpr int64_t kRebaseThresholdUs = 250000;
   static constexpr float kMinTimeVariance = 1e-12f;
   int img_w_;
@@ -571,6 +576,7 @@ private:
   int final_vars_;
   std::vector<CellMoments> cells_;
   std::vector<CellFit> fits_;
+  std::vector<CellNormal> cell_normals_;
   std::vector<float> cell_center_x_;
   std::vector<float> cell_center_y_;
   std::vector<TileAccum> tile_accum_;
@@ -583,6 +589,7 @@ private:
   MomentFlowProfile profile_;
   float prior_scale_ = 1.0f;
   float mass_scale_ = 1.0f;
+  int max_threads_ = 0;
   int64_t time_origin_us_ = 0;
   bool has_time_origin_ = false;
 
@@ -646,6 +653,130 @@ private:
       c.stt = c.stt - 2.0f * delta * old_st + delta * delta * c.w;
     }
     time_origin_us_ = new_origin_us;
+  }
+
+  /// Threads used by the per-event and per-cell loops. Work is split into
+  /// stripes of cell rows: every cell is touched by exactly one thread, in
+  /// event/cell index order, so results do not depend on the thread count.
+  int accumulation_bands() const
+  {
+#ifdef _OPENMP
+    const int budget = (max_threads_ > 0) ? max_threads_ : omp_get_max_threads();
+    return std::clamp(budget, 1, std::max(1, cells_y_));
+#else
+    return 1;
+#endif
+  }
+
+  /// Whether any event in the window could move the time origin while
+  /// accumulating: |t_ref - origin| + max|t| bounds the reachable distance.
+  bool rebase_reachable(const Events & events, int n_bands) const
+  {
+    float t_absmax = 0.0f;
+    const int64_t n = static_cast<int64_t>(events.size());
+    #pragma omp parallel for schedule(static) num_threads(n_bands) \
+    reduction(max : t_absmax)
+    for (int64_t k = 0; k < n; ++k) {
+      t_absmax = std::max(t_absmax, std::abs(events.t[static_cast<size_t>(k)]));
+    }
+    const int64_t reach =
+      static_cast<int64_t>(std::llround(static_cast<double>(t_absmax) * 1e6));
+    return std::llabs(events.t_ref_us - time_origin_us_) + reach > kRebaseThresholdUs;
+  }
+
+  /// Accumulate one in-frame event into its cell.
+  void accumulate_event(float x, float y, int64_t t_us, size_t cell_k)
+  {
+    const float a = 1.0f;
+    const float dx = x - cell_center_x_[cell_k];
+    const float dy = y - cell_center_y_[cell_k];
+    const float dt = static_cast<float>(t_us - time_origin_us_) * 1e-6f;
+
+    CellMoments & c = cells_[cell_k];
+    c.w += a;
+    c.sx += a * dx;
+    c.sy += a * dy;
+    c.st += a * dt;
+    c.sxx += a * dx * dx;
+    c.sxy += a * dx * dy;
+    c.syy += a * dy * dy;
+    c.sxt += a * dx * dt;
+    c.syt += a * dy * dt;
+    c.stt += a * dt * dt;
+  }
+
+  void ingest_serial(const Events & events)
+  {
+    int ingested = 0;
+    for (size_t k = 0; k < events.size(); ++k) {
+      const float x = events.x[k];
+      const float y = events.y[k];
+      if (!(x >= 0.0f && y >= 0.0f && x < img_w_ && y < img_h_)) {
+        continue;
+      }
+      const int cx = std::clamp(
+        static_cast<int>(x) / params_.cell_size_px, 0, cells_x_ - 1);
+      const int cy = std::clamp(
+        static_cast<int>(y) / params_.cell_size_px, 0, cells_y_ - 1);
+      const int64_t t_us = events.t_ref_us +
+        static_cast<int64_t>(std::llround(static_cast<double>(events.t[k]) * 1e6));
+      if (std::llabs(t_us - time_origin_us_) > kRebaseThresholdUs) {
+        rebase_time_origin(t_us);
+      }
+      accumulate_event(x, y, t_us, cell_index(cx, cy));
+      ingested += 1;
+    }
+    profile_.events_ingested = ingested;
+  }
+
+  /// Every band streams the whole event array and keeps only the events whose
+  /// cell row it owns: no atomics, no per-thread cell copies (each band's cell
+  /// stripe stays cache-resident), and the moments are bit-identical to the
+  /// serial accumulation because a cell's events are still applied in order.
+  void ingest_banded(const Events & events, int n_bands)
+  {
+    const int64_t n = static_cast<int64_t>(events.size());
+    int ingested = 0;
+    #pragma omp parallel for schedule(static) num_threads(n_bands) \
+    reduction(+ : ingested)
+    for (int band = 0; band < n_bands; ++band) {
+      const int cy_begin =
+        static_cast<int>(static_cast<int64_t>(band) * cells_y_ / n_bands);
+      const int cy_end =
+        static_cast<int>(static_cast<int64_t>(band + 1) * cells_y_ / n_bands);
+      if (cy_begin >= cy_end) {
+        continue;
+      }
+      // Row ownership is tested in pixels, not cell indices: for an in-frame y
+      // the cell row is trunc(y / cell_size) with no clamping, so the two are
+      // equivalent and the rejected events cost two compares instead of an
+      // integer division each.
+      const float y_lo = static_cast<float>(cy_begin * params_.cell_size_px);
+      const float y_hi = static_cast<float>(cy_end * params_.cell_size_px);
+      for (int64_t i = 0; i < n; ++i) {
+        const size_t k = static_cast<size_t>(i);
+        const float y = events.y[k];
+        if (!(y >= y_lo && y < y_hi)) {
+          continue;
+        }
+        if (!(y < img_h_)) {
+          continue;
+        }
+        const int cy = std::clamp(
+          static_cast<int>(y) / params_.cell_size_px, 0, cells_y_ - 1);
+        const float x = events.x[k];
+        if (!(x >= 0.0f && x < img_w_)) {
+          continue;
+        }
+        const int cx = std::clamp(
+          static_cast<int>(x) / params_.cell_size_px, 0, cells_x_ - 1);
+        const int64_t t_us = events.t_ref_us +
+          static_cast<int64_t>(std::llround(static_cast<double>(events.t[k]) * 1e6));
+        accumulate_event(x, y, t_us, cell_index(cx, cy));
+        ingested += 1;
+      }
+    }
+    profile_.events_ingested = ingested;
   }
 
   static void set_zero(Eigen::VectorXf & v)
@@ -755,16 +886,23 @@ private:
     }
   }
 
+  /// Per-cell plane fits. Kept single-threaded on purpose: the loop is ~150 us
+  /// for a full grid, short enough that spawning a thread team costs more than
+  /// the work it saves.
   void compute_cell_fits()
   {
-    for (CellFit & f : fits_) {
-      f = CellFit{};
-    }
+    const int64_t n_cells = static_cast<int64_t>(cells_.size());
+    int active_cells = 0;
+    int valid_cells = 0;
+    int residual_reject_cells = 0;
+    int speed_reject_cells = 0;
 
-    for (size_t k = 0; k < cells_.size(); ++k) {
+    for (int64_t kk = 0; kk < n_cells; ++kk) {
+      const size_t k = static_cast<size_t>(kk);
+      fits_[k] = CellFit{};
       const CellMoments & c = cells_[k];
       if (c.w > 0.0f) {
-        profile_.active_cells += 1;
+        active_cells += 1;
       }
       if (c.w < mass_scale_ * params_.cell_min_mass) {
         continue;
@@ -803,13 +941,13 @@ private:
         gy * (cxy * gx + cyy * gy));
       const float residual_ratio = residual / std::max(sc, kMinTimeVariance);
       if (!(residual_ratio <= params_.cell_max_residual_ratio)) {
-        profile_.residual_reject_cells += 1;
+        residual_reject_cells += 1;
         continue;
       }
       const float g2 = gx * gx + gy * gy;
       const float min_g2 = 1.0f / (params_.max_speed_px_s * params_.max_speed_px_s);
       if (!(g2 >= min_g2)) {
-        profile_.speed_reject_cells += 1;
+        speed_reject_cells += 1;
         continue;
       }
       const float residual_conf = std::max(0.0f, 1.0f - residual_ratio);
@@ -825,7 +963,98 @@ private:
       fits_[k].sc = sc;
       fits_[k].dx = dx;
       fits_[k].dy = dy;
-      profile_.valid_cells += 1;
+      valid_cells += 1;
+    }
+
+    profile_.active_cells += active_cells;
+    profile_.valid_cells += valid_cells;
+    profile_.residual_reject_cells += residual_reject_cells;
+    profile_.speed_reject_cells += speed_reject_cells;
+  }
+
+  /// Per-cell normal-flow constraints for the anisotropic tile GLS. These
+  /// depend only on the cell moments, not on the tile grid, so they are
+  /// computed once per ingest instead of once per pyramid scale (which is where
+  /// the saving comes from). Single-threaded for the same reason as
+  /// compute_cell_fits.
+  void compute_cell_normals()
+  {
+    // Residual-variance floor of the per-cell normal-position regression
+    // [px^2]: bounds the GLS weight of a perfectly explained cell (sub-pixel
+    // splat jitter makes anything sharper unphysical).
+    constexpr double kSigmaFloor2 = 0.25;
+
+    const float cell_gate = mass_scale_ * params_.cell_min_mass;
+    const int64_t n_cells = static_cast<int64_t>(cells_.size());
+
+    for (int64_t kk = 0; kk < n_cells; ++kk) {
+      const size_t k = static_cast<size_t>(kk);
+      cell_normals_[k] = CellNormal{};
+      const CellMoments & c = cells_[k];
+      if (!(c.w >= cell_gate)) {
+        continue;
+      }
+      const double inv_w = 1.0 / c.w;
+      const double mx = c.sx * inv_w;
+      const double my = c.sy * inv_w;
+      const double mt = c.st * inv_w;
+      const double cxx = std::max(0.0, c.sxx * inv_w - mx * mx);
+      const double cxy = c.sxy * inv_w - mx * my;
+      const double cyy = std::max(0.0, c.syy * inv_w - my * my);
+      const double dx = c.sxt * inv_w - mx * mt;
+      const double dy = c.syt * inv_w - my * mt;
+      const double sc = c.stt * inv_w - mt * mt;
+      if (!(sc > kMinTimeVariance)) {
+        continue;
+      }
+
+      float spatial_lmin = 0.0f;
+      float spatial_lmax = 0.0f;
+      eig2(
+        static_cast<float>(cxx), static_cast<float>(cxy), static_cast<float>(cyy),
+        spatial_lmin, spatial_lmax);
+      if (!(spatial_lmax >= params_.cell_min_lambda)) {
+        continue;
+      }
+
+      const double dn2 = dx * dx + dy * dy;
+      if (!(dn2 > 0.0) || !std::isfinite(dn2)) {
+        continue;
+      }
+      // Normal-direction spatial variance n^T C n.
+      const double nCn =
+        (dx * (cxx * dx + cxy * dy) + dy * (cxy * dx + cyy * dy)) / dn2;
+      if (!(nCn > 1e-12)) {
+        continue;
+      }
+      // R^2 of the normal-position-vs-time regression: squared correlation
+      // between n^T x and tau. Clean moving edge -> 1, noise -> 0.
+      const double r2 = std::clamp(dn2 / (sc * nCn), 0.0, 1.0);
+      if (!(1.0 - r2 <= params_.cell_max_residual_ratio)) {
+        continue;
+      }
+      // Speed sanity: |v_n| beyond the clamp is noise, not motion.
+      const double vn = std::sqrt(dn2) / sc;
+      if (!(vn <= params_.max_speed_px_s) || !std::isfinite(vn)) {
+        continue;
+      }
+
+      // GLS precision of v_n: (mass * Var(tau)) / residual variance.
+      const double sigma2 = std::max(kSigmaFloor2, nCn * (1.0 - r2));
+      const double w = c.w * sc / sigma2;
+      if (!(w > 0.0) || !std::isfinite(w)) {
+        continue;
+      }
+
+      const double inv_dn2 = 1.0 / dn2;
+      CellNormal & cn = cell_normals_[k];
+      cn.mxx = w * dx * dx * inv_dn2;
+      cn.mxy = w * dx * dy * inv_dn2;
+      cn.myy = w * dy * dy * inv_dn2;
+      cn.bx = (w / sc) * dx;
+      cn.by = (w / sc) * dy;
+      cn.mass = c.w;
+      cn.valid = true;
     }
   }
 
@@ -862,27 +1091,56 @@ private:
 
   /// Warp events to the reference time with a final-grid field (F warp
   /// convention: x' = x + t * F(x)). Out-of-bounds warps are dropped.
+  /// Events are warped in independent chunks, each writing into its own slice
+  /// of the destination (survivors can never exceed the chunk's input count);
+  /// the slices are then closed up in order, so the surviving events keep the
+  /// serial ordering the moment accumulation depends on.
   void warp_events(const Events & src, const Eigen::VectorXf & F, Events & dst) const
   {
+    const size_t n_src = src.size();
     dst.t_ref_us = src.t_ref_us;
-    dst.x.resize(src.size());
-    dst.y.resize(src.size());
-    dst.t.resize(src.size());
-    size_t n = 0;
-    for (size_t k = 0; k < src.size(); ++k) {
-      const float t = src.t[k];
-      float vx, vy;
-      sample_field(F, final_tiles_, src.x[k], src.y[k], vx, vy);
-      const float wx = src.x[k] + t * vx;
-      const float wy = src.y[k] + t * vy;
-      if (!(wx >= 0.0f && wy >= 0.0f && wx < img_w_ && wy < img_h_)) {
-        continue;
+    dst.x.resize(n_src);
+    dst.y.resize(n_src);
+    dst.t.resize(n_src);
+
+    const int n_chunks = std::clamp(
+      accumulation_bands(), 1, static_cast<int>(std::max<size_t>(1, n_src / 4096)));
+    std::vector<size_t> chunk_count(static_cast<size_t>(n_chunks), 0);
+
+    #pragma omp parallel for schedule(static) num_threads(n_chunks)
+    for (int c = 0; c < n_chunks; ++c) {
+      const size_t begin = static_cast<size_t>(c) * n_src / n_chunks;
+      const size_t end = static_cast<size_t>(c + 1) * n_src / n_chunks;
+      size_t n = begin;
+      for (size_t k = begin; k < end; ++k) {
+        const float t = src.t[k];
+        float vx, vy;
+        sample_field(F, final_tiles_, src.x[k], src.y[k], vx, vy);
+        const float wx = src.x[k] + t * vx;
+        const float wy = src.y[k] + t * vy;
+        if (!(wx >= 0.0f && wy >= 0.0f && wx < img_w_ && wy < img_h_)) {
+          continue;
+        }
+        dst.x[n] = wx;
+        dst.y[n] = wy;
+        dst.t[n] = t;
+        ++n;
       }
-      dst.x[n] = wx;
-      dst.y[n] = wy;
-      dst.t[n] = t;
-      ++n;
+      chunk_count[static_cast<size_t>(c)] = n - begin;
     }
+
+    size_t n = chunk_count[0];
+    for (int c = 1; c < n_chunks; ++c) {
+      const size_t begin = static_cast<size_t>(c) * n_src / n_chunks;
+      const size_t count = chunk_count[static_cast<size_t>(c)];
+      if (count > 0 && begin > n) {
+        std::copy(&dst.x[begin], &dst.x[begin] + count, &dst.x[n]);
+        std::copy(&dst.y[begin], &dst.y[begin] + count, &dst.y[n]);
+        std::copy(&dst.t[begin], &dst.t[begin] + count, &dst.t[n]);
+      }
+      n += count;
+    }
+
     dst.x.resize(n);
     dst.y.resize(n);
     dst.t.resize(n);
@@ -1020,81 +1278,25 @@ private:
       }
     }
 
-    // Residual-variance floor of the per-cell normal-position regression
-    // [px^2]: bounds the GLS weight of a perfectly explained cell (sub-pixel
-    // splat jitter makes anything sharper unphysical).
-    constexpr double kSigmaFloor2 = 0.25;
-
-    const float cell_gate = mass_scale_ * params_.cell_min_mass;
-    for (size_t k = 0; k < cells_.size(); ++k) {
-      const CellMoments & c = cells_[k];
-      if (!(c.w >= cell_gate)) {
+    // Per-cell normal-flow constraints do not depend on the tile grid, so they
+    // are computed once per ingest (compute_cell_normals) and here only binned
+    // and accumulated, in cell-index order as before.
+    for (size_t k = 0; k < cell_normals_.size(); ++k) {
+      const CellNormal & cn = cell_normals_[k];
+      if (!cn.valid) {
         continue;
       }
-      const double inv_w = 1.0 / c.w;
-      const double mx = c.sx * inv_w;
-      const double my = c.sy * inv_w;
-      const double mt = c.st * inv_w;
-      const double cxx = std::max(0.0, c.sxx * inv_w - mx * mx);
-      const double cxy = c.sxy * inv_w - mx * my;
-      const double cyy = std::max(0.0, c.syy * inv_w - my * my);
-      const double dx = c.sxt * inv_w - mx * mt;
-      const double dy = c.syt * inv_w - my * mt;
-      const double sc = c.stt * inv_w - mt * mt;
-      if (!(sc > kMinTimeVariance)) {
-        continue;
-      }
-
-      float spatial_lmin = 0.0f;
-      float spatial_lmax = 0.0f;
-      eig2(
-        static_cast<float>(cxx), static_cast<float>(cxy), static_cast<float>(cyy),
-        spatial_lmin, spatial_lmax);
-      if (!(spatial_lmax >= params_.cell_min_lambda)) {
-        continue;
-      }
-
-      const double dn2 = dx * dx + dy * dy;
-      if (!(dn2 > 0.0) || !std::isfinite(dn2)) {
-        continue;
-      }
-      // Normal-direction spatial variance n^T C n.
-      const double nCn =
-        (dx * (cxx * dx + cxy * dy) + dy * (cxy * dx + cyy * dy)) / dn2;
-      if (!(nCn > 1e-12)) {
-        continue;
-      }
-      // R^2 of the normal-position-vs-time regression: squared correlation
-      // between n^T x and tau. Clean moving edge -> 1, noise -> 0.
-      const double r2 = std::clamp(dn2 / (sc * nCn), 0.0, 1.0);
-      if (!(1.0 - r2 <= params_.cell_max_residual_ratio)) {
-        continue;
-      }
-      // Speed sanity: |v_n| beyond the clamp is noise, not motion.
-      const double vn = std::sqrt(dn2) / sc;
-      if (!(vn <= params_.max_speed_px_s) || !std::isfinite(vn)) {
-        continue;
-      }
-
-      // GLS precision of v_n: (mass * Var(tau)) / residual variance.
-      const double sigma2 = std::max(kSigmaFloor2, nCn * (1.0 - r2));
-      const double w = c.w * sc / sigma2;
-      if (!(w > 0.0) || !std::isfinite(w)) {
-        continue;
-      }
-
       const int tx = std::clamp(
         static_cast<int>(cell_center_x_[k] * tiles / std::max(1, img_w_)), 0, tiles - 1);
       const int ty = std::clamp(
         static_cast<int>(cell_center_y_[k] * tiles / std::max(1, img_h_)), 0, tiles - 1);
       TileAniso & a = tile_aniso_[static_cast<size_t>(ty * tiles + tx)];
-      const double inv_dn2 = 1.0 / dn2;
-      a.mxx += w * dx * dx * inv_dn2;
-      a.mxy += w * dx * dy * inv_dn2;
-      a.myy += w * dy * dy * inv_dn2;
-      a.bx += (w / sc) * dx;
-      a.by += (w / sc) * dy;
-      a.mass += c.w;
+      a.mxx += cn.mxx;
+      a.mxy += cn.mxy;
+      a.myy += cn.myy;
+      a.bx += cn.bx;
+      a.by += cn.by;
+      a.mass += cn.mass;
       a.count += 1;
     }
 

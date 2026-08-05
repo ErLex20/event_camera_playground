@@ -58,13 +58,6 @@ using moment_flow::flow::MomentFlowParams;
 constexpr int kRewarpMinTiles = 8;
 constexpr float kFocusSplatOffsetIwePx = 0.21f;
 
-struct EventSample
-{
-  float x;
-  float y;
-  int64_t t_us;
-};
-
 struct IweRenderStats
 {
   size_t input = 0;
@@ -73,6 +66,15 @@ struct IweRenderStats
 };
 
 using ProfileClock = std::chrono::steady_clock;
+
+/// Resolve the configured thread budget: 0 means "whatever OpenMP offers".
+int resolve_threads(int64_t configured)
+{
+  if (configured > 0) {
+    return static_cast<int>(configured);
+  }
+  return std::max(1, omp_get_max_threads());
+}
 
 double elapsed_ms(
   const ProfileClock::time_point & start,
@@ -242,35 +244,64 @@ void warp_events_by_field(
   int tiles,
   int img_w,
   int img_h,
+  int max_threads,
   Events & dst)
 {
+  const size_t n_src = src.size();
   dst.t_ref_us = src.t_ref_us;
-  dst.x.resize(src.size());
-  dst.y.resize(src.size());
-  dst.t.resize(src.size());
-  size_t n = 0;
-  for (size_t k = 0; k < src.size(); ++k) {
-    const float x = src.x[k];
-    const float y = src.y[k];
-    const float t = src.t[k];
-    float vx, vy;
-    sample_tile_velocity(F, tiles, tiles, img_w, img_h, x, y, vx, vy);
-    float wx = x + t * vx;
-    float wy = y + t * vy;
-    if (A != nullptr) {
-      float ax, ay;
-      sample_tile_velocity(*A, tiles, tiles, img_w, img_h, x, y, ax, ay);
-      wx += 0.5f * t * t * ax;
-      wy += 0.5f * t * t * ay;
+  dst.x.resize(n_src);
+  dst.y.resize(n_src);
+  dst.t.resize(n_src);
+
+  // Chunked warp: each chunk compacts inside its own input slice (survivors
+  // cannot exceed the slice), then the slices are closed up in order, so the
+  // output ordering matches the serial version the moments are accumulated in.
+  const int n_chunks = std::clamp(
+    max_threads, 1, static_cast<int>(std::max<size_t>(1, n_src / 4096)));
+  std::vector<size_t> chunk_count(static_cast<size_t>(n_chunks), 0);
+
+  #pragma omp parallel for schedule(static) num_threads(n_chunks)
+  for (int c = 0; c < n_chunks; ++c) {
+    const size_t begin = static_cast<size_t>(c) * n_src / n_chunks;
+    const size_t end = static_cast<size_t>(c + 1) * n_src / n_chunks;
+    size_t n = begin;
+    for (size_t k = begin; k < end; ++k) {
+      const float x = src.x[k];
+      const float y = src.y[k];
+      const float t = src.t[k];
+      float vx, vy;
+      sample_tile_velocity(F, tiles, tiles, img_w, img_h, x, y, vx, vy);
+      float wx = x + t * vx;
+      float wy = y + t * vy;
+      if (A != nullptr) {
+        float ax, ay;
+        sample_tile_velocity(*A, tiles, tiles, img_w, img_h, x, y, ax, ay);
+        wx += 0.5f * t * t * ax;
+        wy += 0.5f * t * t * ay;
+      }
+      if (!(wx >= 0.0f && wy >= 0.0f && wx < img_w && wy < img_h)) {
+        continue;
+      }
+      dst.x[n] = wx;
+      dst.y[n] = wy;
+      dst.t[n] = t;
+      ++n;
     }
-    if (!(wx >= 0.0f && wy >= 0.0f && wx < img_w && wy < img_h)) {
-      continue;
-    }
-    dst.x[n] = wx;
-    dst.y[n] = wy;
-    dst.t[n] = t;
-    ++n;
+    chunk_count[static_cast<size_t>(c)] = n - begin;
   }
+
+  size_t n = chunk_count[0];
+  for (int c = 1; c < n_chunks; ++c) {
+    const size_t begin = static_cast<size_t>(c) * n_src / n_chunks;
+    const size_t count = chunk_count[static_cast<size_t>(c)];
+    if (count > 0 && begin > n) {
+      std::copy(&dst.x[begin], &dst.x[begin] + count, &dst.x[n]);
+      std::copy(&dst.y[begin], &dst.y[begin] + count, &dst.y[n]);
+      std::copy(&dst.t[begin], &dst.t[begin] + count, &dst.t[n]);
+    }
+    n += count;
+  }
+
   dst.x.resize(n);
   dst.y.resize(n);
   dst.t.resize(n);
@@ -366,9 +397,13 @@ cv::Mat render_support_mask(
   int tiles,
   int img_w,
   int img_h,
-  bool warp)
+  bool warp,
+  int max_threads)
 {
-  const int n_threads = std::max(1, std::min(omp_get_max_threads(), 8));
+  // One full-resolution mask per thread, so the team is capped: past a handful
+  // of threads the extra allocations and the final OR cost more than the splat
+  // work they remove.
+  const int n_threads = std::clamp(max_threads, 1, 8);
   std::vector<cv::Mat> masks(static_cast<size_t>(n_threads));
   for (cv::Mat & m : masks) {
     m = cv::Mat(img_h, img_w, CV_8U, cv::Scalar(0));
@@ -545,6 +580,8 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
   const int final_tiles = 1 << (n_scales - 1);
   const float vis_speed_cap = static_cast<float>(flow_max_speed_px_s_);
 
+  const int n_threads = resolve_threads(flow_num_threads_);
+
   const auto t_select = ProfileClock::now();
   const std::size_t total = static_cast<std::size_t>(window.size());
   // Busier windows are strided down so the per-window moment update stays
@@ -558,52 +595,75 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
   const std::size_t stride = capped
     ? (total + max_solve_events - 1) / max_solve_events
     : 1;
-  std::vector<EventSample> solve_samples;
-  solve_samples.reserve(total / stride + 1);
-  std::size_t idx = 0;
-  for (const auto & e : window) {
-    if (idx++ % stride != 0) {
-      continue;
+  // Selection is positional (every stride-th event of the store), so the store
+  // is split into chunks whose kept counts become write offsets: each kept
+  // event lands at the index the serial loop would have given it. The window
+  // time bounds come from the same pass, so no separate min/max traversal is
+  // needed.
+  const int n_chunks = std::clamp(
+    n_threads, 1, static_cast<int>(std::max<std::size_t>(1, total / 4096)));
+  const auto events_begin = window.begin();
+  std::vector<std::size_t> chunk_offset(static_cast<std::size_t>(n_chunks) + 1, 0);
+  int64_t t_lo_us = std::numeric_limits<int64_t>::max();
+  int64_t t_hi_us = std::numeric_limits<int64_t>::lowest();
+
+  #pragma omp parallel for schedule(static) num_threads(n_chunks) \
+  reduction(min : t_lo_us) reduction(max : t_hi_us)
+  for (int c = 0; c < n_chunks; ++c) {
+    const std::size_t begin = static_cast<std::size_t>(c) * total / n_chunks;
+    const std::size_t end = static_cast<std::size_t>(c + 1) * total / n_chunks;
+    std::size_t kept = 0;
+    for (std::size_t k = ((begin + stride - 1) / stride) * stride; k < end; k += stride) {
+      const auto & e = events_begin[static_cast<std::ptrdiff_t>(k)];
+      if (e.x() < 0 || e.y() < 0 || e.x() >= w || e.y() >= h) {
+        continue;
+      }
+      t_lo_us = std::min(t_lo_us, e.timestamp());
+      t_hi_us = std::max(t_hi_us, e.timestamp());
+      kept += 1;
     }
-    if (e.x() < 0 || e.y() < 0 || e.x() >= w || e.y() >= h) {
-      continue;
-    }
-    solve_samples.push_back({
-      static_cast<float>(e.x()),
-      static_cast<float>(e.y()),
-      e.timestamp()});
+    chunk_offset[static_cast<std::size_t>(c) + 1] = kept;
   }
+  for (int c = 0; c < n_chunks; ++c) {
+    chunk_offset[static_cast<std::size_t>(c) + 1] +=
+      chunk_offset[static_cast<std::size_t>(c)];
+  }
+  const std::size_t n_selected = chunk_offset[static_cast<std::size_t>(n_chunks)];
   timing.select_events_ms = elapsed_ms(t_select);
-  if (solve_samples.size() < 2) {
+  if (n_selected < 2) {
     if (debug_) {
       RCLCPP_INFO(
         get_logger(),
         "Flow profile: skipped moment flow, raw_events=%zu solve_events=%zu "
         "stride=%zu select=%.3f ms",
-        total, solve_samples.size(), stride, timing.select_events_ms);
+        total, n_selected, stride, timing.select_events_ms);
     }
     return result;
   }
 
   const auto t_pack = ProfileClock::now();
-  auto by_time = [](const EventSample & a, const EventSample & b) {
-    return a.t_us < b.t_us;
-  };
-  const auto t_minmax = std::minmax_element(
-    solve_samples.begin(), solve_samples.end(), by_time);
-  const int64_t t_lo_us = t_minmax.first->t_us;
-  const int64_t t_hi_us = t_minmax.second->t_us;
   const int64_t t_ref_us = t_ref_override_us.value_or(t_lo_us + (t_hi_us - t_lo_us) / 2);
 
   Events ev;
   ev.t_ref_us = t_ref_us;
-  ev.x.reserve(solve_samples.size());
-  ev.y.reserve(solve_samples.size());
-  ev.t.reserve(solve_samples.size());
-  for (const EventSample & e : solve_samples) {
-    ev.x.push_back(e.x);
-    ev.y.push_back(e.y);
-    ev.t.push_back(static_cast<float>(e.t_us - t_ref_us) * 1e-6f);
+  ev.x.resize(n_selected);
+  ev.y.resize(n_selected);
+  ev.t.resize(n_selected);
+  #pragma omp parallel for schedule(static) num_threads(n_chunks)
+  for (int c = 0; c < n_chunks; ++c) {
+    const std::size_t begin = static_cast<std::size_t>(c) * total / n_chunks;
+    const std::size_t end = static_cast<std::size_t>(c + 1) * total / n_chunks;
+    std::size_t n = chunk_offset[static_cast<std::size_t>(c)];
+    for (std::size_t k = ((begin + stride - 1) / stride) * stride; k < end; k += stride) {
+      const auto & e = events_begin[static_cast<std::ptrdiff_t>(k)];
+      if (e.x() < 0 || e.y() < 0 || e.x() >= w || e.y() >= h) {
+        continue;
+      }
+      ev.x[n] = static_cast<float>(e.x());
+      ev.y[n] = static_cast<float>(e.y());
+      ev.t[n] = static_cast<float>(e.timestamp() - t_ref_us) * 1e-6f;
+      ++n;
+    }
   }
   timing.pack_events_ms = elapsed_ms(t_pack);
 
@@ -628,6 +688,7 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
     moment_flow_.emplace(w, h, params);
   }
   moment_flow_->set_mass_scale(1.0f / static_cast<float>(stride));
+  moment_flow_->set_max_threads(static_cast<int>(flow_num_threads_));
 
   Eigen::VectorXf warm_start;
   const bool have_prev = (prev_flow_tiles_ > 0 &&
@@ -680,7 +741,7 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
     for (int it = 0; it < static_cast<int>(flow_refine_iters_); ++it) {
       warp_events_by_field(
         ev, F, nullptr,
-        final_tiles, w, h, wev);
+        final_tiles, w, h, n_threads, wev);
       if (wev.size() < 2) {
         break;
       }
@@ -716,23 +777,27 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
   const bool need_event_mask = flow_events_enabled_;
   const bool need_render_events = need_iwe || need_event_mask;
 
-  Events render_ev;
-  if (need_render_events) {
+  // Without striding, the packed solver input already is every in-frame event
+  // of the window at this reference time: the render set is the same array, so
+  // it is aliased instead of rebuilt.
+  Events render_ev_strided;
+  if (need_render_events && stride != 1) {
     const auto t_render_events = ProfileClock::now();
-    render_ev.t_ref_us = t_ref_us;
-    render_ev.x.reserve(total);
-    render_ev.y.reserve(total);
-    render_ev.t.reserve(total);
+    render_ev_strided.t_ref_us = t_ref_us;
+    render_ev_strided.x.reserve(total);
+    render_ev_strided.y.reserve(total);
+    render_ev_strided.t.reserve(total);
     for (const auto & e : window) {
       if (e.x() < 0 || e.y() < 0 || e.x() >= w || e.y() >= h) {
         continue;
       }
-      render_ev.x.push_back(static_cast<float>(e.x()));
-      render_ev.y.push_back(static_cast<float>(e.y()));
-      render_ev.t.push_back(static_cast<float>(e.timestamp() - t_ref_us) * 1e-6f);
+      render_ev_strided.x.push_back(static_cast<float>(e.x()));
+      render_ev_strided.y.push_back(static_cast<float>(e.y()));
+      render_ev_strided.t.push_back(static_cast<float>(e.timestamp() - t_ref_us) * 1e-6f);
     }
     timing.render_events_ms = elapsed_ms(t_render_events);
   }
+  const Events & render_ev = (stride == 1) ? ev : render_ev_strided;
 
   // ---- Field-level multi-reference focus diagnostic ----
   // Warp to explicit target times in the event window coordinate system,
@@ -938,7 +1003,7 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
     const auto t_support_mask = ProfileClock::now();
     support_mask = render_support_mask(
       render_ev, F, flow_rejected ? nullptr : accel_ptr,
-      final_tiles, w, h, /*warp=*/!flow_rejected);
+      final_tiles, w, h, /*warp=*/!flow_rejected, n_threads);
     timing.support_mask_ms = elapsed_ms(t_support_mask);
 
     const auto t_events_mask = ProfileClock::now();
@@ -1024,7 +1089,7 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
       "Flow profile summary: raw_events=%zu solve_events=%zu stride=%zu span=%.3f ms "
       "setup_select=%.3f ms setup_pack=%.3f ms "
       "moment=%.3f ms render=%.3f ms total=%.3f ms achieved_hz=%.3f",
-      total, solve_samples.size(), stride, static_cast<double>(t_hi_us - t_lo_us) * 1e-3,
+      total, n_selected, stride, static_cast<double>(t_hi_us - t_lo_us) * 1e-3,
       timing.select_events_ms, timing.pack_events_ms, timing.solve_moments_ms,
       timing.render_events_ms + timing.iwe_focus_ms + timing.tile_flow_ms +
       timing.tile_debug_ms + timing.dense_flow_ms + timing.flow_debug_ms +
@@ -1034,7 +1099,7 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
 
   // End-to-end timing CSV: useful data, always logged regardless of `debug_`.
   timing.total_ms = elapsed_ms(t_total);
-  log_timing(t_lo_us, t_hi_us, solve_samples.size(), timing);
+  log_timing(t_lo_us, t_hi_us, n_selected, timing);
 
   return result;
 }

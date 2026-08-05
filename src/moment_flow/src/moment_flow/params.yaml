@@ -75,6 +75,16 @@ params:
     constraints: "Cannot be changed at runtime."
     read_only: true
     var_name: flow_max_solve_events_
+  flow_num_threads:
+    type: integer
+    default_value: 0
+    min_value: 0
+    max_value: 256
+    step: 1
+    description: "Threads used by the per-event stages (event selection and packing, moment accumulation, event warping, support mask). 0 = as many as the OpenMP runtime offers. Does not affect the estimated flow, only how the work is spread."
+    constraints: "Cannot be changed at runtime."
+    read_only: true
+    var_name: flow_num_threads_
   flow_num_scales:
     type: integer
     default_value: 5

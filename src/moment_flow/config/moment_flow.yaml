@@ -10,10 +10,11 @@
     ba_filter_dt_ms: 1.0           # BA correlation time: an event survives only if a neighbor fired within this dt
     iwe_enabled: false              # render the Image of Warped Events (alignment diagnostic / visualization)
     flow_enabled: true             # run the MomentFlow optical-flow estimator
-    flow_events_enabled: false      # publish event-supported sparse flow via a warped-event support mask
+    flow_events_enabled: false     # publish event-supported sparse flow via a warped-event support mask
     debug: false                   # disable heavy diagnostics; flow_dense, flow_tiles, flow_tile_debug, and the timing CSV are unaffected
     flow_max_window_ms: 100.0      # event time span accumulated per flow estimate (one estimate per GT row when saving)
     flow_max_solve_events: 0       # cap on events fed to the solver (uniform stride, mass gates rescaled); 0 = use them all
+    flow_num_threads: 0            # threads for the per-event stages (selection, moments, warping); 0 = all the OpenMP runtime offers
     flow_num_scales: 6     # tile-pyramid scales; final grid = 2^(N-1) per side (6 -> 32x32 tiles)
     flow_cell_size_px: 4      # moment-grid cell size [px]; larger = more events/cell, stabler fits, coarser
     flow_cell_min_mass: 3.0      # min accumulated event mass for a cell to be considered
@@ -35,7 +36,7 @@
     flow_refine_iters: 1           # max outer warped re-solve iterations (early-stops at sub-pixel residual)
     flow_iwe_scale: 4      # downscale factor for the IWE focus diagnostic (>1 = faster/lower-res; does not affect saved flow)
     flow_max_speed_px_s: 3000.0      # speed clamp [px/s] and upper saturation for the flow visualization
-    flow_save_enabled: false        # export the flow as DSEC-format 16-bit PNG
+    flow_save_enabled: false       # export the flow as DSEC-format 16-bit PNG
     flow_save_output_dir: /home/neo/workspace/logs/moment_flow/thun_00_a   # output directory for the exported flow PNGs
     flow_save_timestamp_file: /home/neo/workspace/logs/dsec/thun_00_a/optical_flow_forward/thun_00_a_optical_flow_forward_timestamps.txt   # DSEC (from_us, to_us, index) save schedule
     flow_save_clear_output: true   # delete stale PNGs in the output dir before saving

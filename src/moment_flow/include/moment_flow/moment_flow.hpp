@@ -490,6 +490,7 @@ private:
   bool    debug_;
   double  flow_max_window_ms_;
   int64_t flow_max_solve_events_;
+  int64_t flow_num_threads_;
   int64_t flow_num_scales_;
   int64_t flow_cell_size_px_;
   double  flow_cell_min_mass_;

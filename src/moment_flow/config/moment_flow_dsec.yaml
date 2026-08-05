@@ -14,6 +14,7 @@
     debug: false                   # disable debug images/logging/diagnostics-only metrics for lean benchmark runs (flow_dense/flow_tiles and the timing CSV are unaffected)
     flow_max_window_ms: 100.0      # event time span accumulated per flow estimate (one estimate per GT row when saving)
     flow_max_solve_events: 0       # 0 = no cap: the solver uses every event in the window
+    flow_num_threads: 0            # threads for the per-event stages; 0 = all available (lower it to bound CPU use on embedded targets)
     flow_num_scales: 6     # tile-pyramid scales; final grid = 2^(N-1) per side (6 -> 32x32 tiles)
     flow_cell_size_px: 4      # moment-grid cell size [px]; larger = more events/cell, stabler fits, coarser
     flow_cell_min_mass: 3.0      # min accumulated event mass for a cell to be considered
