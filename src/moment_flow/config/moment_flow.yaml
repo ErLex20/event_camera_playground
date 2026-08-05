@@ -13,7 +13,8 @@
     flow_events_enabled: false      # publish event-supported sparse flow via a warped-event support mask
     debug: false                   # disable heavy diagnostics; flow_dense, flow_tiles, flow_tile_debug, and the timing CSV are unaffected
     flow_max_window_ms: 100.0      # event time span accumulated per flow estimate (one estimate per GT row when saving)
-    flow_num_scales: 6      # tile-pyramid scales; final grid = 2^(N-1) per side (6 -> 32x32 tiles)
+    flow_max_solve_events: 0       # cap on events fed to the solver (uniform stride, mass gates rescaled); 0 = use them all
+    flow_num_scales: 6     # tile-pyramid scales; final grid = 2^(N-1) per side (6 -> 32x32 tiles)
     flow_cell_size_px: 4      # moment-grid cell size [px]; larger = more events/cell, stabler fits, coarser
     flow_cell_min_mass: 3.0      # min accumulated event mass for a cell to be considered
     flow_cell_min_lambda: 0.0005      # min dominant eigenvalue of the cell spatial covariance (rejects ill-posed cells)

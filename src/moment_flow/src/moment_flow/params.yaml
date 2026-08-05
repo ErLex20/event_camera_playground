@@ -65,6 +65,16 @@ params:
     constraints: "Must be positive."
     read_only: false
     var_name: flow_max_window_ms_
+  flow_max_solve_events:
+    type: integer
+    default_value: 500000
+    min_value: 0
+    max_value: 100000000
+    step: 1
+    description: "Cap on the events fed to the moment solver: busier windows are uniformly strided down and the mass gates are rescaled accordingly. 0 disables the cap."
+    constraints: "Cannot be changed at runtime."
+    read_only: true
+    var_name: flow_max_solve_events_
   flow_num_scales:
     type: integer
     default_value: 5

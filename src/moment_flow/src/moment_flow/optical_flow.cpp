@@ -53,10 +53,6 @@ namespace
 using moment_flow::flow::Events;
 using moment_flow::flow::MomentFlowParams;
 
-// Busier windows are strided down so the per-window moment update stays
-// bounded. The tile/cell moment statistics saturate well below this count;
-// keeping it small bounds the cost of every warped re-solve iteration.
-constexpr std::size_t kMaxSolveEvents = 500000;
 // Tile grids at or above this size re-warp the events by the composed field
 // before solving (per-scale coarse-to-fine alignment).
 constexpr int kRewarpMinTiles = 8;
@@ -551,7 +547,17 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
 
   const auto t_select = ProfileClock::now();
   const std::size_t total = static_cast<std::size_t>(window.size());
-  const std::size_t stride = (total + kMaxSolveEvents - 1) / kMaxSolveEvents;
+  // Busier windows are strided down so the per-window moment update stays
+  // bounded: every warped re-solve iteration re-ingests the whole selection, so
+  // the cap trades moment-statistics noise for a hard latency bound on
+  // embedded targets. The mass gates are rescaled by 1/stride below, hence the
+  // decimation is unbiased in expectation.
+  const std::size_t max_solve_events = static_cast<std::size_t>(
+    std::max<int64_t>(0, flow_max_solve_events_));
+  const bool capped = max_solve_events > 0 && total > max_solve_events;
+  const std::size_t stride = capped
+    ? (total + max_solve_events - 1) / max_solve_events
+    : 1;
   std::vector<EventSample> solve_samples;
   solve_samples.reserve(total / stride + 1);
   std::size_t idx = 0;
