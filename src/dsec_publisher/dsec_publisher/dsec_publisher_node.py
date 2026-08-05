@@ -30,11 +30,14 @@ from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
 
 from event_camera_msgs.msg import EventPacket
 from geometry_msgs.msg import TransformStamped
-from sensor_msgs.msg import Imu
+from sensor_msgs.msg import Imu, PointCloud2
+from sensor_msgs_py.point_cloud2 import create_cloud_xyz32
+from std_msgs.msg import Header
 from tf2_ros import StaticTransformBroadcaster
 
 from dsec_publisher.event_slicer import EventSlicer
 from dsec_publisher.rosbag1_imu_reader import Rosbag1Error, Rosbag1ImuReader
+from dsec_publisher.rosbag1_pointcloud_reader import Rosbag1PointCloudReader
 
 
 def _as_bool(value) -> bool:
@@ -71,6 +74,12 @@ class DsecPublisher(Node):
         self.lidar_frame_id = self.declare_parameter('lidar_frame_id', 'lidar').value
         self.cam_to_imu_yaml = self.declare_parameter('cam_to_imu_yaml', '').value
         self.cam_to_lidar_yaml = self.declare_parameter('cam_to_lidar_yaml', '').value
+        self.cam_to_cam_yaml = self.declare_parameter('cam_to_cam_yaml', '').value
+        self.publish_lidar = _as_bool(self.declare_parameter('publish_lidar', True).value)
+        self.lidar_topic = self.declare_parameter('lidar_topic', 'lidar/points').value
+        self.lidar_bag_topic = self.declare_parameter(
+            'lidar_bag_topic', '/velodyne_points').value
+        self.lidar_bag = self.declare_parameter('lidar_bag', '').value
         # Reliable + deep queue = lossless offline replay. EVO is compute-bound
         # and far slower than DSEC's realtime event rate; with BestEffort it
         # would drop ~98% of packets and never track. Reliable lets EVO buffer
@@ -111,6 +120,13 @@ class DsecPublisher(Node):
         self.total_imu = 0
         if self.publish_imu:
             self._init_imu_publisher(qos)
+        self.lidar_pub = None
+        self.lidar_reader = None
+        self.lidar_iter = None
+        self.next_lidar = None
+        self.total_lidar = 0
+        if self.publish_lidar:
+            self._init_lidar_publisher(qos)
         if self.publish_tf:
             self._publish_static_tfs()
 
@@ -153,6 +169,10 @@ class DsecPublisher(Node):
 
     def _default_cam_to_lidar_yaml(self) -> str:
         return str(Path(self._lidar_imu_root()) / 'data' / self.full_sequence / 'cam_to_lidar.yaml')
+
+    def _default_cam_to_cam_yaml(self) -> str:
+        dsec_root = Path(self.events_h5).parent.parent.parent
+        return str(dsec_root / 'cam_to_cam.yaml')
 
     def _init_imu_publisher(self, qos: QoSProfile) -> None:
         self.imu_bag = self._resolve_path(self.imu_bag, self._default_imu_bag())
@@ -218,6 +238,57 @@ class DsecPublisher(Node):
         self.imu_pub.publish(msg)
         self.total_imu += 1
 
+    def _default_lidar_bag(self) -> str:
+        return self._default_imu_bag()
+
+    def _init_lidar_publisher(self, qos: QoSProfile) -> None:
+        self.lidar_bag = self._resolve_path(self.lidar_bag, self._default_lidar_bag())
+        if not os.path.isfile(self.lidar_bag):
+            raise FileNotFoundError(f'LiDAR bag not found: {self.lidar_bag}')
+
+        try:
+            self.lidar_reader = Rosbag1PointCloudReader(self.lidar_bag, self.lidar_bag_topic)
+        except Rosbag1Error as exc:
+            raise RuntimeError(f'Failed to open LiDAR bag {self.lidar_bag}: {exc}') from exc
+
+        self.lidar_pub = self.create_publisher(PointCloud2, self.lidar_topic, qos)
+        self._reset_lidar_stream()
+        self.get_logger().info(
+            f"LiDAR replay: '{self.lidar_bag}' topic '{self.lidar_bag_topic}' "
+            f"-> '{self.lidar_topic}' frame '{self.lidar_frame_id}' "
+            f"within [{self.t_start_us}, {self.t_final_us}] us.")
+
+    def _reset_lidar_stream(self) -> None:
+        if self.lidar_reader is None:
+            return
+        self.lidar_iter = self.lidar_reader.iter_range(self.t_start_us, self.t_final_us + 1)
+        self._advance_lidar()
+
+    def _advance_lidar(self) -> None:
+        if self.lidar_iter is None:
+            self.next_lidar = None
+            return
+        try:
+            self.next_lidar = next(self.lidar_iter)
+        except StopIteration:
+            self.next_lidar = None
+
+    def _publish_lidar_until(self, t_end_us: int) -> None:
+        if self.lidar_pub is None:
+            return
+        while self.next_lidar is not None and self.next_lidar.stamp_us < t_end_us:
+            self._publish_lidar(self.next_lidar)
+            self._advance_lidar()
+
+    def _publish_lidar(self, scan) -> None:
+        header = Header()
+        header.stamp.sec = int(scan.stamp_sec)
+        header.stamp.nanosec = int(scan.stamp_nanosec)
+        header.frame_id = self.lidar_frame_id or scan.frame_id
+        msg = create_cloud_xyz32(header, scan.points_xyz)
+        self.lidar_pub.publish(msg)
+        self.total_lidar += 1
+
     def _publish_static_tfs(self) -> None:
         transforms = []
 
@@ -232,12 +303,21 @@ class DsecPublisher(Node):
 
         cam_to_lidar_yaml = self._resolve_path(
             self.cam_to_lidar_yaml, self._default_cam_to_lidar_yaml())
-        if os.path.isfile(cam_to_lidar_yaml):
-            matrix = self._load_matrix(cam_to_lidar_yaml, 'T_lidar_camRect1')
+        cam_to_cam_yaml = self._resolve_path(
+            self.cam_to_cam_yaml, self._default_cam_to_cam_yaml())
+        if os.path.isfile(cam_to_lidar_yaml) and os.path.isfile(cam_to_cam_yaml):
+            # cam_to_lidar.yaml only gives T_lidar_camRect1 (lidar <- rectified
+            # *frame* camera). self.frame_id ("camera_0" by default) is the
+            # rectified *event* camera (camRect0), so it must be chained
+            # through the stereo rectification in cam_to_cam.yaml:
+            #   T_lidar_camRect0 = T_lidar_camRect1 . T_camRect1_camRect0
+            matrix = self._load_lidar_to_camrect0_matrix(cam_to_lidar_yaml, cam_to_cam_yaml)
             transforms.append(self._transform_from_matrix(
                 self.lidar_frame_id, self.frame_id, matrix))
         else:
-            self.get_logger().warn(f'Camera-to-lidar calibration not found: {cam_to_lidar_yaml}')
+            self.get_logger().warn(
+                f'Camera-to-lidar calibration not found: {cam_to_lidar_yaml} '
+                f'or {cam_to_cam_yaml}')
 
         if transforms:
             self.static_tf_broadcaster = StaticTransformBroadcaster(self)
@@ -255,6 +335,36 @@ class DsecPublisher(Node):
         if matrix.shape != (4, 4):
             raise ValueError(f'{key} in {path} must be a 4x4 matrix')
         return matrix
+
+    def _load_lidar_to_camrect0_matrix(
+            self, cam_to_lidar_yaml: str, cam_to_cam_yaml: str) -> np.ndarray:
+        """T_lidar_camRect0 = T_lidar_camRect1 . T_camRect1_camRect0.
+
+        DSEC's cam_to_cam.yaml never states T_camRect1_camRect0 directly: it
+        only gives the raw stereo extrinsic T_10 (cam0 -> cam1) and the two
+        rectification rotations R_rect0/R_rect1 (raw -> rectified per camera).
+        Since rectification is a pure rotation, T_camRect1_camRect0 is
+        derived as R_rect1 . T_10 . R_rect0^{-1} (composing the rotation) with
+        translation R_rect1 . t_10.
+        """
+        T_lidar_camRect1 = self._load_matrix(cam_to_lidar_yaml, 'T_lidar_camRect1')
+
+        with open(cam_to_cam_yaml, 'r', encoding='utf-8') as f:
+            cam_to_cam = yaml.safe_load(f)
+        extrinsics = cam_to_cam['extrinsics']
+        R_rect0 = np.asarray(extrinsics['R_rect0'], dtype=np.float64)
+        R_rect1 = np.asarray(extrinsics['R_rect1'], dtype=np.float64)
+        T_10 = np.asarray(extrinsics['T_10'], dtype=np.float64)
+        if R_rect0.shape != (3, 3) or R_rect1.shape != (3, 3) or T_10.shape != (4, 4):
+            raise ValueError(f'Unexpected extrinsics shapes in {cam_to_cam_yaml}')
+
+        R_10 = T_10[:3, :3]
+        t_10 = T_10[:3, 3]
+        T_camRect1_camRect0 = np.eye(4, dtype=np.float64)
+        T_camRect1_camRect0[:3, :3] = R_rect1 @ R_10 @ R_rect0.T
+        T_camRect1_camRect0[:3, 3] = R_rect1 @ t_10
+
+        return T_lidar_camRect1 @ T_camRect1_camRect0
 
     def _transform_from_matrix(self, parent: str, child: str, matrix: np.ndarray):
         quat = self._quaternion_from_matrix(matrix[:3, :3])
@@ -334,10 +444,12 @@ class DsecPublisher(Node):
                 self.cursor_us = self.t_start_us
                 self.seq = 0
                 self._reset_imu_stream()
+                self._reset_lidar_stream()
             else:
                 self.get_logger().info(
                     f'Reached end of sequence ({self.total_events} events, '
-                    f'{self.total_imu} IMU messages published). '
+                    f'{self.total_imu} IMU messages, '
+                    f'{self.total_lidar} LiDAR scans published). '
                     f'Shutting down.')
                 self.timer.cancel()
                 rclpy.shutdown()
@@ -347,6 +459,7 @@ class DsecPublisher(Node):
         t1 = min(self.cursor_us + self.window_us, self.t_final_us + 1)
         self.cursor_us += self.window_us
         self._publish_imu_until(t1)
+        self._publish_lidar_until(t1)
 
         ev = self.slicer.get_events(t0, t1)
         if ev is None or ev['t'].size == 0:

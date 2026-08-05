@@ -21,7 +21,7 @@ def generate_launch_description():
 
     ld.add_action(DeclareLaunchArgument('namespace', default_value=''))
     ld.add_action(DeclareLaunchArgument('dsec_root', default_value=default_dsec_root))
-    ld.add_action(DeclareLaunchArgument('sequence', default_value='zurich_city_10_a'))
+    ld.add_action(DeclareLaunchArgument('sequence', default_value='thun_00_a'))
     ld.add_action(DeclareLaunchArgument(
         'events_h5',
         default_value=PathJoinSubstitution([dsec_root, sequence, 'events_left', 'events.h5'])))

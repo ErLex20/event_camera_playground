@@ -21,3 +21,8 @@
     lidar_frame_id: "lidar"
     cam_to_imu_yaml: ""
     cam_to_lidar_yaml: ""
+    cam_to_cam_yaml: ""
+    publish_lidar: true
+    lidar_topic: "lidar/points"
+    lidar_bag_topic: "/velodyne_points"
+    lidar_bag: ""
