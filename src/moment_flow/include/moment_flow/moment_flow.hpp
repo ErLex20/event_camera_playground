@@ -505,6 +505,8 @@ private:
   double  flow_reg_lambda_;
   int64_t flow_reg_sweeps_;
   double  flow_reg_sigma_;
+  int64_t flow_smooth_sweeps_;
+  double  flow_smooth_beta_;
   bool    flow_refine_enabled_;
   int64_t flow_refine_iters_;
   int64_t flow_iwe_scale_;

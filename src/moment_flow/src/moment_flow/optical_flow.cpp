@@ -768,7 +768,9 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
     // last residual pass.
     std::vector<float> smooth_conf;
     moment_flow_->final_tile_confidence(smooth_conf);
-    smooth_field_confidence(F, smooth_conf, final_tiles, 4, 0.5f);
+    smooth_field_confidence(
+      F, smooth_conf, final_tiles,
+      static_cast<int>(flow_smooth_sweeps_), static_cast<float>(flow_smooth_beta_));
   }
   timing.solve_moments_ms = elapsed_ms(t_moment);
   const auto profile = moment_flow_->profile();
