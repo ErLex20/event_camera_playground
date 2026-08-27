@@ -202,6 +202,7 @@ void EventDetector::prepare_flow_saving()
   flow_save_windows_.clear();
   flow_save_next_window_ = 0;
   flow_save_sequence_index_ = 0;
+  flow_save_prev_estimate_end_us_ = -1;
   flow_save_prepared_ = false;
 
   if (!flow_save_enabled_) {

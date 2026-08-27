@@ -195,6 +195,13 @@ params:
     constraints: "Must be non-negative."
     read_only: false
     var_name: flow_prior_lambda_
+  flow_track_enabled:
+    type: bool
+    default_value: true
+    description: "Seed each window's coarse-to-fine solve with the tracked field of the previous window. Disabling it makes every window independent, which separates the temporal prior from the multiscale prior that flow_prior_lambda also controls."
+    constraints: "Cannot be changed at runtime."
+    read_only: true
+    var_name: flow_track_enabled_
   flow_reg_lambda:
     type: double
     default_value: 0.0
@@ -310,6 +317,13 @@ params:
     constraints: "Only .png files in the output directory are removed."
     read_only: true
     var_name: flow_save_clear_output_
+  flow_save_gap_fill:
+    type: bool
+    default_value: true
+    description: "Keep solving ordinary windows over the stream skipped between non-adjacent scheduled export windows, discarding their output, so the tracked field stays as fresh as it is on a contiguous schedule."
+    constraints: "Only applies between two scheduled windows, and only when the skipped span exceeds half of flow_max_window_ms. On the contiguous DSEC training schedule it never triggers."
+    read_only: true
+    var_name: flow_save_gap_fill_
   flow_save_first_index:
     type: integer
     default_value: 2

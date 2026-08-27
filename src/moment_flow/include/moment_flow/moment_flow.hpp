@@ -480,6 +480,13 @@ private:
   int64_t flow_save_sequence_index_{0};
   bool flow_save_prepared_{false};
 
+  /**
+   * End of the last scheduled estimation interval, or a negative value while no
+   * scheduled window has been closed yet. Gap filling needs it to measure how
+   * much of the stream sits between two exports.
+   */
+  int64_t flow_save_prev_estimate_end_us_{-1};
+
   /* Node parameters. */
   bool    autostart_;
   bool    ba_filter_enabled_;
@@ -509,12 +516,14 @@ private:
   double  flow_smooth_beta_;
   bool    flow_refine_enabled_;
   int64_t flow_refine_iters_;
+  bool flow_track_enabled_;
   int64_t flow_iwe_scale_;
   double  flow_max_speed_px_s_;
   bool flow_save_enabled_;
   std::string flow_save_output_dir_;
   std::string flow_save_timestamp_file_;
   bool flow_save_clear_output_;
+  bool flow_save_gap_fill_;
   int64_t flow_save_first_index_;
   int64_t flow_save_index_step_;
   std::string timing_log_path_;

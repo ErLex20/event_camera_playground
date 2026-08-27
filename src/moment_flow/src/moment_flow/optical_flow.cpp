@@ -53,9 +53,6 @@ namespace
 using moment_flow::flow::Events;
 using moment_flow::flow::MomentFlowParams;
 
-// Tile grids at or above this size re-warp the events by the composed field
-// before solving (per-scale coarse-to-fine alignment).
-constexpr int kRewarpMinTiles = 8;
 constexpr float kFocusSplatOffsetIwePx = 0.21f;
 
 struct IweRenderStats
@@ -691,7 +688,11 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
   moment_flow_->set_max_threads(static_cast<int>(flow_num_threads_));
 
   Eigen::VectorXf warm_start;
-  const bool have_prev = (prev_flow_tiles_ > 0 &&
+  // Without the tracked field the window is solved independently, which is what
+  // separates the temporal prior from the multiscale one: the coarser-level
+  // prior still applies, only the carry-over from the previous window is gone.
+  const bool have_prev = (flow_track_enabled_ &&
+    prev_flow_tiles_ > 0 &&
     prev_flow_field_.size() == 2 * prev_flow_tiles_ * prev_flow_tiles_);
   if (have_prev) {
     warm_start = (prev_flow_tiles_ == final_tiles)
@@ -711,7 +712,7 @@ EventDetector::FlowResult EventDetector::solve_flow_moment(
   // within the window (dense texture -> data term biased toward zero).
   Eigen::VectorXf F(moment_flow_->num_vars());
   moment_flow_->set_prior_scale(0.5f);
-  moment_flow_->solve_coarse_to_fine(ev, warm_start, F, kRewarpMinTiles);
+  moment_flow_->solve_coarse_to_fine(ev, warm_start, F);
   moment_flow_->set_prior_scale(1.0f);
   sanitize_field(F);
 

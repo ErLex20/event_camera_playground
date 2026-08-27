@@ -32,7 +32,7 @@ def generate_launch_description():
     ld = LaunchDescription()
 
     # Build config file path
-    config = os.path.join(
+    default_config = os.path.join(
         get_package_share_directory('moment_flow'),
         'config',
         'moment_flow.yaml'
@@ -52,6 +52,14 @@ def generate_launch_description():
         'namespace',
         default_value='')
     ld.add_action(ns_launch_arg)
+
+    # Overriding the parameter file keeps ablation variants out of the tracked
+    # deployment config: reproducibility through configuration alone
+    config = LaunchConfiguration('config')
+    config_launch_arg = DeclareLaunchArgument(
+        'config',
+        default_value=default_config)
+    ld.add_action(config_launch_arg)
 
     container = ComposableNodeContainer(
         name="metavision_driver_container",

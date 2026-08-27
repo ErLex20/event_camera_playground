@@ -336,21 +336,15 @@ public:
   }
 
   /**
-   * Coarse-to-fine solve with per-scale event re-warping (residual
-   * formulation). The composed field G starts from the warm start; every
-   * scale estimates a residual w.r.t. the events warped by the current G.
-   * Once the tile size approaches the residual displacement
-   * (tiles >= rewarp_min_tiles), the accumulated residual is folded into G
-   * and the events are re-warped before the scale is solved, so each fine
-   * scale sees an (almost) motion-compensated cloud — the moment-domain
-   * analogue of coarse-to-fine CMax alignment. F_out follows the same warp
-   * convention as solve().
+   * Coarse-to-fine solve (residual formulation). The composed field G starts
+   * from the warm start; every scale estimates a residual with respect to the
+   * events warped by the current G, and each level takes its fallback from the
+   * level above. F_out follows the same warp convention as solve().
    */
   void solve_coarse_to_fine(
     const Events & events,
     const Eigen::VectorXf & warm_start,
-    Eigen::VectorXf & F_out,
-    int rewarp_min_tiles = 8)
+    Eigen::VectorXf & F_out)
   {
     using Clock = std::chrono::steady_clock;
     const auto t_total = Clock::now();
@@ -401,51 +395,10 @@ public:
       Eigen::VectorXf & fallback = scale_fallback_[static_cast<size_t>(l)];
       Eigen::VectorXf & field = scale_fields_[static_cast<size_t>(l)];
 
-      // Re-warping pays off only when the residual accumulated on the
-      // current ingest displaces events by a noticeable fraction of this
-      // scale's tile: below that the dispersion regression is already
-      // unbiased. In steady tracking the residual is sub-pixel, so no extra
-      // ingest ever happens; on cold start / motion changes the fine scales
-      // re-align automatically.
-      bool rewarp = false;
-      if (l > 0 && tiles >= std::max(2, rewarp_min_tiles)) {
-        const int prev_tiles_n = (1 << (l - 1)) * (1 << (l - 1));
-        const Eigen::VectorXf & prev = scale_fields_[static_cast<size_t>(l - 1)];
-        const float tile_px = static_cast<float>(std::min(img_w_, img_h_)) / tiles;
-        const float disp_threshold = std::max(2.0f, 0.5f * tile_px);
-        int over = 0;
-        for (int k = 0; k < prev_tiles_n; ++k) {
-          const float disp =
-            std::hypot(prev[2 * k], prev[2 * k + 1]) * t_absmax;
-          if (disp > disp_threshold) {
-            over += 1;
-          }
-        }
-        // A handful of outlier tiles must not force a re-warp (their noise
-        // would be baked into the event positions of every finer scale);
-        // a genuine cold start / motion change moves a broad share of tiles.
-        rewarp = over >= std::max(2, prev_tiles_n / 10);
-      }
-
+      // Each level takes its fallback from the level above. Re-warping the
+      // events between levels was measured to be dormant in slow scenes and
+      // unpredictable in fast ones, so the pyramid propagates the field only.
       if (l == 0) {
-        set_zero(fallback);
-      } else if (rewarp) {
-        // Fold the residual accumulated on the current ingest into G, then
-        // re-warp so this scale solves against a compensated cloud.
-        const int prev_tiles = 1 << (l - 1);
-        Eigen::VectorXf & prev_field = scale_fields_[static_cast<size_t>(l - 1)];
-        for (int j = 0; j < final_tiles_; ++j) {
-          for (int i = 0; i < final_tiles_; ++i) {
-            const float px = (static_cast<float>(i) + 0.5f) / final_tiles_ * img_w_;
-            const float py = (static_cast<float>(j) + 0.5f) / final_tiles_ * img_h_;
-            float vx, vy;
-            sample_field(prev_field, prev_tiles, px, py, vx, vy);
-            const int k = j * final_tiles_ + i;
-            G[2 * k] += vx;
-            G[2 * k + 1] += vy;
-          }
-        }
-        ingest_current(true);
         set_zero(fallback);
       } else {
         resample_field(

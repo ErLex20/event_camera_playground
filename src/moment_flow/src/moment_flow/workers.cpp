@@ -224,6 +224,25 @@ EventStore EventDetector::accumulate_scheduled_flow(
     packet = EventStore();
   };
 
+  // Solve one window and throw the result away. A non-contiguous export schedule
+  // (the DSEC-Flow test set samples at 2 Hz, leaving ~400 ms between the end of
+  // one scheduled interval and the start of the next) would otherwise leave the
+  // tracked field, and with it the prior and aperture fallbacks, several hundred
+  // milliseconds stale by the time the next export is solved. Running the skipped
+  // stream keeps the warm start exactly as fresh as it is on the contiguous
+  // training schedule, so the export cadence no longer influences the estimate.
+  auto close_filler_window = [&]() {
+    flush_packet();
+    if (flow_accum_.size() >= 2) {
+      const int64_t mid_us =
+        flow_accum_first_us_ + (flow_accum_last_us_ - flow_accum_first_us_) / 2;
+      solve_flow_moment(flow_accum_, mid_us);
+    }
+    flow_accum_ = EventStore();
+    flow_accum_first_us_ = std::numeric_limits<int64_t>::max();
+    flow_accum_last_us_ = std::numeric_limits<int64_t>::lowest();
+  };
+
   auto close_current_window = [&]() {
     flush_packet();
     if (flow_save_next_window_ >= flow_save_windows_.size()) {
@@ -280,8 +299,22 @@ EventStore EventDetector::accumulate_scheduled_flow(
     flow_accum_ = EventStore();
     flow_accum_first_us_ = std::numeric_limits<int64_t>::max();
     flow_accum_last_us_ = std::numeric_limits<int64_t>::lowest();
+    flow_save_prev_estimate_end_us_ = estimate_to;
     flow_save_next_window_ += 1;
   };
+
+  // Whether the accumulators currently hold gap events is derived from their own
+  // timestamps rather than tracked in a flag: a gap spans many packets, so a
+  // per-call flag would be lost across chunk boundaries and pre-window events
+  // would leak into the next export.
+  auto holds_gap_events = [this](int64_t from_us) {
+      return flow_accum_first_us_ != std::numeric_limits<int64_t>::max() &&
+             flow_accum_first_us_ < from_us;
+    };
+
+  const int64_t window_us = std::max<int64_t>(
+    1,
+    static_cast<int64_t>(std::llround(flow_max_window_ms_ * 1000.0)));
 
   for (const auto & event : events) {
     const int64_t t_us = event.timestamp();
@@ -299,10 +332,53 @@ EventStore EventDetector::accumulate_scheduled_flow(
     const FlowSaveWindow & window = flow_save_windows_[flow_save_next_window_];
     const int64_t estimate_to = estimate_to_us(window);
     if (t_us < window.from_us) {
+      // Consecutive scheduled intervals on the DSEC training schedule abut to
+      // within a microsecond, so only a skipped span worth a fair fraction of a
+      // window is worth solving: filling those would add near-empty solves and
+      // change the contiguous-schedule result.
+      // A negative previous end means nothing has been solved yet, which is the
+      // stream preceding the very first scheduled interval. That is the longest
+      // skipped span of the run and the one where a warm start is worth most, so
+      // it is filled like any other gap: the length test is simply skipped,
+      // since there is no previous window to measure against. Treating it as
+      // "not worth filling" made the first export a cold start no matter how
+      // much stream preceded it -- invisible on the training schedule, whose
+      // ground truth begins 0.1 s in, but 41 s on interlaken_00_b and 54 s on
+      // zurich_city_14_c of the test split.
+      const bool no_previous_estimate = flow_save_prev_estimate_end_us_ < 0;
+      if (!flow_save_gap_fill_ ||
+        (!no_previous_estimate &&
+        window.from_us - flow_save_prev_estimate_end_us_ < window_us / 2))
+      {
+        continue;
+      }
+      packet.push_back(event);
+      flow_accum_first_us_ = std::min(flow_accum_first_us_, t_us);
+      flow_accum_last_us_ = std::max(flow_accum_last_us_, t_us);
+      if (flow_accum_last_us_ - flow_accum_first_us_ >= window_us) {
+        close_filler_window();
+      }
       continue;
     }
     if (t_us >= estimate_to) {
       continue;
+    }
+    // The remainder of the skipped span must not survive into the scheduled
+    // accumulation. Solving it is only worthwhile if it spans a fair fraction of
+    // a window: the moment model needs temporal baseline, and a sliver of a few
+    // milliseconds has almost none, so Var(tau) collapses and v = d/s explodes.
+    // Such a window would then poison the tracked field of the very export it
+    // precedes, so a too-short remainder is discarded instead of solved.
+    if (holds_gap_events(window.from_us)) {
+      const int64_t span = flow_accum_last_us_ - flow_accum_first_us_;
+      if (span >= window_us / 2) {
+        close_filler_window();
+      } else {
+        packet = EventStore();
+        flow_accum_ = EventStore();
+        flow_accum_first_us_ = std::numeric_limits<int64_t>::max();
+        flow_accum_last_us_ = std::numeric_limits<int64_t>::lowest();
+      }
     }
 
     packet.push_back(event);
